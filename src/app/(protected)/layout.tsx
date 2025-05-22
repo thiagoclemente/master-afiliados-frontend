@@ -13,8 +13,7 @@ export default function ProtectedLayout({
   const pathname = usePathname();
 
   const navigation = [
-    { name: "Home", href: "/home" },
-    { name: "Vídeos", href: "/videos" },
+    { name: "Pacotes", href: "/packs" },
     { name: "Artes", href: "/arts" },
     { name: "Stickers", href: "/stickers" },
   ];
