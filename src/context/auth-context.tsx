@@ -9,6 +9,7 @@ interface User {
   username: string;
   email: string;
   jwt: string;
+  documentId: string;
 }
 
 interface AuthContextType {
@@ -72,6 +73,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         username: data.user.username,
         email: data.user.email,
         jwt: data.jwt,
+        documentId: data.user.documentId,
       };
 
       console.log(userData);

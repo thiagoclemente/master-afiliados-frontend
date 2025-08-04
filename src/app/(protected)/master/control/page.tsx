@@ -1,171 +1,159 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { 
   Plus, 
   DollarSign,
   TrendingUp,
   TrendingDown,
   BarChart3,
-  Trash2,
   ChevronLeft,
   ChevronRight,
   Target,
   ShoppingCart,
   Eye,
-  Lock
-} from "lucide-react";
-
-interface Campaign {
-  id: string;
-  name: string;
-  startDate: string;
-  endDate: string;
-  investment: number;
-  sales: number;
-  clicks: number;
-  conversions: number;
-  platform: string;
-  isActive: boolean;
-  createdAt: string;
-}
-
-interface MonthlySummary {
-  investment: number;
-  sales: number;
-  profit: number;
-  roi: number;
-}
+  Lock,
+  MousePointer,
+  CheckCircle,
+  XCircle,
+  Loader2
+} from 'lucide-react';
+import { 
+  controlMasterService,
+  UserAd,
+  MonthlySummary,
+  CreateAdRequest
+} from '@/services/control-master.service';
+import { useAuth } from '@/context/auth-context';
 
 export default function ControlMasterPage() {
-  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [ads, setAds] = useState<UserAd[]>([]);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [hasAccess, setHasAccess] = useState(false); // Mock subscription check
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [hasAccess, setHasAccess] = useState(true); // TODO: Implement subscription check
   
-  const [newCampaign, setNewCampaign] = useState({
-    name: "",
-    platform: "",
-    investment: "",
-    startDate: "",
-    endDate: ""
+  const [newAd, setNewAd] = useState({
+    name: '',
+    date: ''
   });
 
+  const router = useRouter();
+  const { logout, user } = useAuth();
+
   useEffect(() => {
-    // Mock subscription check
-    const checkSubscription = () => {
-      // In real app, this would check user subscription
-      setHasAccess(true); // Set to false to see paywall
-      if (hasAccess) {
-        loadCampaigns();
+    loadAds();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentMonth]);
+
+  // Debug effect to monitor ads state
+  useEffect(() => {
+    console.log('Ads state updated:', ads);
+    console.log('Ads length:', ads.length);
+  }, [ads]);
+
+  const showSuccessMessage = (message: string) => {
+    setSuccessMessage(message);
+    setTimeout(() => setSuccessMessage(null), 5000);
+  };
+
+  const showErrorMessage = (message: string) => {
+    setError(message);
+    setTimeout(() => setError(null), 5000);
+  };
+
+  const loadAds = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      // Get start and end dates for the current month
+      const startDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
+      const endDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
+      
+      // Format dates as YYYY-MM-DD
+      const startDateStr = startDate.toISOString().split('T')[0];
+      const endDateStr = endDate.toISOString().split('T')[0];
+      
+      console.log('Loading ads for month:', currentMonth);
+      console.log('Date range:', startDateStr, 'to', endDateStr);
+      
+      // For now, let's get all ads without date filter to see if we get any data
+      const queryParams = `populate=items&sort=createdAt:DESC&pagination[page]=1&pagination[pageSize]=100`;
+      
+      console.log('Query params:', queryParams);
+      
+      const adsData = await controlMasterService.getUserAds(queryParams);
+      console.log('Ads data received:', adsData);
+      console.log('Ads count:', adsData.length);
+      
+      setAds(adsData);
+    } catch (err: unknown) {
+      console.error('Error in loadAds:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Erro ao carregar campanhas.';
+      if (errorMessage === "Authentication failed" || errorMessage === "Authentication required") {
+        logout();
+        router.push("/login");
+        return;
       }
-    };
-    checkSubscription();
-  }, [hasAccess]);
+      showErrorMessage(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-  const loadCampaigns = () => {
-    // Mock data
-    const mockCampaigns: Campaign[] = [
-      {
-        id: "1",
-        name: "Campanha Instagram Stories",
-        startDate: "2024-11-01",
-        endDate: "2024-11-30",
-        investment: 2500,
-        sales: 4200,
-        clicks: 1580,
-        conversions: 42,
-        platform: "Instagram",
-        isActive: true,
-        createdAt: "2024-11-01"
-      },
-      {
-        id: "2",
-        name: "Google Ads - Black Friday",
-        startDate: "2024-11-15",
-        endDate: "2024-11-30",
-        investment: 5000,
-        sales: 8950,
-        clicks: 3200,
-        conversions: 89,
-        platform: "Google Ads",
-        isActive: true,
-        createdAt: "2024-11-15"
+  const createAd = async () => {
+    try {
+      if (!newAd.name || !newAd.date) {
+        showErrorMessage('Preencha todos os campos obrigatórios.');
+        return;
       }
-    ];
-    setCampaigns(mockCampaigns);
-  };
 
-  const getMonthlySummary = (): MonthlySummary => {
-    const monthCampaigns = campaigns.filter(campaign => {
-      const campaignDate = new Date(campaign.startDate);
-      return campaignDate.getMonth() === currentMonth.getMonth() &&
-             campaignDate.getFullYear() === currentMonth.getFullYear();
-    });
+      if (!user) {
+        showErrorMessage('Usuário não autenticado.');
+        return;
+      }
 
-    const summary = monthCampaigns.reduce((acc, campaign) => ({
-      investment: acc.investment + campaign.investment,
-      sales: acc.sales + campaign.sales,
-      profit: acc.profit + (campaign.sales - campaign.investment),
-      roi: 0
-    }), { investment: 0, sales: 0, profit: 0, roi: 0 });
+      const createData: CreateAdRequest = {
+        name: newAd.name,
+        date: newAd.date, // Use the date directly in yyyy-MM-dd format
+        user: user.documentId,
+      };
 
-    summary.roi = summary.investment > 0 ? ((summary.profit / summary.investment) * 100) : 0;
-    
-    return summary;
-  };
-
-  const createCampaign = () => {
-    const campaign: Campaign = {
-      id: Date.now().toString(),
-      name: newCampaign.name,
-      platform: newCampaign.platform,
-      investment: parseFloat(newCampaign.investment) || 0,
-      sales: 0,
-      clicks: 0,
-      conversions: 0,
-      startDate: newCampaign.startDate,
-      endDate: newCampaign.endDate,
-      isActive: true,
-      createdAt: new Date().toISOString()
-    };
-
-    setCampaigns(prev => [campaign, ...prev]);
-    setIsCreateModalOpen(false);
-    setNewCampaign({
-      name: "",
-      platform: "",
-      investment: "",
-      startDate: "",
-      endDate: ""
-    });
-  };
-
-  const deleteCampaign = (id: string) => {
-    setCampaigns(prev => prev.filter(c => c.id !== id));
-  };
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    }).format(value);
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('pt-BR');
+      const createdAd = await controlMasterService.createAd(user.documentId, createData);
+      setAds(prev => [createdAd, ...prev]);
+      setIsCreateModalOpen(false);
+      setNewAd({ name: '', date: '' });
+      showSuccessMessage('Campanha criada com sucesso!');
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Erro ao criar campanha.';
+      showErrorMessage(errorMessage);
+    }
   };
 
   const previousMonth = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1));
+    setCurrentMonth(controlMasterService.getPreviousMonth(currentMonth));
   };
 
   const nextMonth = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1));
+    setCurrentMonth(controlMasterService.getNextMonth(currentMonth));
   };
 
-  const getMonthName = (date: Date) => {
-    return date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+  const getMonthlySummary = (): MonthlySummary => {
+    const monthYear = controlMasterService.formatMonthYear(currentMonth);
+    return controlMasterService.getMonthlySummary(ads, monthYear);
+  };
+
+  const getAdsByMonth = (): UserAd[] => {
+    const monthYear = controlMasterService.formatMonthYear(currentMonth);
+    const filteredAds = controlMasterService.getAdsByMonth(ads, monthYear);
+    console.log('All ads:', ads);
+    console.log('Current month year:', monthYear);
+    console.log('Filtered ads:', filteredAds);
+    return filteredAds;
   };
 
   if (!hasAccess) {
@@ -215,7 +203,7 @@ export default function ControlMasterPage() {
             </div>
           </div>
           <button 
-            onClick={() => setHasAccess(true)} // Mock subscription
+            onClick={() => setHasAccess(true)}
             className="bg-purple-600 text-white px-8 py-3 rounded-lg hover:bg-purple-700 transition-colors font-medium"
           >
             Assinar Controle Master
@@ -226,6 +214,7 @@ export default function ControlMasterPage() {
   }
 
   const summary = getMonthlySummary();
+  const monthAds = getAdsByMonth();
 
   return (
     <div className="space-y-6">
@@ -241,6 +230,25 @@ export default function ControlMasterPage() {
           </div>
         </div>
 
+        {/* Success/Error Messages */}
+        {successMessage && (
+          <div className="mb-6 bg-green-900 border border-green-700 rounded-lg p-4">
+            <div className="flex items-center space-x-2">
+              <CheckCircle className="w-5 h-5 text-green-400" />
+              <span className="text-green-200">{successMessage}</span>
+            </div>
+          </div>
+        )}
+
+        {error && (
+          <div className="mb-6 bg-red-900 border border-red-700 rounded-lg p-4">
+            <div className="flex items-center space-x-2">
+              <XCircle className="w-5 h-5 text-red-400" />
+              <span className="text-red-200">{error}</span>
+            </div>
+          </div>
+        )}
+
         {/* Month Navigator */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center space-x-4">
@@ -251,7 +259,7 @@ export default function ControlMasterPage() {
               <ChevronLeft className="w-5 h-5" />
             </button>
             <h2 className="text-lg font-semibold text-white capitalize">
-              {getMonthName(currentMonth)}
+              {controlMasterService.formatMonthName(currentMonth)}
             </h2>
             <button
               onClick={nextMonth}
@@ -271,51 +279,90 @@ export default function ControlMasterPage() {
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="bg-red-900/20 border border-red-700 rounded-lg p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-red-600 font-medium">Investimento</p>
-                <p className="text-xl font-bold text-red-900">
-                  {formatCurrency(summary.investment)}
+                <p className="text-sm text-red-400 font-medium">Investimento</p>
+                <p className="text-xl font-bold text-red-300">
+                  {controlMasterService.formatCurrency(summary.totalInvestment)}
                 </p>
               </div>
-              <TrendingDown className="w-6 h-6 text-red-600" />
+              <TrendingDown className="w-6 h-6 text-red-400" />
             </div>
           </div>
 
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+          <div className="bg-green-900/20 border border-green-700 rounded-lg p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-green-600 font-medium">Vendas</p>
-                <p className="text-xl font-bold text-green-900">
-                  {formatCurrency(summary.sales)}
+                <p className="text-sm text-green-400 font-medium">Vendas</p>
+                <p className="text-xl font-bold text-green-300">
+                  {controlMasterService.formatCurrency(summary.totalSales)}
                 </p>
               </div>
-              <TrendingUp className="w-6 h-6 text-green-600" />
+              <TrendingUp className="w-6 h-6 text-green-400" />
             </div>
           </div>
 
-          <div className={`${summary.profit >= 0 ? 'bg-blue-50 border-blue-200' : 'bg-red-50 border-red-200'} border rounded-lg p-4`}>
+          <div className={`${summary.totalProfit >= 0 ? 'bg-blue-900/20 border-blue-700' : 'bg-red-900/20 border-red-700'} border rounded-lg p-4`}>
             <div className="flex items-center justify-between">
               <div>
-                <p className={`text-sm font-medium ${summary.profit >= 0 ? 'text-blue-600' : 'text-red-600'}`}>Lucro</p>
-                <p className={`text-xl font-bold ${summary.profit >= 0 ? 'text-blue-900' : 'text-red-900'}`}>
-                  {formatCurrency(summary.profit)}
+                <p className={`text-sm font-medium ${summary.totalProfit >= 0 ? 'text-blue-400' : 'text-red-400'}`}>Lucro</p>
+                <p className={`text-xl font-bold ${summary.totalProfit >= 0 ? 'text-blue-300' : 'text-red-300'}`}>
+                  {controlMasterService.formatCurrency(summary.totalProfit)}
                 </p>
               </div>
-              <DollarSign className={`w-6 h-6 ${summary.profit >= 0 ? 'text-blue-600' : 'text-red-600'}`} />
+              <DollarSign className={`w-6 h-6 ${summary.totalProfit >= 0 ? 'text-blue-400' : 'text-red-400'}`} />
             </div>
           </div>
 
-          <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+          <div className="bg-purple-900/20 border border-purple-700 rounded-lg p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-purple-600 font-medium">ROI</p>
-                <p className="text-xl font-bold text-purple-900">
-                  {summary.roi.toFixed(1)}%
+                <p className="text-sm text-purple-400 font-medium">ROI</p>
+                <p className="text-xl font-bold text-purple-300">
+                  {summary.totalRoi.toFixed(1)}%
                 </p>
               </div>
-              <Target className="w-6 h-6 text-purple-600" />
+              <Target className="w-6 h-6 text-purple-400" />
+            </div>
+          </div>
+        </div>
+
+        {/* Additional Metrics */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-blue-900/20 border border-blue-700 rounded-lg p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-blue-400 font-medium">Total Cliques</p>
+                <p className="text-lg font-bold text-blue-300">
+                  {summary.totalClicks.toLocaleString()}
+                </p>
+              </div>
+              <MousePointer className="w-5 h-5 text-blue-400" />
+            </div>
+          </div>
+
+          <div className="bg-orange-900/20 border border-orange-700 rounded-lg p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-orange-400 font-medium">Impressões</p>
+                <p className="text-lg font-bold text-orange-300">
+                  {summary.totalImpressions.toLocaleString()}
+                </p>
+              </div>
+              <Eye className="w-5 h-5 text-orange-400" />
+            </div>
+          </div>
+
+          <div className="bg-yellow-900/20 border border-yellow-700 rounded-lg p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-yellow-400 font-medium">CPC Médio</p>
+                <p className="text-lg font-bold text-yellow-300">
+                  {controlMasterService.formatCurrency(summary.averageCpc)}
+                </p>
+              </div>
+              <ShoppingCart className="w-5 h-5 text-yellow-400" />
             </div>
           </div>
         </div>
@@ -323,9 +370,22 @@ export default function ControlMasterPage() {
 
       {/* Campaigns List */}
       <div className="bg-gray-800 shadow rounded-lg p-6">
-        <h2 className="text-xl font-semibold text-white mb-6">Campanhas do Mês</h2>
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-semibold text-white">Campanhas do Mês</h2>
+          {isLoading && (
+            <div className="flex items-center space-x-2 text-gray-400">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>Carregando...</span>
+            </div>
+          )}
+        </div>
         
-        {campaigns.length === 0 ? (
+        {isLoading ? (
+          <div className="text-center py-12">
+            <Loader2 className="w-8 h-8 text-gray-400 animate-spin mx-auto mb-4" />
+            <p className="text-gray-400">Carregando campanhas...</p>
+          </div>
+        ) : monthAds.length === 0 ? (
           <div className="text-center py-12">
             <div className="w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
               <BarChart3 className="w-8 h-8 text-gray-400" />
@@ -340,82 +400,39 @@ export default function ControlMasterPage() {
           </div>
         ) : (
           <div className="space-y-4">
-            {campaigns.map((campaign) => (
+            {monthAds.map((ad) => (
               <div
-                key={campaign.id}
-                className="border border-gray-600 rounded-lg p-6 hover:shadow-md transition-shadow"
+                key={ad.id}
+                className="border border-gray-600 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer bg-gray-800 hover:bg-gray-750"
+                onClick={() => router.push(`/master/control/${ad.documentId}`)}
               >
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-4">
                     <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
                       <Target className="w-5 h-5 text-purple-600" />
                     </div>
                     <div>
-                      <h3 className="text-lg font-semibold text-white">{campaign.name}</h3>
-                      <p className="text-sm text-gray-400">{campaign.platform}</p>
+                      <h3 className="text-lg font-semibold text-white hover:text-purple-300 transition-colors">
+                        {ad.name}
+                      </h3>
+                      <p className="text-sm text-gray-400">
+                        {ad.items.length} item{ad.items.length !== 1 ? 's' : ''} • ID: {ad.documentId}
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <button
-                      onClick={() => deleteCampaign(campaign.id)}
-                      className="p-2 text-gray-400 hover:text-red-600"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                  <div>
-                    <p className="text-sm text-gray-400">Período</p>
-                    <p className="font-medium">
-                      {formatDate(campaign.startDate)} - {formatDate(campaign.endDate)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-400">Investimento</p>
-                    <p className="font-medium text-red-600">
-                      {formatCurrency(campaign.investment)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-400">Vendas</p>
-                    <p className="font-medium text-green-600">
-                      {formatCurrency(campaign.sales)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-400">Cliques</p>
-                    <p className="font-medium">{campaign.clicks.toLocaleString()}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-400">Conversões</p>
-                    <p className="font-medium">{campaign.conversions}</p>
-                  </div>
-                </div>
-
-                <div className="mt-4 pt-4 border-t border-gray-600">
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center space-x-4 text-sm">
-                      <div className="flex items-center space-x-1">
-                        <Eye className="w-4 h-4 text-gray-400" />
-                        <span className="text-gray-400">
-                          CTR: {campaign.clicks > 0 ? ((campaign.conversions / campaign.clicks) * 100).toFixed(2) : 0}%
-                        </span>
-                      </div>
-                      <div className="flex items-center space-x-1">
-                        <ShoppingCart className="w-4 h-4 text-gray-400" />
-                        <span className="text-gray-400">
-                          ROI: {campaign.investment > 0 ? (((campaign.sales - campaign.investment) / campaign.investment) * 100).toFixed(1) : 0}%
-                        </span>
-                      </div>
+                    <div className="text-right">
+                      <p className="text-sm text-gray-400">Total Investimento</p>
+                      <p className="text-white font-medium">
+                        {controlMasterService.formatCurrency(
+                          ad.items.reduce((sum, item) => sum + item.valueDailyInvestment, 0)
+                        )}
+                      </p>
                     </div>
-                    <div className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      campaign.isActive 
-                        ? 'bg-green-100 text-green-800' 
-                        : 'bg-gray-700 text-gray-200'
-                    }`}>
-                      {campaign.isActive ? 'Ativa' : 'Pausada'}
+                    <div className="w-6 h-6 text-gray-400">
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
                     </div>
                   </div>
                 </div>
@@ -428,7 +445,7 @@ export default function ControlMasterPage() {
       {/* Create Campaign Modal */}
       {isCreateModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-md w-full p-6">
+          <div className="bg-gray-800 rounded-lg max-w-md w-full p-6">
             <h3 className="text-lg font-semibold text-white mb-4">Nova Campanha</h3>
             <div className="space-y-4">
               <div>
@@ -437,77 +454,38 @@ export default function ControlMasterPage() {
                 </label>
                 <input
                   type="text"
-                  value={newCampaign.name}
-                  onChange={(e) => setNewCampaign(prev => ({ ...prev, name: e.target.value }))}
-                  className="w-full border border-gray-600 rounded-md px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  value={newAd.name}
+                  onChange={(e) => setNewAd(prev => ({ ...prev, name: e.target.value }))}
+                  className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                   placeholder="Ex: Campanha Black Friday"
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1">
-                  Plataforma
-                </label>
-                <select
-                  value={newCampaign.platform}
-                  onChange={(e) => setNewCampaign(prev => ({ ...prev, platform: e.target.value }))}
-                  className="w-full border border-gray-600 rounded-md px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                >
-                  <option value="">Selecione uma plataforma</option>
-                  <option value="Instagram">Instagram</option>
-                  <option value="Facebook">Facebook</option>
-                  <option value="Google Ads">Google Ads</option>
-                  <option value="TikTok">TikTok</option>
-                  <option value="YouTube">YouTube</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">
-                  Investimento (R$)
+                  Data de Início
                 </label>
                 <input
-                  type="number"
-                  value={newCampaign.investment}
-                  onChange={(e) => setNewCampaign(prev => ({ ...prev, investment: e.target.value }))}
-                  className="w-full border border-gray-600 rounded-md px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                  placeholder="0,00"
+                  type="date"
+                  value={newAd.date}
+                  onChange={(e) => setNewAd(prev => ({ ...prev, date: e.target.value }))}
+                  className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                 />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    Data de Início
-                  </label>
-                  <input
-                    type="date"
-                    value={newCampaign.startDate}
-                    onChange={(e) => setNewCampaign(prev => ({ ...prev, startDate: e.target.value }))}
-                    className="w-full border border-gray-600 rounded-md px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    Data de Fim
-                  </label>
-                  <input
-                    type="date"
-                    value={newCampaign.endDate}
-                    onChange={(e) => setNewCampaign(prev => ({ ...prev, endDate: e.target.value }))}
-                    className="w-full border border-gray-600 rounded-md px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                  />
-                </div>
               </div>
             </div>
             <div className="flex justify-end space-x-3 mt-6">
               <button
-                onClick={() => setIsCreateModalOpen(false)}
-                className="px-4 py-2 text-gray-300 bg-gray-700 rounded-md hover:bg-gray-200 transition-colors"
+                onClick={() => {
+                  setIsCreateModalOpen(false);
+                  setNewAd({ name: '', date: '' });
+                }}
+                className="px-4 py-2 text-gray-300 hover:text-white transition-colors"
               >
                 Cancelar
               </button>
               <button
-                onClick={createCampaign}
-                disabled={!newCampaign.name || !newCampaign.platform}
-                className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                onClick={createAd}
+                disabled={!newAd.name || !newAd.date}
+                className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Criar Campanha
               </button>
