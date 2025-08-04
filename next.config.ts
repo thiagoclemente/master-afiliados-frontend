@@ -7,6 +7,15 @@ const nextConfig: NextConfig = {
       {
         hostname: "d27z25zrx6g82w.cloudfront.net",
       },
+      {
+        hostname: "s3.masterafiliados.com.br",
+      },
+      {
+        hostname: "localhost",
+      },
+      {
+        hostname: "api.masterafiliados.com.br",
+      }
     ],
   },
 };

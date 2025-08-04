@@ -4,13 +4,14 @@ import qs from "qs";
 export interface Pack {
   id: number;
   documentId: string;
-  title: string;
+  name: string;
   description: string;
-  image: {
+  image?: {
     url: string;
   };
-  createdAt: string;
-  updatedAt: string;
+  createdAt?: string;
+  updatedAt?: string;
+  videoCount?: number;
 }
 
 interface PackResponse {

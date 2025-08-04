@@ -6,22 +6,51 @@ import { useAuth } from "@/context/auth-context";
 import { fetchPacks } from "@/services/pack.service";
 import type { Pack } from "@/services/pack.service";
 import Image from "next/image";
+import { 
+  Search, 
+  Filter, 
+  Grid3X3, 
+  Play, 
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  Video
+} from "lucide-react";
 
 export default function PacksPage() {
   const [packs, setPacks] = useState<Pack[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState<"newest" | "oldest" | "name">("newest");
+  
   const router = useRouter();
   const { logout } = useAuth();
 
+  const pageSize = 12;
+
   useEffect(() => {
-    const loadPacks = async () => {
+    const loadPacks = async (reset: boolean = true) => {
       try {
-        setIsLoading(true);
-        const response = await fetchPacks(currentPage, 20);
-        setPacks(response.data);
+        if (reset) {
+          setIsLoading(true);
+          setCurrentPage(1);
+        } else {
+          setIsLoadingMore(true);
+        }
+        
+        const response = await fetchPacks(reset ? 1 : currentPage, pageSize);
+        
+        if (reset) {
+          setPacks(response.data);
+        } else {
+          setPacks(prev => [...prev, ...response.data]);
+        }
+        
         setTotalPages(response.meta.pagination.pageCount);
         setError(null);
       } catch (err) {
@@ -41,97 +70,240 @@ export default function PacksPage() {
         console.error(err);
       } finally {
         setIsLoading(false);
+        setIsLoadingMore(false);
       }
     };
 
     loadPacks();
-  }, [currentPage, logout, router]);
+  }, [logout, router]);
 
-  const handlePageChange = (newPage: number) => {
-    setCurrentPage(newPage);
+  const loadMorePacks = async () => {
+    if (currentPage < totalPages && !isLoadingMore) {
+      setIsLoadingMore(true);
+      try {
+        const response = await fetchPacks(currentPage + 1, pageSize);
+        setPacks(prev => [...prev, ...response.data]);
+        setCurrentPage(prev => prev + 1);
+      } catch (err) {
+        console.error("Error loading more packs:", err);
+      } finally {
+        setIsLoadingMore(false);
+      }
+    }
   };
 
   const handlePackClick = (packId: string) => {
     router.push(`/videos?pack=${packId}`);
   };
 
+  const filteredPacks = packs
+    .filter(pack => 
+      (pack.name && pack.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (pack.description && pack.description.toLowerCase().includes(searchQuery.toLowerCase()))
+    )
+    .sort((a, b) => {
+      switch (sortBy) {
+        case "newest":
+          return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+        case "oldest":
+          return new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime();
+        case "name":
+          return (a.name || "").localeCompare(b.name || "");
+        default:
+          return 0;
+      }
+    });
+
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return "Data não disponível";
+    return new Date(dateString).toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+  };
+
   if (error) {
     return (
-      <div className="bg-white shadow rounded-lg p-6">
-        <div className="text-red-500 text-center">{error}</div>
+      <div className="bg-gray-800 shadow rounded-lg p-6">
+        <div className="text-center">
+          <div className="text-red-400 mb-4">{error}</div>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+          >
+            Tentar novamente
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-white shadow rounded-lg p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-semibold text-gray-900">Pacotes</h1>
-      </div>
-
-      {isLoading ? (
-        <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="bg-gray-800 shadow rounded-lg p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
+          <div className="flex items-center space-x-3 mb-4 sm:mb-0">
+            <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center">
+              <Video className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-white">Vídeos</h1>
+              <p className="text-gray-300">Explore nossos pacotes de vídeos</p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-2 text-sm text-gray-400">
+            <Grid3X3 className="w-4 h-4" />
+            <span>{filteredPacks.length} pacote{filteredPacks.length !== 1 ? 's' : ''}</span>
+          </div>
         </div>
-      ) : (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {packs.map((pack) => (
-              <div
-                key={pack.documentId}
-                className="bg-gray-50 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-                onClick={() => handlePackClick(pack.documentId)}
-              >
-                <div className="relative aspect-video">
-                  {pack.image?.url ? (
-                    <Image
-                      src={pack.image.url}
-                      alt={`Capa do pacote ${pack.title}`}
-                      fill
-                      className="object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-gray-200 flex items-center justify-center">
-                      <span className="text-gray-400">Sem imagem</span>
-                    </div>
-                  )}
-                </div>
-                <div className="p-4">
-                  <h3 className="font-medium text-gray-900 mb-2">
-                    {pack.title}
-                  </h3>
-                  <p className="text-sm text-gray-500 line-clamp-2">
-                    {pack.description}
-                  </p>
-                </div>
-              </div>
-            ))}
+
+        {/* Filters */}
+        <div className="flex flex-col sm:flex-row gap-4">
+          {/* Search */}
+          <div className="flex-1">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Buscar pacotes..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 bg-gray-700 border border-gray-600 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-white placeholder-gray-400"
+              />
+            </div>
           </div>
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="mt-6 flex justify-center space-x-2">
-              <button
-                onClick={() => handlePageChange(currentPage - 1)}
-                disabled={currentPage === 1}
-                className="px-4 py-2 border rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          {/* Sort */}
+          <div className="sm:w-48">
+            <div className="relative">
+              <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as "newest" | "oldest" | "name")}
+                className="w-full pl-10 pr-8 py-2 bg-gray-700 border border-gray-600 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none text-white"
               >
-                Anterior
-              </button>
-              <span className="px-4 py-2 text-sm text-gray-700">
-                Página {currentPage} de {totalPages}
-              </span>
-              <button
-                onClick={() => handlePageChange(currentPage + 1)}
-                disabled={currentPage === totalPages}
-                className="px-4 py-2 border rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Próxima
-              </button>
+                <option value="newest">Mais recentes</option>
+                <option value="oldest">Mais antigos</option>
+                <option value="name">Nome A-Z</option>
+              </select>
             </div>
-          )}
-        </>
-      )}
+          </div>
+        </div>
+      </div>
+
+      {/* Packs Grid */}
+      <div className="bg-gray-800 shadow rounded-lg p-6">
+        {isLoading ? (
+          <div className="flex justify-center items-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
+          </div>
+        ) : filteredPacks.length === 0 ? (
+          <div className="text-center py-12">
+            <div className="w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Video className="w-8 h-8 text-gray-400" />
+            </div>
+            <p className="text-gray-400 mb-4">
+              {searchQuery ? "Nenhum pacote encontrado" : "Nenhum pacote disponível"}
+            </p>
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="text-indigo-400 hover:text-indigo-300"
+              >
+                Limpar busca
+              </button>
+            )}
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {filteredPacks.map((pack) => (
+                <div
+                  key={pack.documentId}
+                  onClick={() => handlePackClick(pack.documentId)}
+                  className="group bg-gray-700 border border-gray-600 rounded-lg overflow-hidden hover:shadow-lg hover:border-indigo-500 transition-all duration-200 cursor-pointer"
+                >
+                  <div className="relative aspect-video overflow-hidden">
+                    {pack.image?.url ? (
+                      <Image
+                        src={pack.image.url}
+                        alt={`Capa do pacote ${pack.name || 'sem título'}`}
+                        fill
+                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, (max-width: 1280px) 33vw, 25vw"
+                        className="object-cover group-hover:scale-105 transition-transform duration-200"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center">
+                        <Video className="w-12 h-12 text-indigo-400" />
+                      </div>
+                    )}
+                    
+                    
+                  </div>
+                  
+                  <div className="p-4">
+                    <h3 className="text-lg font-semibold text-white mb-2 line-clamp-2 group-hover:text-indigo-300 transition-colors">
+                      {pack.name || 'Sem título'}
+                    </h3>
+                    
+                    {pack.description && (
+                      <p className="text-gray-300 text-sm mb-3 line-clamp-2">
+                        {pack.description}
+                      </p>
+                    )}
+                    
+                    <div className="flex items-center justify-between text-sm">
+                      <div className="flex items-center space-x-4">
+                        <div className="flex items-center space-x-1 text-gray-400">
+                          <Play className="w-4 h-4" />
+                          <span>Vídeos</span>
+                        </div>
+                        {pack.createdAt && (
+                          <div className="flex items-center space-x-1 text-gray-400">
+                            <Calendar className="w-4 h-4" />
+                            <span>{formatDate(pack.createdAt)}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className="mt-3 pt-3 border-t border-gray-600">
+                      <div className="flex items-center justify-between">
+                        <span className="text-indigo-400 text-sm font-medium group-hover:text-indigo-300">
+                          Ver vídeos
+                        </span>
+                        <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-indigo-400 transition-colors" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Load More Button */}
+            {currentPage < totalPages && (
+              <div className="flex justify-center mt-8">
+                <button
+                  onClick={loadMorePacks}
+                  disabled={isLoadingMore}
+                  className="flex items-center space-x-2 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+                >
+                  {isLoadingMore ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span>Carregando...</span>
+                    </>
+                  ) : (
+                    <span>Carregar Mais</span>
+                  )}
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
