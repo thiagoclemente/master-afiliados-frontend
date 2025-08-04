@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
 import { artService, Art, ArtCategory } from "@/services/art.service";
@@ -9,8 +9,6 @@ import {
   Search, 
   Download, 
   X, 
-  ChevronLeft, 
-  ChevronRight,
   Filter,
   Grid3X3,
   Loader2
@@ -39,23 +37,6 @@ export default function ArtsPage() {
     loadCategories();
   }, []);
 
-  // Load arts when filters change
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      setCurrentPage(1);
-      loadArts(1, true);
-    }, 300);
-
-    return () => clearTimeout(timeoutId);
-  }, [selectedCategory, searchQuery]);
-
-  // Load more arts when page changes
-  useEffect(() => {
-    if (currentPage > 1) {
-      loadArts(currentPage, false);
-    }
-  }, [currentPage]);
-
   const loadCategories = async () => {
     try {
       const categoriesData = await artService.getCategories();
@@ -65,7 +46,7 @@ export default function ArtsPage() {
     }
   };
 
-  const loadArts = async (page: number, resetList: boolean = false) => {
+  const loadArts = useCallback(async (page: number, resetList: boolean = false) => {
     try {
       if (resetList) {
         setIsLoading(true);
@@ -105,7 +86,24 @@ export default function ArtsPage() {
       setIsLoading(false);
       setIsLoadingMore(false);
     }
-  };
+  }, [selectedCategory, searchQuery, pageSize, logout, router]);
+
+  // Load arts when filters change
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setCurrentPage(1);
+      loadArts(1, true);
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [selectedCategory, searchQuery, loadArts]);
+
+  // Load more arts when page changes
+  useEffect(() => {
+    if (currentPage > 1) {
+      loadArts(currentPage, false);
+    }
+  }, [currentPage, loadArts]);
 
   const handleDownload = async (art: Art) => {
     try {

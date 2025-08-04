@@ -1,8 +1,8 @@
-import { Image } from "./image";
+import { ImageInterface } from "./image.interface";
 
 export 
 interface Pack {
   id: number;
   url: string;
-  image: Image;
+  image: ImageInterface;
 }

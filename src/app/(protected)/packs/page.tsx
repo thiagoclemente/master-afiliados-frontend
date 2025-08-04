@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
 import { fetchPacks } from "@/services/pack.service";
@@ -12,7 +12,6 @@ import {
   Grid3X3, 
   Play, 
   Calendar,
-  ChevronLeft,
   ChevronRight,
   Loader2,
   Video
@@ -33,49 +32,49 @@ export default function PacksPage() {
 
   const pageSize = 12;
 
-  useEffect(() => {
-    const loadPacks = async (reset: boolean = true) => {
-      try {
-        if (reset) {
-          setIsLoading(true);
-          setCurrentPage(1);
-        } else {
-          setIsLoadingMore(true);
-        }
-        
-        const response = await fetchPacks(reset ? 1 : currentPage, pageSize);
-        
-        if (reset) {
-          setPacks(response.data);
-        } else {
-          setPacks(prev => [...prev, ...response.data]);
-        }
-        
-        setTotalPages(response.meta.pagination.pageCount);
-        setError(null);
-      } catch (err) {
-        if (err instanceof Error) {
-          if (
-            err.message === "Authentication failed" ||
-            err.message === "Authentication required"
-          ) {
-            logout();
-            router.push("/login");
-            return;
-          }
-          setError(err.message);
-        } else {
-          setError("Erro ao carregar os pacotes");
-        }
-        console.error(err);
-      } finally {
-        setIsLoading(false);
-        setIsLoadingMore(false);
+  const loadPacks = useCallback(async (reset: boolean = true) => {
+    try {
+      if (reset) {
+        setIsLoading(true);
+        setCurrentPage(1);
+      } else {
+        setIsLoadingMore(true);
       }
-    };
+      
+      const response = await fetchPacks(reset ? 1 : currentPage, pageSize);
+      
+      if (reset) {
+        setPacks(response.data);
+      } else {
+        setPacks(prev => [...prev, ...response.data]);
+      }
+      
+      setTotalPages(response.meta.pagination.pageCount);
+      setError(null);
+    } catch (err) {
+      if (err instanceof Error) {
+        if (
+          err.message === "Authentication failed" ||
+          err.message === "Authentication required"
+        ) {
+          logout();
+          router.push("/login");
+          return;
+        }
+        setError(err.message);
+      } else {
+        setError("Erro ao carregar os pacotes");
+      }
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+      setIsLoadingMore(false);
+    }
+  }, [currentPage, pageSize, logout, router]);
 
+  useEffect(() => {
     loadPacks();
-  }, [logout, router]);
+  }, [loadPacks]);
 
   const loadMorePacks = async () => {
     if (currentPage < totalPages && !isLoadingMore) {

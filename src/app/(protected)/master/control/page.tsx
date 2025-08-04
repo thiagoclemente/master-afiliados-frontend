@@ -3,17 +3,14 @@
 import { useState, useEffect } from "react";
 import { 
   Plus, 
-  Calendar, 
   DollarSign,
   TrendingUp,
   TrendingDown,
   BarChart3,
-  Pencil,
   Trash2,
   ChevronLeft,
   ChevronRight,
   Target,
-  MousePointer,
   ShoppingCart,
   Eye,
   Lock
@@ -44,8 +41,6 @@ export default function ControlMasterPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [hasAccess, setHasAccess] = useState(false); // Mock subscription check
   
   const [newCampaign, setNewCampaign] = useState({
@@ -361,15 +356,6 @@ export default function ControlMasterPage() {
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <button
-                      onClick={() => {
-                        setSelectedCampaign(campaign);
-                        setIsEditModalOpen(true);
-                      }}
-                      className="p-2 text-gray-400 hover:text-gray-400"
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </button>
                     <button
                       onClick={() => deleteCampaign(campaign.id)}
                       className="p-2 text-gray-400 hover:text-red-600"

@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
 import { fetchVideos } from "@/services/video.service";
 import Image from "next/image";
 import { useDebounce } from "@/hooks/use-debounce";
-import { ArrowLeft, Play, Loader2, Search, Video as VideoIcon } from "lucide-react";
+import { ArrowLeft, Loader2, Search, Video as VideoIcon } from "lucide-react";
 import { ImageInterface } from "@/interfaces/image.interface";
 
 interface VideoFormat {
@@ -48,7 +48,7 @@ interface Video {
   coverImage: ImageInterface;
 }
 
-export default function VideosPage() {
+function VideosPageContent() {
   const [videos, setVideos] = useState<Video[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -322,5 +322,21 @@ export default function VideosPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function VideosPage() {
+  return (
+    <Suspense fallback={
+      <div className="space-y-6">
+        <div className="bg-gray-800 shadow rounded-lg p-6">
+          <div className="flex justify-center items-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
+          </div>
+        </div>
+      </div>
+    }>
+      <VideosPageContent />
+    </Suspense>
   );
 }

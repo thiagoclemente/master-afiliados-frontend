@@ -11,8 +11,6 @@ import {
   Menu, 
   X, 
   ChevronDown,
-  BarChart3,
-  Settings
 } from "lucide-react";
 
 export default function ProtectedLayout({

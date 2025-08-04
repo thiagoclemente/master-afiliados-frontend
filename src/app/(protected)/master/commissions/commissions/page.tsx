@@ -121,15 +121,15 @@ export default function CommissionsPage() {
     }
   };
 
-  const deleteReport = (id: string) => {
-    commissionsService.deleteReportHistory(id);
-    const history = commissionsService.getReportHistory();
-    const commissionsHistory = history.filter(h => h.type === 'commissions');
-    setReportHistory(commissionsHistory);
-    if (selectedReport?.id === id) {
-      setSelectedReport(null);
-    }
-  };
+  // const deleteReport = (id: string) => {
+  //   commissionsService.deleteReportHistory(id);
+  //   const history = commissionsService.getReportHistory();
+  //   const commissionsHistory = history.filter(h => h.type === 'commissions');
+  //   setReportHistory(commissionsHistory);
+  //   if (selectedReport?.id === id) {
+  //     setSelectedReport(null);
+  //   }
+  // };
 
   const clearAllData = () => {
     const history = commissionsService.getReportHistory();
