@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import LoadingBar from "@/components/loading-bar";
 import { 
   Video, 
   Image as ImageIcon, 
@@ -58,6 +59,7 @@ export default function ProtectedLayout({
 
   return (
     <div className="min-h-screen bg-black">
+      <LoadingBar />
       {/* Navigation */}
       <nav className="bg-black shadow-lg border-b border-gray-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

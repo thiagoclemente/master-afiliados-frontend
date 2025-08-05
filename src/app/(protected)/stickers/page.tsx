@@ -17,6 +17,7 @@ import {
   ExternalLink,
   StickyNote
 } from "lucide-react";
+import PageLoadingBar from "@/components/page-loading-bar";
 
 export default function StickersPage() {
   const [stickers, setStickers] = useState<Sticker[]>([]);
@@ -249,6 +250,7 @@ export default function StickersPage() {
 
   return (
     <div className="space-y-6">
+      <PageLoadingBar isLoading={isLoading} />
       {/* Header */}
       <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
