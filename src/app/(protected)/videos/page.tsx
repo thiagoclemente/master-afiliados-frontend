@@ -8,7 +8,6 @@ import { fetchPacks } from "@/services/pack.service";
 import type { Pack } from "@/interfaces/pack";
 import Image from "next/image";
 import { useDebounce } from "@/hooks/use-debounce";
-import PackProtection from "@/components/PackProtection";
 import { 
   ArrowLeft, 
   Loader2, 
@@ -43,6 +42,7 @@ function VideosPageContent() {
   const [downloadingVideoId, setDownloadingVideoId] = useState<number | null>(null);
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [packInfo, setPackInfo] = useState<Pack | null>(null);
+  const [hasAccess, setHasAccess] = useState<boolean | null>(null);
   const debouncedSearch = useDebounce(searchTerm, 500);
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -51,11 +51,38 @@ function VideosPageContent() {
   const packId = searchParams.get("pack");
   const pageSize = 20;
 
-  // Load categories and pack info on mount
+  // Verificar acesso ao pacote antes de carregar dados
   useEffect(() => {
-    loadCategories();
-    loadPackInfo();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    const checkAccess = async () => {
+      if (!packId) {
+        setHasAccess(false);
+        return;
+      }
+
+      try {
+        // Verificar se o usuário tem acesso ao pacote específico
+        const { fetchUserPacks } = await import("@/services/user-pack.service");
+        const response = await fetchUserPacks();
+        const userPacks = response.data;
+        
+        const hasAccessToPack = userPacks.some(userPack => 
+          userPack.pack.documentId === packId
+        );
+        
+        setHasAccess(hasAccessToPack);
+        
+        // Só carregar dados se tiver acesso
+        if (hasAccessToPack) {
+          loadCategories();
+          loadPackInfo();
+        }
+      } catch (err) {
+        console.error("Error checking pack access:", err);
+        setHasAccess(false);
+      }
+    };
+
+    checkAccess();
   }, [packId]);
 
   const loadCategories = async () => {
@@ -134,6 +161,8 @@ function VideosPageContent() {
 
   // Load videos when filters change
   useEffect(() => {
+    if (!hasAccess) return;
+    
     const timeoutId = setTimeout(() => {
       setCurrentPage(1);
       if (packId) {
@@ -142,21 +171,25 @@ function VideosPageContent() {
     }, 300);
 
     return () => clearTimeout(timeoutId);
-  }, [debouncedSearch, packId, selectedCategory, sortBy]);
+  }, [debouncedSearch, packId, selectedCategory, sortBy, hasAccess]);
 
   // Load videos when page changes
   useEffect(() => {
+    if (!hasAccess) return;
+    
     if (packId && currentPage > 1) {
       loadVideos(currentPage, false);
     }
-  }, [currentPage, packId]);
+  }, [currentPage, packId, hasAccess]);
 
   // Load videos on mount
   useEffect(() => {
+    if (!hasAccess) return;
+    
     if (packId) {
       loadVideos(1, true);
     }
-  }, [packId]);
+  }, [packId, hasAccess]);
 
   const loadMoreVideos = async () => {
     if (currentPage < totalPages && !isLoadingMore) {
@@ -324,6 +357,19 @@ function VideosPageContent() {
     );
   }
 
+  // Loading state
+  if (hasAccess === null) {
+    return (
+      <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
+        <div className="text-center py-12">
+          <Loader2 className="w-8 h-8 text-[#7d570e] animate-spin mx-auto mb-4" />
+          <p className="text-gray-300">Verificando acesso ao pacote...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Sem packId
   if (!packId) {
     return (
       <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
@@ -345,11 +391,33 @@ function VideosPageContent() {
     );
   }
 
-
+  // Sem acesso ao pacote
+  if (hasAccess === false) {
+    return (
+      <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
+        <div className="text-center py-12">
+          <div className="w-16 h-16 bg-gray-900 rounded-full flex items-center justify-center mx-auto mb-4">
+            <VideoIcon className="w-8 h-8 text-gray-400" />
+          </div>
+          <div className="text-white text-lg font-semibold mb-2">
+            Acesso Negado
+          </div>
+          <div className="text-gray-400 mb-4 max-w-md mx-auto">
+            Você não tem acesso a este pacote de vídeos.
+          </div>
+          <button
+            onClick={handleBack}
+            className="px-6 py-3 bg-[#7d570e] text-white rounded-lg hover:bg-[#6b4a0c] transition-colors font-medium"
+          >
+            Voltar para pacotes
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <PackProtection packId={packId}>
-      <div className="space-y-6">
+    <div className="space-y-6">
       {/* Header */}
       <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
@@ -670,8 +738,7 @@ function VideosPageContent() {
           </div>
         </div>
       )}
-      </div>
-    </PackProtection>
+    </div>
   );
 }
 
