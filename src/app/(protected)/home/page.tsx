@@ -15,9 +15,9 @@ export default function HomePage() {
       color: "bg-blue-500",
     },
     {
-      title: "Vídeos",
-      description: "Vídeos promocionais para suas estratégias de marketing",
-      href: "/videos",
+      title: "Pacotes de Vídeos",
+      description: "Combos de vídeos promocionais para suas estratégias de marketing",
+      href: "/combos",
       icon: "🎥",
       color: "bg-red-500",
     },

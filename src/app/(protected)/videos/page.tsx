@@ -4,7 +4,8 @@ import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
 import { fetchVideos, fetchVideoCategories, type Video } from "@/services/video.service";
-import { fetchPacks, type Pack } from "@/services/pack.service";
+import { fetchPacks } from "@/services/pack.service";
+import type { Pack } from "@/interfaces/pack";
 import Image from "next/image";
 import { useDebounce } from "@/hooks/use-debounce";
 import { ArrowLeft, Loader2, Search, Video as VideoIcon, Play, Download, Link, Copy, Check, X, Filter } from "lucide-react";
@@ -377,11 +378,7 @@ function VideosPageContent() {
                   <p className="text-gray-300 text-sm mb-2 line-clamp-2">{packInfo.description}</p>
                 )}
                 <div className="flex items-center space-x-4">
-                  {packInfo.videoCount && (
-                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#7d570e] text-white">
-                      {packInfo.videoCount} vídeo{packInfo.videoCount !== 1 ? 's' : ''}
-                    </span>
-                  )}
+                  
                 </div>
               </div>
             </div>

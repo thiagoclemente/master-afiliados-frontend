@@ -1,20 +1,8 @@
 import { getAuthToken } from "@/lib/auth";
 import qs from "qs";
+import type { Pack } from "@/interfaces/pack";
 
-export interface Pack {
-  id: number;
-  documentId: string;
-  name: string;
-  description: string;
-  image?: {
-    url: string;
-  };
-  createdAt?: string;
-  updatedAt?: string;
-  videoCount?: number;
-}
-
-interface PackResponse {
+export interface PackResponse {
   data: Pack[];
   meta: {
     pagination: {
@@ -26,7 +14,7 @@ interface PackResponse {
   };
 }
 
-export async function fetchPacks(page: number = 1, pageSize: number = 20) {
+export async function fetchPacks(page: number = 1, pageSize: number = 20): Promise<PackResponse> {
   const token = getAuthToken();
 
   if (!token) {
@@ -35,8 +23,8 @@ export async function fetchPacks(page: number = 1, pageSize: number = 20) {
 
   const query = qs.stringify(
     {
-      populate: ["image"],
-      sort: ["createdAt:DESC"],
+      populate: ["image", "officialPackage", "plan"],
+      sort: ["order:ASC"],
       pagination: {
         page,
         pageSize,

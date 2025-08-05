@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
 import { fetchPacks } from "@/services/pack.service";
-import type { Pack } from "@/services/pack.service";
+import type { Pack } from "@/interfaces/pack";
 import Image from "next/image";
 import { 
   Search, 

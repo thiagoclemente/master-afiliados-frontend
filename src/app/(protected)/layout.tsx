@@ -26,10 +26,10 @@ export default function ProtectedLayout({
 
   const navigation = [
     { 
-      name: "Vídeos", 
-      href: "/packs", 
+      name: "Pacotes de Vídeos", 
+      href: "/combos", 
       icon: Video,
-      current: pathname === "/packs" || pathname.startsWith("/videos")
+      current: pathname === "/combos" || pathname.startsWith("/videos")
     },
     { 
       name: "Master", 
@@ -54,7 +54,7 @@ export default function ProtectedLayout({
       {/* Navigation */}
       <nav className="bg-black shadow-lg border-b border-gray-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
+          <div className="flex justify-between items-center h-20">
             {/* Logo and main navigation */}
             <div className="flex">
               <div className="flex-shrink-0 flex items-center">
@@ -84,7 +84,7 @@ export default function ProtectedLayout({
                             item.current
                               ? "bg-gray-900 border-[#7d570e] text-[#7d570e]"
                               : "border-transparent text-gray-300 hover:text-white hover:bg-gray-900"
-                          } inline-flex items-center px-3 py-2 border-b-2 text-sm font-medium rounded-t-md transition-colors duration-200`}
+                          } inline-flex items-center px-3 py-3 border-b-2 text-sm font-medium rounded-t-md transition-colors duration-200`}
                         >
                           <item.icon className="w-4 h-4 mr-2" />
                           {item.name}
@@ -111,11 +111,11 @@ export default function ProtectedLayout({
                     ) : (
                       <Link
                         href={item.href}
-                        className={`${
-                          item.current
-                            ? "bg-gray-900 border-[#7d570e] text-[#7d570e]"
-                            : "border-transparent text-gray-300 hover:text-white hover:bg-gray-900"
-                        } inline-flex items-center px-3 py-2 border-b-2 text-sm font-medium rounded-t-md transition-colors duration-200`}
+                                                  className={`${
+                            item.current
+                              ? "bg-gray-900 border-[#7d570e] text-[#7d570e]"
+                              : "border-transparent text-gray-300 hover:text-white hover:bg-gray-900"
+                          } inline-flex items-center px-3 py-3 border-b-2 text-sm font-medium rounded-t-md transition-colors duration-200`}
                       >
                         <item.icon className="w-4 h-4 mr-2" />
                         {item.name}
@@ -178,7 +178,7 @@ export default function ProtectedLayout({
                           item.current
                             ? "bg-gray-900 text-[#7d570e]"
                             : "text-gray-300 hover:bg-gray-900 hover:text-white"
-                        } group flex items-center px-3 py-2 text-base font-medium rounded-md w-full`}
+                        } group flex items-center px-3 py-3 text-base font-medium rounded-md w-full`}
                       >
                         <item.icon className="w-5 h-5 mr-3" />
                         {item.name}
@@ -210,7 +210,7 @@ export default function ProtectedLayout({
                         item.current
                           ? "bg-gray-900 text-[#7d570e]"
                           : "text-gray-300 hover:bg-gray-900 hover:text-white"
-                      } group flex items-center px-3 py-2 text-base font-medium rounded-md`}
+                      } group flex items-center px-3 py-3 text-base font-medium rounded-md`}
                       onClick={() => setMobileMenuOpen(false)}
                     >
                       <item.icon className="w-5 h-5 mr-3" />

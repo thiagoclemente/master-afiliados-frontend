@@ -160,7 +160,7 @@ export default function ControlMasterPage() {
     return (
       <div className="space-y-6">
         {/* Header */}
-        <div className="bg-gray-800 shadow rounded-lg p-6">
+        <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
           <div className="flex items-center space-x-3 mb-4">
             <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
               <BarChart3 className="w-6 h-6 text-purple-600" />
@@ -173,7 +173,7 @@ export default function ControlMasterPage() {
         </div>
 
         {/* Paywall */}
-        <div className="bg-gray-800 shadow rounded-lg p-8 text-center">
+        <div className="bg-black shadow rounded-lg p-8 text-center border border-gray-800">
           <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-6">
             <Lock className="w-8 h-8 text-purple-600" />
           </div>
@@ -219,7 +219,7 @@ export default function ControlMasterPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-gray-800 shadow rounded-lg p-6">
+      <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
         <div className="flex items-center space-x-3 mb-6">
           <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
             <BarChart3 className="w-6 h-6 text-purple-600" />
@@ -254,7 +254,7 @@ export default function ControlMasterPage() {
           <div className="flex items-center space-x-4">
             <button
               onClick={previousMonth}
-              className="p-2 text-gray-400 hover:text-gray-200 hover:bg-gray-700 rounded-md"
+              className="p-2 text-gray-400 hover:text-gray-200 hover:bg-gray-900 rounded-md"
             >
               <ChevronLeft className="w-5 h-5" />
             </button>
@@ -263,7 +263,7 @@ export default function ControlMasterPage() {
             </h2>
             <button
               onClick={nextMonth}
-              className="p-2 text-gray-400 hover:text-gray-200 hover:bg-gray-700 rounded-md"
+              className="p-2 text-gray-400 hover:text-gray-200 hover:bg-gray-900 rounded-md"
             >
               <ChevronRight className="w-5 h-5" />
             </button>
@@ -369,7 +369,7 @@ export default function ControlMasterPage() {
       </div>
 
       {/* Campaigns List */}
-      <div className="bg-gray-800 shadow rounded-lg p-6">
+      <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-semibold text-white">Campanhas do Mês</h2>
           {isLoading && (
@@ -387,7 +387,7 @@ export default function ControlMasterPage() {
           </div>
         ) : monthAds.length === 0 ? (
           <div className="text-center py-12">
-            <div className="w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
+            <div className="w-16 h-16 bg-gray-900 rounded-full flex items-center justify-center mx-auto mb-4">
               <BarChart3 className="w-8 h-8 text-gray-400" />
             </div>
             <p className="text-gray-400 mb-4">Nenhuma campanha criada ainda</p>
@@ -403,7 +403,7 @@ export default function ControlMasterPage() {
             {monthAds.map((ad) => (
               <div
                 key={ad.id}
-                className="border border-gray-600 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer bg-gray-800 hover:bg-gray-750"
+                className="border border-gray-700 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer bg-gray-900 hover:bg-gray-800"
                 onClick={() => router.push(`/master/control/${ad.documentId}`)}
               >
                 <div className="flex items-center justify-between">
@@ -445,7 +445,7 @@ export default function ControlMasterPage() {
       {/* Create Campaign Modal */}
       {isCreateModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-800 rounded-lg max-w-md w-full p-6">
+          <div className="bg-black rounded-lg max-w-md w-full p-6 border border-gray-800">
             <h3 className="text-lg font-semibold text-white mb-4">Nova Campanha</h3>
             <div className="space-y-4">
               <div>
@@ -456,7 +456,7 @@ export default function ControlMasterPage() {
                   type="text"
                   value={newAd.name}
                   onChange={(e) => setNewAd(prev => ({ ...prev, name: e.target.value }))}
-                  className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                   placeholder="Ex: Campanha Black Friday"
                 />
               </div>
@@ -468,7 +468,7 @@ export default function ControlMasterPage() {
                   type="date"
                   value={newAd.date}
                   onChange={(e) => setNewAd(prev => ({ ...prev, date: e.target.value }))}
-                  className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                 />
               </div>
             </div>

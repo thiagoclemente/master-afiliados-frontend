@@ -139,7 +139,7 @@ export default function ClicksPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-gray-800 shadow rounded-lg p-6">
+      <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center space-x-4">
             <button
@@ -185,8 +185,8 @@ export default function ClicksPage() {
           <div
             className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
               isDragOver
-                ? "border-blue-400 bg-blue-900/20"
-                : "border-gray-600 hover:border-gray-400"
+                ? "border-blue-400 bg-blue-900/30"
+                : "border-gray-700 hover:border-gray-500"
             }`}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
@@ -225,7 +225,7 @@ export default function ClicksPage() {
         )}
 
         {/* Instructions */}
-        <div className="mt-6 bg-blue-900/20 border border-blue-700 rounded-lg p-4">
+        <div className="mt-6 bg-blue-900/30 border border-blue-700 rounded-lg p-4">
           <div className="flex items-start space-x-3">
             <AlertCircle className="w-5 h-5 text-blue-400 mt-0.5" />
             <div>
