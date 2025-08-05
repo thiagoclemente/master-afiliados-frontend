@@ -17,6 +17,7 @@ import {
   ExternalLink,
   StickyNote
 } from "lucide-react";
+import AnyPackProtection from "@/components/AnyPackProtection";
 import PageLoadingBar from "@/components/page-loading-bar";
 
 export default function StickersPage() {
@@ -249,7 +250,8 @@ export default function StickersPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <AnyPackProtection>
+      <div className="space-y-6">
       <PageLoadingBar isLoading={isLoading} />
       {/* Header */}
       <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
@@ -523,6 +525,7 @@ export default function StickersPage() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </AnyPackProtection>
   );
 } 

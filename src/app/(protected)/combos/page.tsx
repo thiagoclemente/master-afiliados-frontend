@@ -9,7 +9,7 @@ import type { Combo } from "@/interfaces/combo";
 import type { Pack } from "@/interfaces/pack";
 import type { UserPackRelease } from "@/interfaces/user-pack-release";
 import Image from "next/image";
-import { ArrowLeft, Video as VideoIcon, Loader2 } from "lucide-react";
+import { ArrowLeft, Video as VideoIcon, Loader2, AlertCircle } from "lucide-react";
 
 function CombosPageContent() {
   const [combos, setCombos] = useState<Combo[]>([]);
@@ -19,8 +19,21 @@ function CombosPageContent() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [userPacksRelease, setUserPacksRelease] = useState<UserPackRelease[]>([]);
+  const [showPackRequiredMessage, setShowPackRequiredMessage] = useState(false);
   const router = useRouter();
   const { logout } = useAuth();
+
+  // Verificar se há mensagem de pacote necessário na URL
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const message = urlParams.get('message');
+    if (message === 'pack-required') {
+      setShowPackRequiredMessage(true);
+      // Limpar o parâmetro da URL
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, '', newUrl);
+    }
+  }, []);
 
   const pageSize = 10;
 
@@ -110,6 +123,16 @@ function CombosPageContent() {
     return release?.date;
   };
 
+  const formatDateUTC = (dateString: string) => {
+    // Criar data em UTC para evitar problemas de timezone
+    const [year, month, day] = dateString.split('-').map(Number);
+    const utcDate = new Date(Date.UTC(year, month - 1, day)); // month - 1 porque Date usa 0-based months
+    
+    return utcDate.toLocaleDateString('pt-BR', {
+      timeZone: 'UTC'
+    });
+  };
+
   if (error) {
     return (
       <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
@@ -128,6 +151,30 @@ function CombosPageContent() {
 
   return (
     <div className="space-y-6">
+      {/* Pack Required Message */}
+      {showPackRequiredMessage && (
+        <div className="bg-orange-900/30 border border-orange-700 rounded-lg p-6">
+          <div className="flex items-start space-x-3">
+            <AlertCircle className="w-6 h-6 text-orange-400 mt-0.5 flex-shrink-0" />
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-orange-200 mb-2">
+                Pacote Necessário
+              </h3>
+              <p className="text-orange-100 mb-4">
+                Para acessar a <strong>Biblioteca de Artes</strong> e <strong>Biblioteca de Stickers</strong>, 
+                você precisa adquirir um pacote de vídeos. Escolha um dos pacotes abaixo para começar!
+              </p>
+              <button
+                onClick={() => setShowPackRequiredMessage(false)}
+                className="text-orange-300 hover:text-orange-200 text-sm font-medium transition-colors"
+              >
+                Entendi, fechar mensagem
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
@@ -239,7 +286,7 @@ function CombosPageContent() {
                                 <span className="mr-2">⏰</span>
                                 <span>
                                   Disponível até {getPackReleaseDate(pack.documentId) ? 
-                                    new Date(getPackReleaseDate(pack.documentId)!).toLocaleDateString('pt-BR') : 
+                                    formatDateUTC(getPackReleaseDate(pack.documentId)!) : 
                                     'data não definida'
                                   }
                                 </span>

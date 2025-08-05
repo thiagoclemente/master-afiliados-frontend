@@ -17,6 +17,7 @@ import {
   Check,
   ExternalLink
 } from "lucide-react";
+import AnyPackProtection from "@/components/AnyPackProtection";
 
 export default function ArtsPage() {
   const [arts, setArts] = useState<Art[]>([]);
@@ -248,7 +249,8 @@ export default function ArtsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <AnyPackProtection>
+      <div className="space-y-6">
       {/* Header */}
       <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
@@ -519,6 +521,7 @@ export default function ArtsPage() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </AnyPackProtection>
   );
 }

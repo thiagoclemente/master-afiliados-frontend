@@ -430,7 +430,8 @@ class ControlMasterService {
   formatMonthName(date: Date): string {
     return date.toLocaleDateString('pt-BR', { 
       month: 'long', 
-      year: 'numeric' 
+      year: 'numeric',
+      timeZone: 'UTC'
     });
   }
 }
