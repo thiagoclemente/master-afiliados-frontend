@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Cookies from "js-cookie";
+import { AuthService } from "@/services/auth.service";
 
 interface User {
   id: number;
@@ -48,25 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (email: string, password: string) => {
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_STRAPI_URL}/api/auth/local`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            identifier: email,
-            password,
-          }),
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error?.message || "Erro ao fazer login");
-      }
+      const data = await AuthService.login(email, password);
 
       const userData = {
         id: data.user.id,
@@ -81,7 +64,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(userData);
       localStorage.setItem("user", JSON.stringify(userData));
       // Set authentication cookie
-      Cookies.set("user", "true", { expires: 7 }); // Cookie expires in 7 days
+      Cookies.set("user", "true", { expires: 365 }); // Cookie expires in 7 days
       router.push("/home");
     } catch (error) {
       console.error("Login error:", error);

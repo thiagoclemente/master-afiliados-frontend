@@ -4,7 +4,9 @@ import type { NextRequest } from "next/server";
 export function middleware(request: NextRequest) {
   const userCookie = request.cookies.get("user");
   const isAuthPage = request.nextUrl.pathname === "/login";
-  const isPublicPath = request.nextUrl.pathname === "/" || isAuthPage;
+  const isForgotPasswordPage = request.nextUrl.pathname === "/forgot-password";
+  const isResetPasswordPage = request.nextUrl.pathname === "/reset-password";
+  const isPublicPath = request.nextUrl.pathname === "/" || isAuthPage || isForgotPasswordPage || isResetPasswordPage;
 
   console.log(userCookie);
 
@@ -15,8 +17,8 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // If the user is logged in and trying to access the login page
-  if (userCookie && isAuthPage) {
+  // If the user is logged in and trying to access the login page or forgot password page
+  if (userCookie && (isAuthPage || isForgotPasswordPage || isResetPasswordPage)) {
     return NextResponse.redirect(new URL("/home", request.url));
   }
 

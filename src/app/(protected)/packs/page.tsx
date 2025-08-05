@@ -124,12 +124,12 @@ export default function PacksPage() {
 
   if (error) {
     return (
-      <div className="bg-gray-800 shadow rounded-lg p-6">
+      <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
         <div className="text-center">
-          <div className="text-red-400 mb-4">{error}</div>
+          <div className="text-red-300 mb-4">{error}</div>
           <button
             onClick={() => window.location.reload()}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+            className="px-4 py-2 bg-[#7d570e] text-white rounded-md hover:bg-[#6b4a0c] transition-colors"
           >
             Tentar novamente
           </button>
@@ -141,10 +141,10 @@ export default function PacksPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-gray-800 shadow rounded-lg p-6">
+      <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
           <div className="flex items-center space-x-3 mb-4 sm:mb-0">
-            <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center">
+            <div className="w-10 h-10 bg-[#7d570e] rounded-lg flex items-center justify-center">
               <Video className="w-6 h-6 text-white" />
             </div>
             <div>
@@ -169,7 +169,7 @@ export default function PacksPage() {
                 placeholder="Buscar pacotes..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-gray-700 border border-gray-600 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-white placeholder-gray-400"
+                className="w-full pl-10 pr-4 py-2 bg-gray-900 border border-gray-600 rounded-md focus:ring-2 focus:ring-[#7d570e] focus:border-[#7d570e] text-white placeholder-gray-400"
               />
             </div>
           </div>
@@ -181,7 +181,7 @@ export default function PacksPage() {
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as "newest" | "oldest" | "name")}
-                className="w-full pl-10 pr-8 py-2 bg-gray-700 border border-gray-600 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none text-white"
+                className="w-full pl-10 pr-8 py-2 bg-gray-900 border border-gray-600 rounded-md focus:ring-2 focus:ring-[#7d570e] focus:border-[#7d570e] appearance-none text-white"
               >
                 <option value="newest">Mais recentes</option>
                 <option value="oldest">Mais antigos</option>
@@ -193,14 +193,14 @@ export default function PacksPage() {
       </div>
 
       {/* Packs Grid */}
-      <div className="bg-gray-800 shadow rounded-lg p-6">
+      <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
         {isLoading ? (
           <div className="flex justify-center items-center py-12">
-            <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
+            <Loader2 className="w-8 h-8 animate-spin text-[#7d570e]" />
           </div>
         ) : filteredPacks.length === 0 ? (
           <div className="text-center py-12">
-            <div className="w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
+            <div className="w-16 h-16 bg-gray-900 rounded-full flex items-center justify-center mx-auto mb-4">
               <Video className="w-8 h-8 text-gray-400" />
             </div>
             <p className="text-gray-400 mb-4">
@@ -209,7 +209,7 @@ export default function PacksPage() {
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery("")}
-                className="text-indigo-400 hover:text-indigo-300"
+                className="text-[#7d570e] hover:text-[#6b4a0c] transition-colors"
               >
                 Limpar busca
               </button>
@@ -222,7 +222,7 @@ export default function PacksPage() {
                 <div
                   key={pack.documentId}
                   onClick={() => handlePackClick(pack.documentId)}
-                  className="group bg-gray-700 border border-gray-600 rounded-lg overflow-hidden hover:shadow-lg hover:border-indigo-500 transition-all duration-200 cursor-pointer"
+                  className="group bg-black border border-gray-800 rounded-lg overflow-hidden hover:shadow-lg hover:border-[#7d570e] transition-all duration-200 cursor-pointer"
                 >
                   <div className="relative aspect-video overflow-hidden">
                     {pack.image?.url ? (
@@ -243,7 +243,7 @@ export default function PacksPage() {
                   </div>
                   
                   <div className="p-4">
-                    <h3 className="text-lg font-semibold text-white mb-2 line-clamp-2 group-hover:text-indigo-300 transition-colors">
+                    <h3 className="text-lg font-semibold text-white mb-2 line-clamp-2 group-hover:text-[#7d570e] transition-colors">
                       {pack.name || 'Sem título'}
                     </h3>
                     
@@ -268,12 +268,12 @@ export default function PacksPage() {
                       </div>
                     </div>
                     
-                    <div className="mt-3 pt-3 border-t border-gray-600">
+                    <div className="mt-3 pt-3 border-t border-gray-800">
                       <div className="flex items-center justify-between">
-                        <span className="text-indigo-400 text-sm font-medium group-hover:text-indigo-300">
+                        <span className="text-[#7d570e] text-sm font-medium group-hover:text-[#6b4a0c]">
                           Ver vídeos
                         </span>
-                        <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-indigo-400 transition-colors" />
+                        <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-[#7d570e] transition-colors" />
                       </div>
                     </div>
                   </div>
@@ -287,7 +287,7 @@ export default function PacksPage() {
                 <button
                   onClick={loadMorePacks}
                   disabled={isLoadingMore}
-                  className="flex items-center space-x-2 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+                  className="flex items-center space-x-2 px-6 py-3 bg-[#7d570e] text-white rounded-lg hover:bg-[#6b4a0c] disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
                 >
                   {isLoadingMore ? (
                     <>

@@ -50,7 +50,9 @@ export async function fetchVideos(
   pageSize: number = 20,
   search?: string,
   id?: string,
-  packId?: string
+  packId?: string,
+  categoryId?: number,
+  sortBy?: "newest" | "oldest" | "name"
 ) {
   const token = getAuthToken();
 
@@ -58,10 +60,25 @@ export async function fetchVideos(
     throw new Error("Authentication required");
   }
 
+  // Determine sort order
+  let sortOrder: string;
+  switch (sortBy) {
+    case "oldest":
+      sortOrder = "createdAt:ASC";
+      break;
+    case "name":
+      sortOrder = "title:ASC";
+      break;
+    case "newest":
+    default:
+      sortOrder = "createdAt:DESC";
+      break;
+  }
+
   const query = qs.stringify(
     {
       populate: ["category", "video", "pack.image", "links", "coverImage"],
-      sort: ["createdAt:DESC"],
+      sort: [sortOrder],
       pagination: {
         page,
         pageSize,
@@ -86,6 +103,15 @@ export async function fetchVideos(
               pack: {
                 documentId: {
                   $eq: packId,
+                },
+              },
+            }
+          : {}),
+        ...(categoryId && categoryId > 0
+          ? {
+              category: {
+                id: {
+                  $eq: categoryId,
                 },
               },
             }
@@ -115,4 +141,36 @@ export async function fetchVideos(
   }
 
   return response.json() as Promise<VideoResponse>;
+}
+
+export async function fetchVideoCategories() {
+  const token = getAuthToken();
+
+  if (!token) {
+    throw new Error("Authentication required");
+  }
+
+  const query = qs.stringify({
+    sort: "name:ASC",
+  });
+
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_STRAPI_URL}/api/video-categories?${query}`,
+    {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      throw new Error("Authentication failed");
+    }
+    throw new Error("Failed to fetch video categories");
+  }
+
+  const result = await response.json();
+  return result.data;
 }

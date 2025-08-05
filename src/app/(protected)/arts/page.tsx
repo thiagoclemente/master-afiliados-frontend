@@ -125,15 +125,15 @@ export default function ArtsPage() {
 
   if (error) {
     return (
-      <div className="bg-gray-800 shadow rounded-lg p-6">
+      <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
         <div className="text-center">
-          <div className="text-red-400 mb-4">{error}</div>
+          <div className="text-red-300 mb-4">{error}</div>
           <button
             onClick={() => {
               setError(null);
               loadArts(1, true);
             }}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+            className="px-4 py-2 bg-[#7d570e] text-white rounded-md hover:bg-[#6b4a0c] transition-colors"
           >
             Tentar novamente
           </button>
@@ -145,7 +145,7 @@ export default function ArtsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-gray-800 shadow rounded-lg p-6">
+      <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
           <h1 className="text-2xl font-bold text-white mb-4 sm:mb-0">
             Artes
@@ -167,7 +167,7 @@ export default function ArtsPage() {
                 placeholder="Buscar artes..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-600 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                className="w-full pl-10 pr-4 py-2 bg-gray-900 border border-gray-600 rounded-md focus:ring-2 focus:ring-[#7d570e] focus:border-[#7d570e] text-white placeholder-gray-400"
               />
             </div>
           </div>
@@ -179,7 +179,7 @@ export default function ArtsPage() {
               <select
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(Number(e.target.value))}
-                className="w-full pl-10 pr-8 py-2 border border-gray-600 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none bg-white"
+                className="w-full pl-10 pr-8 py-2 bg-gray-900 border border-gray-600 rounded-md focus:ring-2 focus:ring-[#7d570e] focus:border-[#7d570e] appearance-none text-white"
               >
                 <option value={0}>Todas as categorias</option>
                 {categories.map((category) => (
@@ -194,10 +194,10 @@ export default function ArtsPage() {
       </div>
 
       {/* Arts Grid */}
-      <div className="bg-gray-800 shadow rounded-lg p-6">
+      <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
         {isLoading ? (
           <div className="flex justify-center items-center py-12">
-            <Loader2 className="w-8 h-8 animate-spin text-indigo-400" />
+            <Loader2 className="w-8 h-8 animate-spin text-[#7d570e]" />
           </div>
         ) : arts.length === 0 ? (
           <div className="text-center py-12">
@@ -210,7 +210,7 @@ export default function ArtsPage() {
                   setSearchQuery("");
                   setSelectedCategory(0);
                 }}
-                className="text-indigo-400 hover:text-indigo-300"
+                className="text-[#7d570e] hover:text-[#6b4a0c] transition-colors"
               >
                 Limpar filtros
               </button>
@@ -222,9 +222,9 @@ export default function ArtsPage() {
               {arts.map((art) => (
                 <div
                   key={art.id}
-                  className="group relative bg-gray-700 rounded-lg overflow-hidden hover:shadow-lg transition-all duration-200"
+                  className="group relative bg-black border border-gray-800 rounded-lg overflow-hidden hover:shadow-lg transition-all duration-200"
                 >
-                  <div className="aspect-square relative">
+                  <div className="aspect-[9/16] relative">
                     <Image
                       src={artService.getOptimizedImageUrl(art.image, 'small')}
                       alt={art.title}
@@ -235,14 +235,14 @@ export default function ArtsPage() {
                     />
                     
                     {/* Overlay with actions */}
-                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all duration-200 flex items-center justify-center">
+                    <div className="absolute inset-0 bg-opacity-0 group-hover:bg-opacity-10 transition-all duration-200 flex items-center justify-center">
                       <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex space-x-2">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             setSelectedArt(art);
                           }}
-                          className="p-2 bg-white rounded-full text-gray-300 hover:bg-gray-700"
+                          className="p-2 bg-[#7d570e] rounded-full text-white hover:bg-[#6b4a0c] transition-colors"
                         >
                           <Search className="w-4 h-4" />
                         </button>
@@ -252,7 +252,7 @@ export default function ArtsPage() {
                             handleDownload(art);
                           }}
                           disabled={isDownloading === art.id}
-                          className="p-2 bg-white rounded-full text-gray-300 hover:bg-gray-700 disabled:opacity-50"
+                          className="p-2 bg-[#7d570e] rounded-full text-white hover:bg-[#6b4a0c] disabled:opacity-50 transition-colors"
                         >
                           {isDownloading === art.id ? (
                             <Loader2 className="w-4 h-4 animate-spin" />
@@ -282,7 +282,7 @@ export default function ArtsPage() {
                 <button
                   onClick={loadMore}
                   disabled={isLoadingMore}
-                  className="flex items-center space-x-2 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+                  className="flex items-center space-x-2 px-6 py-3 bg-[#7d570e] text-white rounded-lg hover:bg-[#6b4a0c] disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
                 >
                   {isLoadingMore ? (
                     <>
@@ -302,9 +302,9 @@ export default function ArtsPage() {
       {/* Art Modal */}
       {selectedArt && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-800 rounded-lg max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+          <div className="bg-black border border-gray-800 rounded-lg max-w-md max-h-[90vh] overflow-hidden flex flex-col">
             {/* Header */}
-            <div className="flex justify-between items-center p-4 border-b border-gray-700">
+            <div className="flex justify-between items-center p-4 border-b border-gray-800">
               <div>
                 <h3 className="text-lg font-semibold text-white">
                   {selectedArt.title}
@@ -317,7 +317,7 @@ export default function ArtsPage() {
                 <button
                   onClick={() => handleDownload(selectedArt)}
                   disabled={isDownloading === selectedArt.id}
-                  className="p-2 text-gray-400 hover:text-gray-200 disabled:opacity-50"
+                  className="p-2 text-[#7d570e] hover:text-[#6b4a0c] disabled:opacity-50 transition-colors"
                 >
                   {isDownloading === selectedArt.id ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
@@ -327,7 +327,7 @@ export default function ArtsPage() {
                 </button>
                 <button
                   onClick={() => setSelectedArt(null)}
-                  className="p-2 text-gray-400 hover:text-gray-200"
+                  className="p-2 text-[#7d570e] hover:text-[#6b4a0c] transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -336,19 +336,20 @@ export default function ArtsPage() {
 
             {/* Image */}
             <div className="flex-1 flex items-center justify-center p-4 overflow-auto">
-              <div className="relative max-w-full max-h-full">
-                <Image
-                  src={artService.getOptimizedImageUrl(selectedArt.image, 'large')}
-                  alt={selectedArt.title}
-                  width={selectedArt.image.width}
-                  height={selectedArt.image.height}
-                  className="max-w-full max-h-full object-contain"
-                />
+              <div className="relative w-full h-full flex items-center justify-center">
+                <div className="aspect-[9/16] w-full max-w-sm relative">
+                  <Image
+                    src={artService.getOptimizedImageUrl(selectedArt.image, 'large')}
+                    alt={selectedArt.title}
+                    fill
+                    className="object-cover rounded-lg"
+                  />
+                </div>
               </div>
             </div>
 
             {/* Footer */}
-            <div className="p-4 border-t bg-gray-700">
+            <div className="p-4 border-t border-gray-800 bg-gray-900">
               <div className="flex flex-col sm:flex-row sm:justify-between text-sm text-gray-400">
                 <div>
                   Dimensões: {selectedArt.image.width} x {selectedArt.image.height}px
