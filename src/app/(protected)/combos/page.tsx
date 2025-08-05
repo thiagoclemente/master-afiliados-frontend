@@ -110,16 +110,12 @@ function CombosPageContent() {
   };
 
   const isPackInReleasePeriod = (pack: Pack) => {
-    console.log('Pack:', pack.documentId, pack.name);
-    console.log('Official Package:', pack.officialPackage);
-    console.log('User Packs Release:', userPacksRelease);
     // Verifica se o pack está em período de release (igual ao app Flutter)
     return userPacksRelease.some(release => release.pack.documentId === pack.documentId);
   };
 
   const getPackReleaseDate = (packDocumentId: string) => {
     const release = userPacksRelease.find(release => release.pack.documentId === packDocumentId);
-    console.log(release);
     return release?.date;
   };
 

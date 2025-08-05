@@ -53,11 +53,7 @@ export default function ControlMasterPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentMonth]);
 
-  // Debug effect to monitor ads state
-  useEffect(() => {
-    console.log('Ads state updated:', ads);
-    console.log('Ads length:', ads.length);
-  }, [ads]);
+
 
   const showSuccessMessage = (message: string) => {
     setSuccessMessage(message);
@@ -75,28 +71,15 @@ export default function ControlMasterPage() {
       setError(null);
       
       // Get start and end dates for the current month
-      const startDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
-      const endDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
-      
-      // Format dates as YYYY-MM-DD
-      const startDateStr = startDate.toISOString().split('T')[0];
-      const endDateStr = endDate.toISOString().split('T')[0];
-      
-      console.log('Loading ads for month:', currentMonth);
-      console.log('Date range:', startDateStr, 'to', endDateStr);
+
       
       // For now, let's get all ads without date filter to see if we get any data
       const queryParams = `populate=items&sort=createdAt:DESC&pagination[page]=1&pagination[pageSize]=100`;
       
-      console.log('Query params:', queryParams);
-      
       const adsData = await controlMasterService.getUserAds(queryParams);
-      console.log('Ads data received:', adsData);
-      console.log('Ads count:', adsData.length);
       
       setAds(adsData);
     } catch (err: unknown) {
-      console.error('Error in loadAds:', err);
       const errorMessage = err instanceof Error ? err.message : 'Erro ao carregar campanhas.';
       if (errorMessage === "Authentication failed" || errorMessage === "Authentication required") {
         logout();
@@ -207,9 +190,6 @@ export default function ControlMasterPage() {
   const getAdsByMonth = (): UserAd[] => {
     const monthYear = controlMasterService.formatMonthYear(currentMonth);
     const filteredAds = controlMasterService.getAdsByMonth(ads, monthYear);
-    console.log('All ads:', ads);
-    console.log('Current month year:', monthYear);
-    console.log('Filtered ads:', filteredAds);
     return filteredAds;
   };
 

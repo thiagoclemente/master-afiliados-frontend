@@ -61,12 +61,7 @@ export default function CampaignDetailsPage() {
       // Get specific campaign by documentId with items populated
       const campaign = await controlMasterService.getUserAdByDocumentId(campaignId, 'populate=items');
       
-      console.log('Campaign loaded:', campaign);
-      console.log('Campaign items:', campaign?.items);
-      console.log('Items count:', campaign?.items?.length);
-      console.log('Campaign date:', campaign?.date);
-      console.log('First item date:', campaign?.items?.[0]?.date);
-      console.log('Last item date:', campaign?.items?.[campaign?.items?.length - 1]?.date);
+
       
       if (!campaign) {
         showErrorMessage('Campanha não encontrada.');

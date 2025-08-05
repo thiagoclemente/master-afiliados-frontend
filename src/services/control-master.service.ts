@@ -141,7 +141,7 @@ class ControlMasterService {
     try {
       const result = await this.makeRequest(`/api/user-ads?filters[documentId][$eq]=${documentId}&${queryParams}`) as ApiResponse<ApiUserAd[]>;
       
-      console.log('API Response for single ad by documentId:', result);
+
       
       if (result.data && result.data.length > 0) {
         const item = result.data[0];
@@ -168,7 +168,7 @@ class ControlMasterService {
       
       return null;
     } catch (error) {
-      console.error('Error fetching user ad by documentId:', error);
+
       throw error;
     }
   }
@@ -178,7 +178,7 @@ class ControlMasterService {
     try {
       const result = await this.makeRequest(`/api/user-ads?${queryParams}`) as ApiResponse<ApiUserAd[]>;
       
-      console.log('API Response:', result); // Debug log
+
       
       if (result.data && Array.isArray(result.data)) {
         return result.data.map((item: ApiUserAd) => {
@@ -207,7 +207,7 @@ class ControlMasterService {
       
       return [];
     } catch (error) {
-      console.error('Error fetching user ads:', error);
+
       throw error;
     }
   }
@@ -235,7 +235,7 @@ class ControlMasterService {
         items: [],
       };
     } catch (error) {
-      console.error('Error creating ad:', error);
+
       throw error;
     }
   }
@@ -377,12 +377,8 @@ class ControlMasterService {
     const [month, year] = monthYear.split('/');
     const expectedPrefix = `${year}-${month.padStart(2, '0')}`;
     
-    console.log('Filtering ads by month:', monthYear);
-    console.log('Expected prefix:', expectedPrefix);
-    
     return ads.filter(ad => {
       const matches = ad.date.startsWith(expectedPrefix);
-      console.log(`Ad ${ad.name} (${ad.date}) matches: ${matches}`);
       return matches;
     });
   }
@@ -420,7 +416,6 @@ class ControlMasterService {
 
   // Format date
   formatDate(dateString: string): string {
-    console.log('Date string:', dateString);
     // Parse the date string manually to avoid timezone issues
     const [year, month, day] = dateString.split('-').map(Number);
     return `${day.toString().padStart(2, '0')}/${month.toString().padStart(2, '0')}/${year}`;

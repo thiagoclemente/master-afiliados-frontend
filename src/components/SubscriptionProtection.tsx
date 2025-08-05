@@ -16,10 +16,8 @@ export default function SubscriptionProtection({ children, type }: SubscriptionP
   useEffect(() => {
     const checkSubscription = async () => {
       try {
-        console.log('Checking subscription for type:', type);
         const response = await fetchUserSubscriptions();
         const subscriptions = response.data;
-        console.log('Subscriptions received:', subscriptions);
         
         let hasAccess = false;
         if (type === "commissions") {
@@ -28,10 +26,8 @@ export default function SubscriptionProtection({ children, type }: SubscriptionP
           hasAccess = hasControlMasterSubscription(subscriptions);
         }
         
-        console.log('Has access:', hasAccess);
         setHasSubscription(hasAccess);
-      } catch (err) {
-        console.error("Error checking subscription:", err);
+      } catch {
         // Em caso de erro, assumir que não tem acesso
         setHasSubscription(false);
       } finally {

@@ -17,24 +17,19 @@ export default function AnyPackProtection({ children }: AnyPackProtectionProps) 
   useEffect(() => {
     const checkUserPacks = async () => {
       try {
-        console.log('Checking if user has any packs for Arts/Stickers access...');
         const response = await fetchUserPacks();
         const userPacks = response.data;
-        console.log('User packs received:', userPacks);
         
         const hasPacks = userPacks.length > 0;
-        console.log('User has any packs:', hasPacks);
         
         if (!hasPacks) {
           // Se não tem pacotes, redirecionar para combos com mensagem
-          console.log('No packs found, redirecting to combos...');
           router.push('/combos?message=pack-required');
           return;
         }
         
         setHasAnyPack(true);
-      } catch (err) {
-        console.error("Error checking user packs:", err);
+      } catch {
         // Em caso de erro, redirecionar para combos com mensagem
         router.push('/combos?message=pack-required');
       } finally {

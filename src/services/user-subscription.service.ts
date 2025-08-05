@@ -32,7 +32,6 @@ export async function fetchUserSubscriptions(): Promise<UserSubscriptionResponse
   }
 
   const url = `${process.env.NEXT_PUBLIC_STRAPI_URL}/api/auth/user-subscriptions`;
-  console.log('Fetching user subscriptions from:', url);
 
   try {
     const response = await fetch(url, {
@@ -41,9 +40,6 @@ export async function fetchUserSubscriptions(): Promise<UserSubscriptionResponse
         Authorization: `Bearer ${token}`,
       },
     });
-
-    console.log('Response status:', response.status);
-    console.log('Response ok:', response.ok);
 
     if (!response.ok) {
       if (response.status === 401) {
@@ -54,31 +50,25 @@ export async function fetchUserSubscriptions(): Promise<UserSubscriptionResponse
 
     // Verificar se a resposta tem conteúdo
     const text = await response.text();
-    console.log('Response text:', text);
 
     if (!text || text.trim() === '') {
-      console.log('Empty response, returning empty array');
       return { data: [] };
     }
 
     let data;
     try {
       data = JSON.parse(text);
-    } catch (parseError) {
-      console.error('JSON parse error:', parseError);
-      console.log('Invalid JSON response:', text);
+    } catch {
       return { data: [] };
     }
     
     // Se a API retorna null (sem assinaturas), retornar array vazio
     if (data === null) {
-      console.log('API returned null, returning empty array');
       return { data: [] };
     }
     
     // Se a API retorna um objeto com data: null e error, verificar se é erro de auth
     if (data && typeof data === 'object' && data.data === null && data.error) {
-      console.log('API returned error object:', data.error);
       if (data.error.status === 401) {
         throw new Error("Authentication failed");
       }
@@ -86,10 +76,8 @@ export async function fetchUserSubscriptions(): Promise<UserSubscriptionResponse
       return { data: [] };
     }
     
-    console.log('Parsed data:', data);
     return data as UserSubscriptionResponse;
   } catch (error) {
-    console.error('Error in fetchUserSubscriptions:', error);
     throw error;
   }
 }

@@ -9,7 +9,7 @@ export function middleware(request: NextRequest) {
   const isVideosPage = request.nextUrl.pathname === "/videos";
   const isPublicPath = request.nextUrl.pathname === "/" || isAuthPage || isForgotPasswordPage || isResetPasswordPage;
 
-  console.log(userCookie);
+
 
   // If the user is not logged in and trying to access a protected route
   if (!userCookie && !isPublicPath) {

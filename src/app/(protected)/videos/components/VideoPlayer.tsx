@@ -83,8 +83,7 @@ export default function VideoPlayer({
             await playPromise;
             setIsPlaying(true);
           }
-        } catch (error) {
-          console.log('Erro ao reproduzir vídeo:', error);
+        } catch {
           setIsPlaying(false);
         }
       }
