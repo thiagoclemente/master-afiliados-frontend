@@ -54,6 +54,7 @@ import {
   ComissaoPorSubId
 } from "@/services/commissions.service";
 import { useAuth } from "@/context/auth-context";
+import { useAnalytics } from "@/hooks/use-analytics";
 
 export default function CommissionsPage() {
   const [isDragOver, setIsDragOver] = useState(false);
@@ -64,6 +65,7 @@ export default function CommissionsPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const router = useRouter();
   const { logout } = useAuth();
+  const { trackCommissionReport, trackError } = useAnalytics();
 
   // Load report history on component mount
   useEffect(() => {
@@ -108,6 +110,9 @@ export default function CommissionsPage() {
       const commissionsHistory = history.filter(h => h.type === 'commissions');
       setReportHistory(commissionsHistory);
       setSelectedReport(newReport);
+      
+      // Track commission report upload
+      trackCommissionReport('commissions');
       showSuccessMessage('Relatório de comissões processado com sucesso!');
       
     } catch (err: unknown) {
@@ -117,6 +122,7 @@ export default function CommissionsPage() {
         router.push("/login");
         return;
       }
+      trackError(errorMessage, 'commission_upload_error');
       showErrorMessage(errorMessage);
     } finally {
       setIsUploading(false);

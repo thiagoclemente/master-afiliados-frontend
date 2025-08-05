@@ -8,6 +8,7 @@ import { fetchPacks } from "@/services/pack.service";
 import type { Pack } from "@/interfaces/pack";
 import Image from "next/image";
 import { useDebounce } from "@/hooks/use-debounce";
+import { useAnalytics } from "@/hooks/use-analytics";
 import { 
   ArrowLeft, 
   Loader2, 
@@ -47,6 +48,7 @@ function VideosPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { logout } = useAuth();
+  const { trackPackAccess, trackVideoPlay, trackVideoDownload, trackSearch, trackError } = useAnalytics();
 
   const packId = searchParams.get("pack");
   const pageSize = 20;
@@ -103,9 +105,12 @@ function VideosPageContent() {
       const pack = response.data.find((p: Pack) => p.documentId === packId);
       if (pack) {
         setPackInfo(pack);
+        // Track pack access
+        trackPackAccess(pack.name, pack.documentId);
       }
     } catch (err) {
       console.error("Error loading pack info:", err);
+      trackError("Error loading pack info", "pack_info_error");
     }
   };
 
@@ -198,7 +203,15 @@ function VideosPageContent() {
   };
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchTerm(e.target.value);
+    const value = e.target.value;
+    setSearchTerm(value);
+    
+    // Track search after debounce
+    if (value.trim()) {
+      setTimeout(() => {
+        trackSearch(value, 'videos');
+      }, 500);
+    }
   };
 
   const handleBack = () => {
@@ -207,6 +220,10 @@ function VideosPageContent() {
 
   const handleVideoClick = (index: number) => {
     setSelectedVideoIndex(index);
+    // Track video play
+    if (videos[index]) {
+      trackVideoPlay(videos[index].title, videos[index].id.toString());
+    }
   };
 
   const handleCloseVideo = () => {
@@ -294,6 +311,9 @@ function VideosPageContent() {
         // Clean up
         window.URL.revokeObjectURL(url);
         
+        // Track video download
+        trackVideoDownload(video.title, video.id.toString());
+        
         // Reset progress
         setDownloadProgress(100);
         setTimeout(() => {
@@ -303,6 +323,7 @@ function VideosPageContent() {
         
       } catch (error) {
         console.error('Erro ao baixar vídeo:', error);
+        trackError('Erro ao baixar vídeo', 'video_download_error');
         setDownloadingVideoId(null);
         setDownloadProgress(0);
         
