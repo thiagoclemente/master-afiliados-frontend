@@ -8,6 +8,7 @@ import { fetchPacks } from "@/services/pack.service";
 import type { Pack } from "@/interfaces/pack";
 import Image from "next/image";
 import { useDebounce } from "@/hooks/use-debounce";
+import PackProtection from "@/components/PackProtection";
 import { 
   ArrowLeft, 
   Loader2, 
@@ -54,6 +55,7 @@ function VideosPageContent() {
   useEffect(() => {
     loadCategories();
     loadPackInfo();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [packId]);
 
   const loadCategories = async () => {
@@ -79,6 +81,8 @@ function VideosPageContent() {
       console.error("Error loading pack info:", err);
     }
   };
+
+
 
   const loadVideos = async (page: number, resetList: boolean = true) => {
     try {
@@ -165,7 +169,7 @@ function VideosPageContent() {
   };
 
   const handleBack = () => {
-    router.push("/packs");
+    router.push("/home");
   };
 
   const handleVideoClick = (index: number) => {
@@ -341,8 +345,11 @@ function VideosPageContent() {
     );
   }
 
+
+
   return (
-    <div className="space-y-6">
+    <PackProtection packId={packId}>
+      <div className="space-y-6">
       {/* Header */}
       <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
@@ -663,7 +670,8 @@ function VideosPageContent() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </PackProtection>
   );
 }
 

@@ -6,6 +6,7 @@ export function middleware(request: NextRequest) {
   const isAuthPage = request.nextUrl.pathname === "/login";
   const isForgotPasswordPage = request.nextUrl.pathname === "/forgot-password";
   const isResetPasswordPage = request.nextUrl.pathname === "/reset-password";
+  const isVideosPage = request.nextUrl.pathname === "/videos";
   const isPublicPath = request.nextUrl.pathname === "/" || isAuthPage || isForgotPasswordPage || isResetPasswordPage;
 
   console.log(userCookie);
@@ -20,6 +21,13 @@ export function middleware(request: NextRequest) {
   // If the user is logged in and trying to access the login page or forgot password page
   if (userCookie && (isAuthPage || isForgotPasswordPage || isResetPasswordPage)) {
     return NextResponse.redirect(new URL("/home", request.url));
+  }
+
+  // For videos page, we'll let it through but the page itself will handle the pack verification
+  // This is because we need to make an API call to check user packs, which can't be done in middleware
+  if (userCookie && isVideosPage) {
+    // Let the page handle the verification
+    return NextResponse.next();
   }
 
   return NextResponse.next();
