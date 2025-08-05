@@ -59,8 +59,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         documentId: data.user.documentId,
       };
 
-      console.log(userData);
-
       setUser(userData);
       localStorage.setItem("user", JSON.stringify(userData));
       // Set authentication cookie

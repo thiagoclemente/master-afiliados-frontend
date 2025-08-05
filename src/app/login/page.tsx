@@ -37,6 +37,8 @@ export default function LoginPage() {
               width={120}
               height={120}
               className="rounded-lg"
+              priority
+              unoptimized
             />
           </div>
           <h2 className="text-3xl font-extrabold text-white">
