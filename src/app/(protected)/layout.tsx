@@ -12,6 +12,7 @@ import {
   Menu, 
   X, 
   ChevronDown,
+  StickyNote,
 } from "lucide-react";
 
 export default function ProtectedLayout({
@@ -46,6 +47,12 @@ export default function ProtectedLayout({
       href: "/arts", 
       icon: ImageIcon,
       current: pathname === "/arts"
+    },
+    { 
+      name: "Adesivos", 
+      href: "/stickers", 
+      icon: StickyNote,
+      current: pathname === "/stickers"
     },
   ];
 
