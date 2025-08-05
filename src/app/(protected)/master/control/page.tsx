@@ -13,7 +13,6 @@ import {
   Target,
   ShoppingCart,
   Eye,
-  Lock,
   MousePointer,
   CheckCircle,
   XCircle,
@@ -21,6 +20,7 @@ import {
   Edit,
   Trash2
 } from 'lucide-react';
+import SubscriptionProtection from '@/components/SubscriptionProtection';
 import { 
   controlMasterService,
   UserAd,
@@ -38,7 +38,7 @@ export default function ControlMasterPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [hasAccess, setHasAccess] = useState(true); // TODO: Implement subscription check
+
   
   const [newAd, setNewAd] = useState({
     name: '',
@@ -213,68 +213,14 @@ export default function ControlMasterPage() {
     return filteredAds;
   };
 
-  if (!hasAccess) {
-    return (
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
-          <div className="flex items-center space-x-3 mb-4">
-            <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-              <BarChart3 className="w-6 h-6 text-purple-600" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-white">Controle Master</h1>
-              <p className="text-gray-400">Controle completo das suas campanhas publicitárias</p>
-            </div>
-          </div>
-        </div>
 
-        {/* Paywall */}
-        <div className="bg-black shadow rounded-lg p-8 text-center border border-gray-800">
-          <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Lock className="w-8 h-8 text-purple-600" />
-          </div>
-          <h2 className="text-2xl font-bold text-white mb-4">
-            Funcionalidade Premium
-          </h2>
-          <p className="text-gray-400 mb-8 max-w-md mx-auto">
-            O Controle Master é uma funcionalidade exclusiva para assinantes. 
-            Tenha controle total sobre suas campanhas publicitárias com métricas detalhadas.
-          </p>
-          <div className="space-y-4 mb-8">
-            <div className="flex items-center justify-center space-x-3 text-left">
-              <div className="w-2 h-2 bg-purple-600 rounded-full"></div>
-              <span className="text-gray-300">Controle de investimento e retorno</span>
-            </div>
-            <div className="flex items-center justify-center space-x-3 text-left">
-              <div className="w-2 h-2 bg-purple-600 rounded-full"></div>
-              <span className="text-gray-300">Métricas de performance detalhadas</span>
-            </div>
-            <div className="flex items-center justify-center space-x-3 text-left">
-              <div className="w-2 h-2 bg-purple-600 rounded-full"></div>
-              <span className="text-gray-300">Relatórios mensais automáticos</span>
-            </div>
-            <div className="flex items-center justify-center space-x-3 text-left">
-              <div className="w-2 h-2 bg-purple-600 rounded-full"></div>
-              <span className="text-gray-300">Análise de ROI em tempo real</span>
-            </div>
-          </div>
-          <button 
-            onClick={() => setHasAccess(true)}
-            className="bg-purple-600 text-white px-8 py-3 rounded-lg hover:bg-purple-700 transition-colors font-medium"
-          >
-            Assinar Controle Master
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   const summary = getMonthlySummary();
   const monthAds = getAdsByMonth();
 
   return (
-    <div className="space-y-8">
+    <SubscriptionProtection type="control">
+      <div className="space-y-8">
       {/* Header */}
       <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
         <div className="flex items-center space-x-3 mb-6">
@@ -618,6 +564,7 @@ export default function ControlMasterPage() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </SubscriptionProtection>
   );
 }

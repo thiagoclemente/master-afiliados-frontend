@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import SubscriptionProtection from '@/components/SubscriptionProtection';
 import { 
   DollarSign, 
   MousePointer, 
@@ -11,7 +12,8 @@ export default function CommissionsMasterPage() {
   const router = useRouter();
 
   return (
-    <div className="space-y-6">
+    <SubscriptionProtection type="commissions">
+      <div className="space-y-6">
       {/* Header */}
       <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
         <div className="text-center mb-8">
@@ -81,6 +83,7 @@ export default function CommissionsMasterPage() {
           </div>
         </div>
       </div>
-    </div>
+      </div>
+    </SubscriptionProtection>
   );
 }

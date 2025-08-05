@@ -13,6 +13,7 @@ import {
   ChevronLeft,
   AlertCircle
 } from 'lucide-react';
+import SubscriptionProtection from '@/components/SubscriptionProtection';
 import { 
   commissionsService, 
   ClickReport, 
@@ -137,7 +138,8 @@ export default function ClicksPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <SubscriptionProtection type="commissions">
+      <div className="space-y-6">
       {/* Header */}
       <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
         <div className="flex items-center justify-between mb-6">
@@ -309,6 +311,7 @@ export default function ClicksPage() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </SubscriptionProtection>
   );
 } 
