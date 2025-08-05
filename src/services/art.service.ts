@@ -46,6 +46,7 @@ export interface Art {
   id: number;
   title: string;
   description?: string;
+  link?: string;
   createdAt: string;
   updatedAt: string;
   publishedAt: string;

@@ -11,7 +11,11 @@ import {
   X, 
   Filter,
   Grid3X3,
-  Loader2
+  Loader2,
+  Link,
+  Copy,
+  Check,
+  ExternalLink
 } from "lucide-react";
 
 export default function ArtsPage() {
@@ -26,11 +30,15 @@ export default function ArtsPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedArt, setSelectedArt] = useState<Art | null>(null);
   const [isDownloading, setIsDownloading] = useState<number | null>(null);
+  const [downloadProgress, setDownloadProgress] = useState(0);
+  const [showLinksPopup, setShowLinksPopup] = useState(false);
+  const [selectedArtForLinks, setSelectedArtForLinks] = useState<Art | null>(null);
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
   const router = useRouter();
   const { logout } = useAuth();
 
-  const pageSize = 20;
+  const pageSize = 18;
 
   // Load categories on mount
   useEffect(() => {
@@ -108,13 +116,110 @@ export default function ArtsPage() {
   const handleDownload = async (art: Art) => {
     try {
       setIsDownloading(art.id);
-      await artService.downloadArt(art.image);
+      setDownloadProgress(0);
+      
+      // Fetch the image as blob to force download with progress
+      const response = await fetch(art.image.url);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const contentLength = response.headers.get('content-length');
+      const total = contentLength ? parseInt(contentLength, 10) : 0;
+      
+      if (!response.body) {
+        throw new Error('No response body');
+      }
+      
+      const reader = response.body.getReader();
+      const chunks: BlobPart[] = [];
+      let receivedLength = 0;
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        
+        if (done) break;
+        
+        chunks.push(value);
+        receivedLength += value.length;
+        
+        if (total > 0) {
+          const progress = (receivedLength / total) * 100;
+          setDownloadProgress(Math.round(progress));
+        }
+      }
+      
+      // Combine chunks into blob
+      const blob = new Blob(chunks, { type: 'image/jpeg' });
+      
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      
+      // Clean title for filename (remove special characters)
+      const cleanTitle = (art.title || 'arte')
+        .replace(/[^a-zA-Z0-9\s-]/g, '') // Remove special characters
+        .replace(/\s+/g, '_') // Replace spaces with underscores
+        .trim();
+      
+      link.download = `${cleanTitle}.jpg`;
+      link.style.display = 'none';
+      
+      // Trigger download
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Clean up
+      window.URL.revokeObjectURL(url);
+      
+      // Reset progress
+      setDownloadProgress(100);
+      setTimeout(() => {
+        setIsDownloading(null);
+        setDownloadProgress(0);
+      }, 1000);
+      
     } catch (err) {
       console.error("Error downloading art:", err);
       setError("Erro ao baixar a arte");
-    } finally {
       setIsDownloading(null);
+      setDownloadProgress(0);
+      
+      // Fallback to direct link if fetch fails
+      const link = document.createElement('a');
+      link.href = art.image.url;
+      link.download = `${art.title || 'arte'}.jpg`;
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     }
+  };
+
+  const handleCopyLink = async (link: string, index: number) => {
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopiedIndex(index);
+      setTimeout(() => setCopiedIndex(null), 2000);
+    } catch (err) {
+      console.error('Erro ao copiar link:', err);
+    }
+  };
+
+  const getProductLinks = (art: Art) => {
+    const links = [];
+    if (art.link) {
+      links.push(art.link);
+    }
+    return links;
+  };
+
+  const handleShowLinks = (art: Art) => {
+    setSelectedArtForLinks(art);
+    setShowLinksPopup(true);
   };
 
   const loadMore = () => {
@@ -146,40 +251,30 @@ export default function ArtsPage() {
     <div className="space-y-6">
       {/* Header */}
       <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-2xl font-bold text-white mb-4 sm:mb-0">
-            Artes
+            Biblioteca de Artes
           </h1>
-          <div className="flex items-center space-x-2 text-sm text-gray-400">
-            <Grid3X3 className="w-4 h-4" />
-            <span>{arts.length} arte{arts.length !== 1 ? 's' : ''}</span>
-          </div>
-        </div>
-
-        {/* Filters */}
-        <div className="flex flex-col sm:flex-row gap-4">
-          {/* Search */}
-          <div className="flex-1">
+          <div className="flex flex-col sm:flex-row gap-4">
+            {/* Search */}
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
               <input
                 type="text"
                 placeholder="Buscar artes..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-gray-900 border border-gray-600 rounded-md focus:ring-2 focus:ring-[#7d570e] focus:border-[#7d570e] text-white placeholder-gray-400"
+                className="pl-10 pr-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#7d570e] focus:border-[#7d570e] w-full sm:w-64"
               />
             </div>
-          </div>
 
-          {/* Category filter */}
-          <div className="sm:w-48">
+            {/* Category Filter */}
             <div className="relative">
-              <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
               <select
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(Number(e.target.value))}
-                className="w-full pl-10 pr-8 py-2 bg-gray-900 border border-gray-600 rounded-md focus:ring-2 focus:ring-[#7d570e] focus:border-[#7d570e] appearance-none text-white"
+                className="pl-10 pr-8 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-[#7d570e] focus:border-[#7d570e] appearance-none cursor-pointer w-full sm:w-48"
               >
                 <option value={0}>Todas as categorias</option>
                 {categories.map((category) => (
@@ -201,20 +296,8 @@ export default function ArtsPage() {
           </div>
         ) : arts.length === 0 ? (
           <div className="text-center py-12">
-            <div className="text-gray-400 mb-4">
-              {searchQuery || selectedCategory ? "Nenhuma arte encontrada" : "Nenhuma arte disponível"}
-            </div>
-            {(searchQuery || selectedCategory) && (
-              <button
-                onClick={() => {
-                  setSearchQuery("");
-                  setSelectedCategory(0);
-                }}
-                className="text-[#7d570e] hover:text-[#6b4a0c] transition-colors"
-              >
-                Limpar filtros
-              </button>
-            )}
+            <Grid3X3 className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+            <p className="text-gray-400">Nenhuma arte encontrada</p>
           </div>
         ) : (
           <>
@@ -222,48 +305,56 @@ export default function ArtsPage() {
               {arts.map((art) => (
                 <div
                   key={art.id}
-                  className="group relative bg-black border border-gray-800 rounded-lg overflow-hidden hover:shadow-lg transition-all duration-200"
+                  className="group relative bg-gray-900 rounded-lg overflow-hidden cursor-pointer hover:shadow-lg transition-all duration-200 transform hover:scale-105"
+                  onClick={() => setSelectedArt(art)}
                 >
                   <div className="aspect-[9/16] relative">
                     <Image
-                      src={artService.getOptimizedImageUrl(art.image, 'small')}
+                      src={artService.getOptimizedImageUrl(art.image, 'medium')}
                       alt={art.title}
                       fill
-                      sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, (max-width: 1280px) 20vw, 16vw"
-                      className="object-cover cursor-pointer"
-                      onClick={() => setSelectedArt(art)}
+                      className="object-cover group-hover:scale-105 transition-transform duration-200"
                     />
                     
-                    {/* Overlay with actions */}
-                    <div className="absolute inset-0 bg-opacity-0 group-hover:bg-opacity-10 transition-all duration-200 flex items-center justify-center">
-                      <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex space-x-2">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedArt(art);
-                          }}
-                          className="p-2 bg-[#7d570e] rounded-full text-white hover:bg-[#6b4a0c] transition-colors"
-                        >
-                          <Search className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDownload(art);
-                          }}
-                          disabled={isDownloading === art.id}
-                          className="p-2 bg-[#7d570e] rounded-full text-white hover:bg-[#6b4a0c] disabled:opacity-50 transition-colors"
-                        >
-                          {isDownloading === art.id ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <Download className="w-4 h-4" />
-                          )}
-                        </button>
+                    {/* Overlay sutil como nos vídeos */}
+                    <div className="absolute inset-0 bg-black/60 group-hover:bg-black/10 transition-all duration-200 flex items-center justify-center">
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                        <Search className="w-8 h-8 text-white" />
                       </div>
                     </div>
+
+                    {/* Botões de Ação */}
+                    <div className="absolute top-2 right-2 flex flex-col space-y-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                      {/* Botão de Download */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDownload(art);
+                        }}
+                        disabled={isDownloading === art.id}
+                        className="bg-[#7d570e] hover:bg-[#6b4a0c] text-white p-2 rounded-full transition-colors"
+                      >
+                        {isDownloading === art.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Download className="w-4 h-4" />
+                        )}
+                      </button>
+
+                      {/* Botão de Links */}
+                      {getProductLinks(art).length > 0 && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleShowLinks(art);
+                          }}
+                          className="bg-[#7d570e] hover:bg-[#6b4a0c] text-white p-2 rounded-full transition-colors"
+                        >
+                          <Link className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  
                   <div className="p-3">
                     <h3 className="text-sm font-medium text-white truncate">
                       {art.title}
@@ -301,10 +392,10 @@ export default function ArtsPage() {
 
       {/* Art Modal */}
       {selectedArt && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-          <div className="bg-black border border-gray-800 rounded-lg max-w-md max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4">
+          <div className="bg-black border border-gray-800 rounded-lg w-full max-w-4xl h-full max-h-[95vh] flex flex-col">
             {/* Header */}
-            <div className="flex justify-between items-center p-4 border-b border-gray-800">
+            <div className="flex justify-between items-center p-4 border-b border-gray-800 flex-shrink-0">
               <div>
                 <h3 className="text-lg font-semibold text-white">
                   {selectedArt.title}
@@ -334,22 +425,21 @@ export default function ArtsPage() {
               </div>
             </div>
 
-            {/* Image */}
-            <div className="flex-1 flex items-center justify-center p-4 overflow-auto">
+            {/* Image Container */}
+            <div className="flex-1 flex items-center justify-center p-4 min-h-0">
               <div className="relative w-full h-full flex items-center justify-center">
-                <div className="aspect-[9/16] w-full max-w-sm relative">
-                  <Image
-                    src={artService.getOptimizedImageUrl(selectedArt.image, 'large')}
-                    alt={selectedArt.title}
-                    fill
-                    className="object-cover rounded-lg"
-                  />
-                </div>
+                <Image
+                  src={artService.getOptimizedImageUrl(selectedArt.image, 'large')}
+                  alt={selectedArt.title}
+                  fill
+                  className="object-contain rounded-lg"
+                  sizes="(max-width: 768px) 95vw, (max-width: 1200px) 80vw, 70vw"
+                />
               </div>
             </div>
 
             {/* Footer */}
-            <div className="p-4 border-t border-gray-800 bg-gray-900">
+            <div className="p-4 border-t border-gray-800 bg-gray-900 flex-shrink-0">
               <div className="flex flex-col sm:flex-row sm:justify-between text-sm text-gray-400">
                 <div>
                   Dimensões: {selectedArt.image.width} x {selectedArt.image.height}px
@@ -359,6 +449,73 @@ export default function ArtsPage() {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Links Popup */}
+      {showLinksPopup && selectedArtForLinks && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+          <div className="bg-black border border-gray-800 rounded-lg max-w-md w-full p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-white">Links do Produto</h3>
+              <button
+                onClick={() => setShowLinksPopup(false)}
+                className="p-2 text-[#7d570e] hover:text-[#6b4a0c] transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="mb-4">
+              <h4 className="text-white font-medium mb-2">{selectedArtForLinks.title}</h4>
+            </div>
+
+            <div className="space-y-3">
+              {getProductLinks(selectedArtForLinks).map((link, index) => (
+                <div key={index} className="flex items-center justify-between p-3 bg-gray-900 rounded-lg border border-gray-800">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white text-sm truncate">{link}</p>
+                  </div>
+                  <div className="flex items-center space-x-2 ml-3">
+                    <button
+                      onClick={() => window.open(link, '_blank')}
+                      className="p-2 bg-blue-600 rounded-lg text-white hover:bg-blue-700 transition-colors flex-shrink-0"
+                      title="Abrir link"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleCopyLink(link, index)}
+                      className="p-2 bg-[#7d570e] rounded-lg text-white hover:bg-[#6b4a0c] transition-colors flex-shrink-0"
+                      title="Copiar link"
+                    >
+                      {copiedIndex === index ? (
+                        <Check className="w-4 h-4" />
+                      ) : (
+                        <Copy className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Download Progress Overlay */}
+      {isDownloading && (
+        <div className="fixed bottom-4 right-4 bg-black bg-opacity-90 rounded-lg p-4 z-50 min-w-64">
+          <div className="flex items-center justify-between text-white text-sm mb-2">
+            <span>Baixando arte...</span>
+            <span>{downloadProgress}%</span>
+          </div>
+          <div className="w-full bg-gray-600 rounded-full h-2">
+            <div 
+              className="bg-[#7d570e] h-2 rounded-full transition-all duration-300"
+              style={{ width: `${downloadProgress}%` }}
+            ></div>
           </div>
         </div>
       )}

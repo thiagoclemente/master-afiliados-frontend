@@ -4,7 +4,16 @@ import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
-import { ArrowLeft, Lock, Eye, EyeOff } from "lucide-react";
+import { 
+  ArrowLeft, 
+  Lock, 
+  Eye, 
+  EyeOff, 
+  Loader2, 
+  AlertCircle,
+  CheckCircle,
+  Key
+} from "lucide-react";
 import { AuthService } from "@/services/auth.service";
 
 function ResetPasswordContent() {
@@ -71,24 +80,23 @@ function ResetPasswordContent() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-black py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
-        {/* Header */}
+        {/* Logo e Título */}
         <div className="text-center">
           <div className="flex justify-center mb-6">
             <Image
               src="/logo.png"
               alt="Master Afiliados Logo"
-              width={100}
-              height={100}
+              width={120}
+              height={120}
               className="rounded-lg"
+              priority
+              unoptimized
             />
           </div>
-          <div className="mx-auto h-12 w-12 bg-[#7d570e] rounded-full flex items-center justify-center mb-4">
-            <Lock className="h-6 w-6 text-white" />
-          </div>
-          <h2 className="text-3xl font-extrabold text-white">
+          <h2 className="text-3xl font-extrabold text-white mb-2">
             Redefinir senha
           </h2>
-          <p className="mt-2 text-sm text-gray-300">
+          <p className="text-gray-400">
             Digite sua nova senha para continuar
           </p>
           {email && (
@@ -98,20 +106,23 @@ function ResetPasswordContent() {
           )}
         </div>
 
-        {/* Form */}
+        {/* Formulário */}
         {!isValidCode ? (
           <div className="mt-8 text-center">
             <div className="bg-red-900 border border-red-700 rounded-md p-4">
-              <div className="text-sm text-red-300">{error}</div>
+              <div className="flex items-center space-x-2">
+                <AlertCircle className="h-5 w-5 text-red-400" />
+                <div className="text-sm text-red-300">{error}</div>
+              </div>
             </div>
             <div className="mt-4">
-                          <Link
-              href="/forgot-password"
-              className="inline-flex items-center text-sm text-[#7d570e] hover:text-[#6b4a0c] transition-colors"
-            >
-              <ArrowLeft className="w-4 h-4 mr-1" />
-              Solicitar novo código
-            </Link>
+              <Link
+                href="/forgot-password"
+                className="inline-flex items-center text-sm text-[#7d570e] hover:text-[#6b4a0c] transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Solicitar novo código
+              </Link>
             </div>
           </div>
         ) : (
@@ -122,99 +133,138 @@ function ResetPasswordContent() {
               </div>
             </div>
 
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
-                Nova senha
-              </label>
-              <div className="relative">
-                <input
-                  id="password"
-                  name="password"
-                  type={showPassword ? "text" : "password"}
-                  required
-                  className="appearance-none relative block w-full px-3 py-2 pr-10 border border-gray-600 bg-gray-900 placeholder-gray-400 text-white rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                  placeholder="Digite sua nova senha"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  disabled={isLoading}
-                />
-                <button
-                  type="button"
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                  onClick={() => setShowPassword(!showPassword)}
-                >
-                  {showPassword ? (
-                    <EyeOff className="h-4 w-4 text-gray-400" />
-                  ) : (
-                    <Eye className="h-4 w-4 text-gray-400" />
-                  )}
-                </button>
+            <div className="space-y-4">
+              {/* Nova Senha */}
+              <div>
+                <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
+                  Nova senha
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Lock className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    id="password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    required
+                    className="appearance-none relative block w-full pl-10 pr-10 py-3 border border-gray-600 bg-gray-900 placeholder-gray-400 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-[#7d570e] focus:border-[#7d570e] focus:z-10 sm:text-sm transition-colors"
+                    placeholder="Digite sua nova senha"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    disabled={isLoading}
+                  />
+                  <button
+                    type="button"
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                    onClick={() => setShowPassword(!showPassword)}
+                    disabled={isLoading}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-300" />
+                    ) : (
+                      <Eye className="h-5 w-5 text-gray-400 hover:text-gray-300" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Confirmar Nova Senha */}
+              <div>
+                <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-300 mb-2">
+                  Confirmar nova senha
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Lock className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    type={showConfirmPassword ? "text" : "password"}
+                    required
+                    className="appearance-none relative block w-full pl-10 pr-10 py-3 border border-gray-600 bg-gray-900 placeholder-gray-400 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-[#7d570e] focus:border-[#7d570e] focus:z-10 sm:text-sm transition-colors"
+                    placeholder="Confirme sua nova senha"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    disabled={isLoading}
+                  />
+                  <button
+                    type="button"
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    disabled={isLoading}
+                  >
+                    {showConfirmPassword ? (
+                      <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-300" />
+                    ) : (
+                      <Eye className="h-5 w-5 text-gray-400 hover:text-gray-300" />
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
 
-            <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-300 mb-2">
-                Confirmar nova senha
-              </label>
-              <div className="relative">
-                <input
-                  id="confirmPassword"
-                  name="confirmPassword"
-                  type={showConfirmPassword ? "text" : "password"}
-                  required
-                  className="appearance-none relative block w-full px-3 py-2 pr-10 border border-gray-600 bg-gray-900 placeholder-gray-400 text-white rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                  placeholder="Confirme sua nova senha"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  disabled={isLoading}
-                />
-                <button
-                  type="button"
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                >
-                  {showConfirmPassword ? (
-                    <EyeOff className="h-4 w-4 text-gray-400" />
-                  ) : (
-                    <Eye className="h-4 w-4 text-gray-400" />
-                  )}
-                </button>
-              </div>
-            </div>
-
+            {/* Mensagem de Erro */}
             {error && (
               <div className="bg-red-900 border border-red-700 rounded-md p-4">
-                <div className="text-sm text-red-300">{error}</div>
+                <div className="flex items-center space-x-2">
+                  <AlertCircle className="h-5 w-5 text-red-400" />
+                  <div className="text-sm text-red-300">{error}</div>
+                </div>
               </div>
             )}
 
+            {/* Mensagem de Sucesso */}
             {success && (
               <div className="bg-green-900 border border-green-700 rounded-md p-4">
-                <div className="text-sm text-green-300">{success}</div>
+                <div className="flex items-center space-x-2">
+                  <CheckCircle className="h-5 w-5 text-green-400" />
+                  <div className="text-sm text-green-300">{success}</div>
+                </div>
               </div>
             )}
 
+            {/* Botão de Redefinir */}
             <div>
-                          <button
-              type="submit"
-              className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-[#7d570e] hover:bg-[#6b4a0c] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7d570e] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              disabled={isLoading}
-            >
-              {isLoading ? "Redefinindo..." : "Redefinir senha"}
-            </button>
+              <button
+                type="submit"
+                className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-[#7d570e] hover:bg-[#6b4a0c] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7d570e] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <div className="flex items-center space-x-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Redefinindo...</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center space-x-2">
+                    <Key className="w-4 h-4" />
+                    <span>Redefinir senha</span>
+                  </div>
+                )}
+              </button>
             </div>
 
+            {/* Link de Volta */}
             <div className="text-center">
-                          <Link
-              href="/forgot-password"
-              className="inline-flex items-center text-sm text-[#7d570e] hover:text-[#6b4a0c] transition-colors"
-            >
-              <ArrowLeft className="w-4 h-4 mr-1" />
-              Voltar para recuperação de senha
-            </Link>
+              <Link
+                href="/forgot-password"
+                className="inline-flex items-center text-sm text-[#7d570e] hover:text-[#6b4a0c] transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Voltar para recuperação de senha
+              </Link>
             </div>
           </form>
         )}
+
+        {/* Footer */}
+        <div className="text-center">
+          <p className="text-xs text-gray-500">
+            © 2024 Master Afiliados. Todos os direitos reservados.
+          </p>
+        </div>
       </div>
     </div>
   );

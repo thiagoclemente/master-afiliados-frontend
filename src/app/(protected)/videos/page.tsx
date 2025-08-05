@@ -8,7 +8,20 @@ import { fetchPacks } from "@/services/pack.service";
 import type { Pack } from "@/interfaces/pack";
 import Image from "next/image";
 import { useDebounce } from "@/hooks/use-debounce";
-import { ArrowLeft, Loader2, Search, Video as VideoIcon, Play, Download, Link, Copy, Check, X, Filter } from "lucide-react";
+import { 
+  ArrowLeft, 
+  Loader2, 
+  Search, 
+  Video as VideoIcon, 
+  Play, 
+  Download, 
+  Link, 
+  Copy, 
+  Check, 
+  X, 
+  Filter,
+  ExternalLink
+} from "lucide-react";
 import VideoPlayer from "./components/VideoPlayer";
 
 function VideosPageContent() {
@@ -608,16 +621,26 @@ function VideosPageContent() {
                   <div className="flex-1 min-w-0">
                     <p className="text-white text-sm truncate">{link}</p>
                   </div>
-                  <button
-                    onClick={() => handleCopyLink(link, index)}
-                    className="ml-3 p-2 bg-[#7d570e] rounded-lg text-white hover:bg-[#6b4a0c] transition-colors flex-shrink-0"
-                  >
-                    {copiedIndex === index ? (
-                      <Check className="w-4 h-4" />
-                    ) : (
-                      <Copy className="w-4 h-4" />
-                    )}
-                  </button>
+                  <div className="flex items-center space-x-2 ml-3">
+                    <button
+                      onClick={() => window.open(link, '_blank')}
+                      className="p-2 bg-blue-600 rounded-lg text-white hover:bg-blue-700 transition-colors flex-shrink-0"
+                      title="Abrir link"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleCopyLink(link, index)}
+                      className="p-2 bg-[#7d570e] rounded-lg text-white hover:bg-[#6b4a0c] transition-colors flex-shrink-0"
+                      title="Copiar link"
+                    >
+                      {copiedIndex === index ? (
+                        <Check className="w-4 h-4" />
+                      ) : (
+                        <Copy className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

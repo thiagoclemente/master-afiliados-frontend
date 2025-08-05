@@ -130,7 +130,7 @@ function CombosPageContent() {
     <div className="space-y-6">
       {/* Header */}
       <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center mb-4 sm:mb-0">
             <button
               onClick={handleBack}

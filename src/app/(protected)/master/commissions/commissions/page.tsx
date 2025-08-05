@@ -15,7 +15,35 @@ import {
   Globe,
   Layers,
   BarChart3,
-  AlertCircle
+  AlertCircle,
+  Instagram,
+  Facebook,
+  MessageCircle,
+  Youtube,
+  Send,
+  Mail,
+  Search,
+  Smartphone,
+  Apple,
+  Chrome,
+  ExternalLink,
+  Hash,
+  ShoppingCart,
+  Monitor,
+  Tablet,
+  Tv,
+  Radio,
+  Newspaper,
+  BookOpen,
+  Share2,
+  Link,
+  Zap,
+  Target,
+  TrendingUp,
+  Activity,
+  PieChart,
+  BarChart,
+  LineChart
 } from 'lucide-react';
 import { 
   commissionsService, 
@@ -469,22 +497,129 @@ function formatCurrency(value: number) {
 }
 
 function getChannelIcon(channel: string) {
-  switch (channel.toLowerCase()) {
-    case 'instagram': return '📸';
-    case 'facebook': return '📘';
-    case 'whatsapp': return '💬';
-    case 'youtube': return '📺';
-    case 'telegram': return '📱';
-    case 'email': return '📧';
-    case 'websites': return '🌐';
-    case 'google search': return '🔍';
-    case 'google play': return '📱';
-    case 'app store': return '🍎';
-    case 'edgebrowser': return '🌐';
-    case 'shopeevideo-shopee': return '🛒';
-    case 'others': return '📊';
-    default: return '📊';
+  const channelLower = channel.toLowerCase();
+  
+  // Redes Sociais
+  if (channelLower.includes('instagram') || channelLower.includes('ig')) {
+    return <Instagram className="w-5 h-5 text-pink-500" />;
   }
+  if (channelLower.includes('facebook') || channelLower.includes('fb')) {
+    return <Facebook className="w-5 h-5 text-blue-600" />;
+  }
+  if (channelLower.includes('whatsapp') || channelLower.includes('wa')) {
+    return <MessageCircle className="w-5 h-5 text-green-500" />;
+  }
+  if (channelLower.includes('youtube') || channelLower.includes('yt')) {
+    return <Youtube className="w-5 h-5 text-red-600" />;
+  }
+  if (channelLower.includes('telegram') || channelLower.includes('tg')) {
+    return <Send className="w-5 h-5 text-blue-500" />;
+  }
+  if (channelLower.includes('pinterest') || channelLower.includes('pin')) {
+    return <Target className="w-5 h-5 text-red-500" />;
+  }
+  
+  // Email e Comunicação
+  if (channelLower.includes('email') || channelLower.includes('mail')) {
+    return <Mail className="w-5 h-5 text-gray-500" />;
+  }
+  
+  // Busca e Navegadores
+  if (channelLower.includes('google search') || channelLower.includes('google') || channelLower.includes('search')) {
+    return <Search className="w-5 h-5 text-blue-500" />;
+  }
+  if (channelLower.includes('chrome') || channelLower.includes('browser')) {
+    return <Chrome className="w-5 h-5 text-green-500" />;
+  }
+  if (channelLower.includes('edge') || channelLower.includes('edgebrowser')) {
+    return <ExternalLink className="w-5 h-5 text-blue-600" />;
+  }
+  if (channelLower.includes('safari')) {
+    return <Globe className="w-5 h-5 text-blue-500" />;
+  }
+  if (channelLower.includes('firefox')) {
+    return <Globe className="w-5 h-5 text-orange-500" />;
+  }
+  
+  // Apps e Plataformas
+  if (channelLower.includes('google play') || channelLower.includes('android')) {
+    return <Smartphone className="w-5 h-5 text-green-600" />;
+  }
+  if (channelLower.includes('app store') || channelLower.includes('ios')) {
+    return <Apple className="w-5 h-5 text-gray-800" />;
+  }
+  if (channelLower.includes('shopee') || channelLower.includes('shopeevideo')) {
+    return <ShoppingCart className="w-5 h-5 text-orange-500" />;
+  }
+  
+  // Dispositivos
+  if (channelLower.includes('mobile') || channelLower.includes('celular')) {
+    return <Smartphone className="w-5 h-5 text-blue-500" />;
+  }
+  if (channelLower.includes('desktop') || channelLower.includes('computador')) {
+    return <Monitor className="w-5 h-5 text-gray-500" />;
+  }
+  if (channelLower.includes('tablet')) {
+    return <Tablet className="w-5 h-5 text-purple-500" />;
+  }
+  if (channelLower.includes('tv') || channelLower.includes('televisão')) {
+    return <Tv className="w-5 h-5 text-blue-500" />;
+  }
+  
+  // Mídia e Conteúdo
+  if (channelLower.includes('radio')) {
+    return <Radio className="w-5 h-5 text-yellow-500" />;
+  }
+  if (channelLower.includes('newspaper') || channelLower.includes('jornal')) {
+    return <Newspaper className="w-5 h-5 text-gray-600" />;
+  }
+  if (channelLower.includes('blog') || channelLower.includes('artigo')) {
+    return <BookOpen className="w-5 h-5 text-green-600" />;
+  }
+  
+  // Sites e Web
+  if (channelLower.includes('website') || channelLower.includes('site') || channelLower.includes('web')) {
+    return <Globe className="w-5 h-5 text-blue-500" />;
+  }
+  if (channelLower.includes('link') || channelLower.includes('url')) {
+    return <Link className="w-5 h-5 text-blue-400" />;
+  }
+  if (channelLower.includes('referral') || channelLower.includes('referência')) {
+    return <Share2 className="w-5 h-5 text-purple-500" />;
+  }
+  
+  // Marketing e Performance
+  if (channelLower.includes('cpc') || channelLower.includes('ads') || channelLower.includes('anúncio')) {
+    return <Target className="w-5 h-5 text-red-500" />;
+  }
+  if (channelLower.includes('organic') || channelLower.includes('orgânico')) {
+    return <TrendingUp className="w-5 h-5 text-green-500" />;
+  }
+  if (channelLower.includes('direct') || channelLower.includes('direto')) {
+    return <Zap className="w-5 h-5 text-yellow-500" />;
+  }
+  
+  // Analytics e Métricas
+  if (channelLower.includes('analytics') || channelLower.includes('métricas')) {
+    return <Activity className="w-5 h-5 text-blue-500" />;
+  }
+  if (channelLower.includes('conversion') || channelLower.includes('conversão')) {
+    return <PieChart className="w-5 h-5 text-green-500" />;
+  }
+  if (channelLower.includes('traffic') || channelLower.includes('tráfego')) {
+    return <BarChart className="w-5 h-5 text-purple-500" />;
+  }
+  if (channelLower.includes('trend') || channelLower.includes('tendência')) {
+    return <LineChart className="w-5 h-5 text-orange-500" />;
+  }
+  
+  // Outros e Padrão
+  if (channelLower.includes('other') || channelLower.includes('outro') || channelLower.includes('others')) {
+    return <Hash className="w-5 h-5 text-gray-500" />;
+  }
+  
+  // Padrão para canais não identificados
+  return <Globe className="w-5 h-5 text-gray-400" />;
 }
 
 function getStatusColor(status: string) {
