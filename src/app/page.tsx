@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
-import { Loader2, Shield, Zap } from "lucide-react";
+import { Shield, Zap } from "lucide-react";
 
 export default function Home() {
   const { user, isLoading } = useAuth();

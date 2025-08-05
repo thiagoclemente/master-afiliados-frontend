@@ -7,7 +7,6 @@ import {
   ArrowLeft, 
   Mail, 
   Loader2, 
-  Shield, 
   AlertCircle,
   CheckCircle,
   Send
