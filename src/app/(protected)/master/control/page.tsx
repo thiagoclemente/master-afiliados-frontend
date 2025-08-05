@@ -17,7 +17,9 @@ import {
   MousePointer,
   CheckCircle,
   XCircle,
-  Loader2
+  Loader2,
+  Edit,
+  Trash2
 } from 'lucide-react';
 import { 
   controlMasterService,
@@ -31,6 +33,8 @@ export default function ControlMasterPage() {
   const [ads, setAds] = useState<UserAd[]>([]);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingAd, setEditingAd] = useState<UserAd | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -134,6 +138,59 @@ export default function ControlMasterPage() {
     }
   };
 
+  const editAd = async (adId: string, newName: string) => {
+    try {
+      if (!newName.trim()) {
+        showErrorMessage('O nome da campanha não pode estar vazio.');
+        return;
+      }
+
+      if (!user) {
+        showErrorMessage('Usuário não autenticado.');
+        return;
+      }
+
+      const ad = ads.find(a => a.documentId === adId);
+      if (!ad) {
+        showErrorMessage('Campanha não encontrada.');
+        return;
+      }
+
+      await controlMasterService.updateAd({ documentId: ad.documentId, name: newName });
+      setAds(prev => prev.map(ad => 
+        ad.documentId === adId ? { ...ad, name: newName } : ad
+      ));
+      setIsEditModalOpen(false);
+      setEditingAd(null);
+      showSuccessMessage('Campanha atualizada com sucesso!');
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Erro ao atualizar campanha.';
+      showErrorMessage(errorMessage);
+    }
+  };
+
+  const deleteAd = async (adId: string) => {
+    try {
+      if (!user) {
+        showErrorMessage('Usuário não autenticado.');
+        return;
+      }
+
+      const ad = ads.find(a => a.documentId === adId);
+      if (!ad) {
+        showErrorMessage('Campanha não encontrada.');
+        return;
+      }
+
+      await controlMasterService.deleteAd(ad.documentId);
+      setAds(prev => prev.filter(ad => ad.documentId !== adId));
+      showSuccessMessage('Campanha deletada com sucesso!');
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Erro ao deletar campanha.';
+      showErrorMessage(errorMessage);
+    }
+  };
+
   const previousMonth = () => {
     setCurrentMonth(controlMasterService.getPreviousMonth(currentMonth));
   };
@@ -217,7 +274,7 @@ export default function ControlMasterPage() {
   const monthAds = getAdsByMonth();
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Header */}
       <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
         <div className="flex items-center space-x-3 mb-6">
@@ -278,91 +335,91 @@ export default function ControlMasterPage() {
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-red-900/20 border border-red-700 rounded-lg p-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div className="bg-red-900/20 border border-red-700 rounded-lg p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-red-400 font-medium">Investimento</p>
-                <p className="text-xl font-bold text-red-300">
+                <p className="text-2xl font-bold text-red-300">
                   {controlMasterService.formatCurrency(summary.totalInvestment)}
                 </p>
               </div>
-              <TrendingDown className="w-6 h-6 text-red-400" />
+              <TrendingDown className="w-8 h-8 text-red-400" />
             </div>
           </div>
 
-          <div className="bg-green-900/20 border border-green-700 rounded-lg p-4">
+          <div className="bg-green-900/20 border border-green-700 rounded-lg p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-green-400 font-medium">Vendas</p>
-                <p className="text-xl font-bold text-green-300">
+                <p className="text-2xl font-bold text-green-300">
                   {controlMasterService.formatCurrency(summary.totalSales)}
                 </p>
               </div>
-              <TrendingUp className="w-6 h-6 text-green-400" />
+              <TrendingUp className="w-8 h-8 text-green-400" />
             </div>
           </div>
 
-          <div className={`${summary.totalProfit >= 0 ? 'bg-blue-900/20 border-blue-700' : 'bg-red-900/20 border-red-700'} border rounded-lg p-4`}>
+          <div className={`${summary.totalProfit >= 0 ? 'bg-blue-900/20 border-blue-700' : 'bg-red-900/20 border-red-700'} border rounded-lg p-6`}>
             <div className="flex items-center justify-between">
               <div>
                 <p className={`text-sm font-medium ${summary.totalProfit >= 0 ? 'text-blue-400' : 'text-red-400'}`}>Lucro</p>
-                <p className={`text-xl font-bold ${summary.totalProfit >= 0 ? 'text-blue-300' : 'text-red-300'}`}>
+                <p className={`text-2xl font-bold ${summary.totalProfit >= 0 ? 'text-blue-300' : 'text-red-300'}`}>
                   {controlMasterService.formatCurrency(summary.totalProfit)}
                 </p>
               </div>
-              <DollarSign className={`w-6 h-6 ${summary.totalProfit >= 0 ? 'text-blue-400' : 'text-red-400'}`} />
+              <DollarSign className={`w-8 h-8 ${summary.totalProfit >= 0 ? 'text-blue-400' : 'text-red-400'}`} />
             </div>
           </div>
 
-          <div className="bg-purple-900/20 border border-purple-700 rounded-lg p-4">
+          <div className="bg-purple-900/20 border border-purple-700 rounded-lg p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-purple-400 font-medium">ROI</p>
-                <p className="text-xl font-bold text-purple-300">
+                <p className="text-2xl font-bold text-purple-300">
                   {summary.totalRoi.toFixed(1)}%
                 </p>
               </div>
-              <Target className="w-6 h-6 text-purple-400" />
+              <Target className="w-8 h-8 text-purple-400" />
             </div>
           </div>
         </div>
 
         {/* Additional Metrics */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-blue-900/20 border border-blue-700 rounded-lg p-4">
+          <div className="bg-blue-900/20 border border-blue-700 rounded-lg p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-blue-400 font-medium">Total Cliques</p>
-                <p className="text-lg font-bold text-blue-300">
+                <p className="text-xl font-bold text-blue-300">
                   {summary.totalClicks.toLocaleString()}
                 </p>
               </div>
-              <MousePointer className="w-5 h-5 text-blue-400" />
+              <MousePointer className="w-6 h-6 text-blue-400" />
             </div>
           </div>
 
-          <div className="bg-orange-900/20 border border-orange-700 rounded-lg p-4">
+          <div className="bg-orange-900/20 border border-orange-700 rounded-lg p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-orange-400 font-medium">Impressões</p>
-                <p className="text-lg font-bold text-orange-300">
+                <p className="text-xl font-bold text-orange-300">
                   {summary.totalImpressions.toLocaleString()}
                 </p>
               </div>
-              <Eye className="w-5 h-5 text-orange-400" />
+              <Eye className="w-6 h-6 text-orange-400" />
             </div>
           </div>
 
-          <div className="bg-yellow-900/20 border border-yellow-700 rounded-lg p-4">
+          <div className="bg-yellow-900/20 border border-yellow-700 rounded-lg p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-yellow-400 font-medium">CPC Médio</p>
-                <p className="text-lg font-bold text-yellow-300">
+                <p className="text-xl font-bold text-yellow-300">
                   {controlMasterService.formatCurrency(summary.averageCpc)}
                 </p>
               </div>
-              <ShoppingCart className="w-5 h-5 text-yellow-400" />
+              <ShoppingCart className="w-6 h-6 text-yellow-400" />
             </div>
           </div>
         </div>
@@ -403,11 +460,13 @@ export default function ControlMasterPage() {
             {monthAds.map((ad) => (
               <div
                 key={ad.id}
-                className="border border-gray-700 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer bg-gray-900 hover:bg-gray-800"
-                onClick={() => router.push(`/master/control/${ad.documentId}`)}
+                className="border border-gray-700 rounded-lg p-4 hover:shadow-md transition-shadow bg-gray-900 hover:bg-gray-800"
               >
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-4">
+                  <div 
+                    className="flex items-center space-x-4 flex-1 cursor-pointer"
+                    onClick={() => router.push(`/master/control/${ad.documentId}`)}
+                  >
                     <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
                       <Target className="w-5 h-5 text-purple-600" />
                     </div>
@@ -420,7 +479,7 @@ export default function ControlMasterPage() {
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-4">
                     <div className="text-right">
                       <p className="text-sm text-gray-400">Total Investimento</p>
                       <p className="text-white font-medium">
@@ -429,10 +488,35 @@ export default function ControlMasterPage() {
                         )}
                       </p>
                     </div>
-                    <div className="w-6 h-6 text-gray-400">
-                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingAd(ad);
+                          setIsEditModalOpen(true);
+                        }}
+                        className="p-2 text-gray-400 hover:text-blue-400 hover:bg-gray-800 rounded-md transition-colors"
+                        title="Editar campanha"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (confirm('Tem certeza que deseja deletar esta campanha?')) {
+                            deleteAd(ad.documentId);
+                          }
+                        }}
+                        className="p-2 text-gray-400 hover:text-red-400 hover:bg-gray-800 rounded-md transition-colors"
+                        title="Deletar campanha"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                      <div className="w-6 h-6 text-gray-400">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -488,6 +572,47 @@ export default function ControlMasterPage() {
                 className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Criar Campanha
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Campaign Modal */}
+      {isEditModalOpen && editingAd && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-black rounded-lg max-w-md w-full p-6 border border-gray-800">
+            <h3 className="text-lg font-semibold text-white mb-4">Editar Campanha</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">
+                  Nome da Campanha
+                </label>
+                <input
+                  type="text"
+                  value={editingAd.name}
+                  onChange={(e) => setEditingAd(prev => prev ? { ...prev, name: e.target.value } : null)}
+                  className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  placeholder="Ex: Campanha Black Friday"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end space-x-3 mt-6">
+              <button
+                onClick={() => {
+                  setIsEditModalOpen(false);
+                  setEditingAd(null);
+                }}
+                className="px-4 py-2 text-gray-300 hover:text-white transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => editAd(editingAd.documentId, editingAd.name)}
+                disabled={!editingAd.name.trim()}
+                className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Salvar Alterações
               </button>
             </div>
           </div>

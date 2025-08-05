@@ -66,9 +66,14 @@ export default function ProtectedLayout({
                     height={40}
                     className="rounded-lg"
                   />
-                  <span className="text-xl font-bold text-white">
-                    Master Afiliados
-                  </span>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-xl font-bold text-white">
+                      Master Afiliados
+                    </span>
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-[#7d570e] text-white">
+                      BETA
+                    </span>
+                  </div>
                 </Link>
               </div>
               

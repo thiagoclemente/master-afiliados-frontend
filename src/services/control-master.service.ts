@@ -26,7 +26,7 @@ export interface CreateAdRequest {
 }
 
 export interface UpdateAdRequest {
-  id: number;
+  documentId: string;
   name?: string;
   date?: string;
 }
@@ -123,6 +123,14 @@ class ControlMasterService {
         throw new Error('Access denied');
       }
       throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    // Check if response has content (for DELETE operations that return 204 No Content)
+    const contentType = response.headers.get('content-type');
+    const contentLength = response.headers.get('content-length');
+    
+    if (response.status === 204 || contentLength === '0' || !contentType?.includes('application/json')) {
+      return null; // Return null for empty responses
     }
 
     return response.json();
@@ -235,19 +243,22 @@ class ControlMasterService {
   // Update an existing ad
   async updateAd(data: UpdateAdRequest): Promise<UserAd> {
     try {
-      const result = await this.makeRequest(`/api/user-ads/${data.id}`, {
+      const endpoint = `/api/user-ads/${data.documentId}?populate=items`;
+      const requestBody = {
+        data: {
+          ...(data.name && { name: data.name }),
+          ...(data.date && { date: data.date }),
+        }
+      };
+      
+      const result = await this.makeRequest(endpoint, {
         method: 'PUT',
-        body: JSON.stringify({
-          data: {
-            ...(data.name && { name: data.name }),
-            ...(data.date && { date: data.date }),
-          }
-        }),
+        body: JSON.stringify(requestBody),
       }) as ApiResponse<ApiUserAd>;
 
       return {
-        id: result.data?.id || data.id,
-        documentId: result.data?.documentId || `ad-${data.id}`,
+        id: result.data?.id || 0,
+        documentId: result.data?.documentId || data.documentId,
         name: result.data?.name || data.name || 'Campanha sem nome',
         date: result.data?.date || data.date || new Date().toISOString().split('T')[0],
         items: (result.data?.items || []).map((item: ApiUserAdItem) => ({
@@ -269,9 +280,9 @@ class ControlMasterService {
   }
 
   // Delete an ad
-  async deleteAd(id: number): Promise<void> {
+  async deleteAd(documentId: string): Promise<void> {
     try {
-      await this.makeRequest(`/user-ads/${id}`, {
+      await this.makeRequest(`/api/user-ads/${documentId}`, {
         method: 'DELETE',
       });
     } catch (error) {

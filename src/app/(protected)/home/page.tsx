@@ -29,18 +29,18 @@ export default function HomePage() {
       color: "bg-green-500",
     },
     {
-      title: "Packs",
-      description: "Pacotes completos de conteúdo para suas campanhas",
-      href: "/packs",
-      icon: "📦",
-      color: "bg-purple-500",
+      title: "Comissões Master",
+      description: "Métricas de vendas e cliquespara afiliados Shoppe",
+      href: "/master/commissions",
+      icon: "📊", // gráfico de barras para métricas
+      color: "bg-purple-600", // roxo para diferenciar do restante e remeter a algo premium/master
     },
     {
-      title: "Master",
-      description: "Conteúdo exclusivo para afiliados master",
-      href: "/master",
-      icon: "👑",
-      color: "bg-yellow-500",
+      title: "Controle Master",
+      description: "Ferramenta para controle das suas campanhas de anúncios",
+      href: "/master/control",
+      icon: "🛠️", // ferramenta para controle/gerenciamento
+      color: "bg-indigo-700", // azul escuro para remeter a controle e seriedade
     },
   ];
 
@@ -121,31 +121,6 @@ export default function HomePage() {
               </div>
             </Link>
           ))}
-        </div>
-
-        {/* Quick Stats */}
-        <div className="mt-12 bg-black rounded-lg shadow-md p-6 border border-gray-800">
-          <h3 className="text-lg font-semibold text-white mb-4">
-            Resumo Rápido
-          </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="text-center p-4 bg-black rounded-lg border border-blue-800">
-                <div className="text-2xl font-bold text-blue-300">150+</div>
-                <div className="text-sm text-gray-300">Artes Disponíveis</div>
-              </div>
-              <div className="text-center p-4 bg-black rounded-lg border border-red-800">
-                <div className="text-2xl font-bold text-red-300">50+</div>
-                <div className="text-sm text-gray-300">Vídeos</div>
-              </div>
-              <div className="text-center p-4 bg-black rounded-lg border border-green-800">
-                <div className="text-2xl font-bold text-green-300">200+</div>
-                <div className="text-sm text-gray-300">Stickers</div>
-              </div>
-              <div className="text-center p-4 bg-black rounded-lg border border-purple-800">
-                <div className="text-2xl font-bold text-purple-300">25+</div>
-                <div className="text-sm text-gray-300">Packs Completos</div>
-              </div>
-            </div>
         </div>
       </div>
     </div>
