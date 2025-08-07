@@ -25,7 +25,9 @@ import {
   controlMasterService,
   UserAd,
   MonthlySummary,
-  CreateAdRequest
+  CreateAdRequest,
+  ControlMasterType,
+  ControlMasterTypeLabels
 } from '@/services/control-master.service';
 import { useAuth } from '@/context/auth-context';
 
@@ -42,7 +44,8 @@ export default function ControlMasterPage() {
   
   const [newAd, setNewAd] = useState({
     name: '',
-    date: ''
+    date: '',
+    type: ControlMasterType.PER_DAY
   });
 
   const router = useRouter();
@@ -108,12 +111,13 @@ export default function ControlMasterPage() {
         name: newAd.name,
         date: newAd.date, // Use the date directly in yyyy-MM-dd format
         user: user.documentId,
+        type: newAd.type,
       };
 
       const createdAd = await controlMasterService.createAd(user.documentId, createData);
       setAds(prev => [createdAd, ...prev]);
       setIsCreateModalOpen(false);
-      setNewAd({ name: '', date: '' });
+      setNewAd({ name: '', date: '', type: ControlMasterType.PER_DAY });
       showSuccessMessage('Campanha criada com sucesso!');
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Erro ao criar campanha.';
@@ -316,9 +320,9 @@ export default function ControlMasterPage() {
           <div className="bg-blue-900/20 border border-blue-700 rounded-lg p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-blue-400 font-medium">Total Cliques</p>
+                <p className="text-sm text-blue-400 font-medium">Total Cliques Shopee</p>
                 <p className="text-xl font-bold text-blue-300">
-                  {summary.totalClicks.toLocaleString()}
+                  {summary.totalShoppeClicks.toLocaleString()}
                 </p>
               </div>
               <MousePointer className="w-6 h-6 text-blue-400" />
@@ -328,9 +332,9 @@ export default function ControlMasterPage() {
           <div className="bg-orange-900/20 border border-orange-700 rounded-lg p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-orange-400 font-medium">Impressões</p>
+                <p className="text-sm text-orange-400 font-medium">Total Cliques Meta</p>
                 <p className="text-xl font-bold text-orange-300">
-                  {summary.totalImpressions.toLocaleString()}
+                  {summary.totalMetaClicks.toLocaleString()}
                 </p>
               </div>
               <Eye className="w-6 h-6 text-orange-400" />
@@ -400,9 +404,18 @@ export default function ControlMasterPage() {
                       <h3 className="text-lg font-semibold text-white hover:text-purple-300 transition-colors">
                         {ad.name}
                       </h3>
-                      <p className="text-sm text-gray-400">
-                        {ad.items.length} item{ad.items.length !== 1 ? 's' : ''} • ID: {ad.documentId}
-                      </p>
+                      <div className="flex items-center space-x-2">
+                        <p className="text-sm text-gray-400">
+                          {ad.items.length} item{ad.items.length !== 1 ? 's' : ''} • ID: {ad.documentId}
+                        </p>
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                          ad.type === ControlMasterType.PER_DAY 
+                            ? 'bg-blue-900/20 text-blue-300 border border-blue-700' 
+                            : 'bg-orange-900/20 text-orange-300 border border-orange-700'
+                        }`}>
+                          {ControlMasterTypeLabels[ad.type]}
+                        </span>
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-center space-x-4">
@@ -413,6 +426,29 @@ export default function ControlMasterPage() {
                           ad.items.reduce((sum, item) => sum + item.valueDailyInvestment, 0)
                         )}
                       </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm text-gray-400">Total Vendas</p>
+                      <p className="text-white font-medium">
+                        {controlMasterService.formatCurrency(
+                          ad.items.reduce((sum, item) => sum + item.valueTotalSalesDay, 0)
+                        )}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      {(() => {
+                        const totalInvestment = ad.items.reduce((sum, item) => sum + item.valueDailyInvestment, 0);
+                        const totalSales = ad.items.reduce((sum, item) => sum + item.valueTotalSalesDay, 0);
+                        const profit = totalSales - totalInvestment;
+                        return (
+                          <>
+                            <p className="text-sm text-gray-400">Lucro</p>
+                            <p className={`font-medium ${profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                              {controlMasterService.formatCurrency(profit)}
+                            </p>
+                          </>
+                        );
+                      })()}
                     </div>
                     <div className="flex items-center space-x-2">
                       <button
@@ -481,12 +517,25 @@ export default function ControlMasterPage() {
                   className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">
+                  Tipo de Campanha
+                </label>
+                <select
+                  value={newAd.type}
+                  onChange={(e) => setNewAd(prev => ({ ...prev, type: e.target.value as ControlMasterType }))}
+                  className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                >
+                  <option value={ControlMasterType.PER_DAY}>{ControlMasterTypeLabels[ControlMasterType.PER_DAY]}</option>
+                  <option value={ControlMasterType.PER_AD}>{ControlMasterTypeLabels[ControlMasterType.PER_AD]}</option>
+                </select>
+              </div>
             </div>
             <div className="flex justify-end space-x-3 mt-6">
               <button
                 onClick={() => {
                   setIsCreateModalOpen(false);
-                  setNewAd({ name: '', date: '' });
+                  setNewAd({ name: '', date: '', type: ControlMasterType.PER_DAY });
                 }}
                 className="px-4 py-2 text-gray-300 hover:text-white transition-colors"
               >

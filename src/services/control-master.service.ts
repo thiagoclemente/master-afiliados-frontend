@@ -1,4 +1,15 @@
 // Control Master Service
+
+export enum ControlMasterType {
+  PER_DAY = 'PER_DAY',
+  PER_AD = 'PER_AD'
+}
+
+export const ControlMasterTypeLabels: Record<ControlMasterType, string> = {
+  [ControlMasterType.PER_DAY]: 'Por Dia',
+  [ControlMasterType.PER_AD]: 'Por Campanha'
+};
+
 export interface UserAdItem {
   id: number;
   documentId: string;
@@ -6,9 +17,11 @@ export interface UserAdItem {
   valueDailyInvestment: number;
   valueTotalSalesDay: number;
   valueTotalCpc: number;
-  totalClicks: string;
-  totalImpressions: string;
-  notes: string;
+  notes?: string;
+  subId?: string;
+  productLink?: string;
+  shoppeClicks?: string;
+  metaClicks?: string;
 }
 
 export interface UserAd {
@@ -16,6 +29,7 @@ export interface UserAd {
   documentId: string;
   name: string;
   date: string;
+  type: ControlMasterType;
   items: UserAdItem[];
 }
 
@@ -23,6 +37,7 @@ export interface CreateAdRequest {
   name: string;
   date: string;
   user: string;
+  type?: ControlMasterType;
 }
 
 export interface UpdateAdRequest {
@@ -36,9 +51,24 @@ export interface UpdateAdItemRequest {
   valueDailyInvestment?: number;
   valueTotalSalesDay?: number;
   valueTotalCpc?: number;
-  totalClicks?: string;
-  totalImpressions?: string;
   notes?: string;
+  subId?: string;
+  productLink?: string;
+  shoppeClicks?: string;
+  metaClicks?: string;
+}
+
+export interface CreateAdItemRequest {
+  date: string;
+  valueDailyInvestment?: number;
+  valueTotalSalesDay?: number;
+  valueTotalCpc?: number;
+  notes?: string;
+  subId?: string;
+  productLink?: string;
+  shoppeClicks?: string;
+  metaClicks?: string;
+  user?: string;
 }
 
 export interface MonthlySummary {
@@ -46,8 +76,8 @@ export interface MonthlySummary {
   totalSales: number;
   totalProfit: number;
   totalRoi: number;
-  totalClicks: number;
-  totalImpressions: number;
+  totalShoppeClicks: number;
+  totalMetaClicks: number;
   averageCpc: number;
 }
 
@@ -59,9 +89,11 @@ interface ApiUserAdItem {
   valueDailyInvestment?: number;
   valueTotalSalesDay?: number;
   valueTotalCpc?: number;
-  totalClicks?: string;
-  totalImpressions?: string;
   notes?: string;
+  subId?: string;
+  productLink?: string;
+  shoppeClicks?: string;
+  metaClicks?: string;
 }
 
 interface ApiUserAd {
@@ -69,6 +101,7 @@ interface ApiUserAd {
   documentId?: string;
   name?: string;
   date?: string;
+  type?: string;
   items?: ApiUserAdItem[];
 }
 
@@ -150,6 +183,7 @@ class ControlMasterService {
           documentId: item.documentId || `ad-${item.id}`,
           name: item.name || 'Campanha sem nome',
           date: item.date || new Date().toISOString().split('T')[0],
+          type: (item.type as ControlMasterType) || ControlMasterType.PER_DAY, // Default to PER_DAY if not present
           items: (item.items || []).map((itemData: ApiUserAdItem) => {
             return {
               id: itemData.id,
@@ -158,9 +192,11 @@ class ControlMasterService {
               valueDailyInvestment: itemData.valueDailyInvestment || 0,
               valueTotalSalesDay: itemData.valueTotalSalesDay || 0,
               valueTotalCpc: itemData.valueTotalCpc || 0,
-              totalClicks: itemData.totalClicks || '0',
-              totalImpressions: itemData.totalImpressions || '0',
               notes: itemData.notes || '',
+              subId: itemData.subId || '',
+              productLink: itemData.productLink || '',
+              shoppeClicks: itemData.shoppeClicks || '0',
+              metaClicks: itemData.metaClicks || '0',
             };
           }),
         };
@@ -188,6 +224,7 @@ class ControlMasterService {
             documentId: item.documentId || `ad-${item.id}`,
             name: item.name || 'Campanha sem nome',
             date: item.date || new Date().toISOString().split('T')[0],
+            type: (item.type as ControlMasterType) || ControlMasterType.PER_DAY, // Default to PER_DAY if not present
             items: (item.items || []).map((itemData: ApiUserAdItem) => {
               return {
                 id: itemData.id,
@@ -196,9 +233,11 @@ class ControlMasterService {
                 valueDailyInvestment: itemData.valueDailyInvestment || 0,
                 valueTotalSalesDay: itemData.valueTotalSalesDay || 0,
                 valueTotalCpc: itemData.valueTotalCpc || 0,
-                totalClicks: itemData.totalClicks || '0',
-                totalImpressions: itemData.totalImpressions || '0',
-                notes: itemData.notes || '',
+                              notes: itemData.notes || '',
+              subId: itemData.subId || '',
+              productLink: itemData.productLink || '',
+              shoppeClicks: itemData.shoppeClicks || '0',
+              metaClicks: itemData.metaClicks || '0',
               };
             }),
           };
@@ -222,6 +261,7 @@ class ControlMasterService {
             name: data.name,
             date: data.date,
             user: userDocumentId,
+            type: data.type || ControlMasterType.PER_DAY, // Default to PER_DAY if not present
           }
         }),
       }) as ApiResponse<ApiUserAd>;
@@ -232,6 +272,7 @@ class ControlMasterService {
         documentId: result.data?.documentId || `ad-${Date.now()}`,
         name: result.data?.name || data.name,
         date: result.data?.date || data.date,
+        type: (result.data?.type as ControlMasterType) || data.type || ControlMasterType.PER_DAY, // Default to PER_DAY if not present
         items: [],
       };
     } catch (error) {
@@ -261,6 +302,7 @@ class ControlMasterService {
         documentId: result.data?.documentId || data.documentId,
         name: result.data?.name || data.name || 'Campanha sem nome',
         date: result.data?.date || data.date || new Date().toISOString().split('T')[0],
+        type: (result.data?.type as ControlMasterType) || ControlMasterType.PER_DAY, // Default to PER_DAY if not present
         items: (result.data?.items || []).map((item: ApiUserAdItem) => ({
           id: item.id,
           documentId: item.documentId || `item-${item.id}`,
@@ -268,9 +310,11 @@ class ControlMasterService {
           valueDailyInvestment: item.valueDailyInvestment || 0,
           valueTotalSalesDay: item.valueTotalSalesDay || 0,
           valueTotalCpc: item.valueTotalCpc || 0,
-          totalClicks: item.totalClicks || '0',
-          totalImpressions: item.totalImpressions || '0',
-          notes: item.notes || '',
+                        notes: item.notes || '',
+              subId: item.subId || '',
+              productLink: item.productLink || '',
+              shoppeClicks: item.shoppeClicks || '0',
+              metaClicks: item.metaClicks || '0',
         })),
       };
     } catch (error) {
@@ -291,6 +335,52 @@ class ControlMasterService {
     }
   }
 
+  // Create a new ad item
+  async createAdItem(adDocumentId: string, data: CreateAdItemRequest): Promise<UserAdItem> {
+    try {
+      const requestBody = {
+        data: {
+          ad: adDocumentId,
+          user: data.user || '',
+          date: data.date,
+          valueDailyInvestment: data.valueDailyInvestment || 0,
+          valueTotalSalesDay: data.valueTotalSalesDay || 0,
+          valueTotalCpc: data.valueTotalCpc || 0,
+          notes: data.notes || '',
+          subId: data.subId || '',
+          productLink: data.productLink || '',
+          shoppeClicks: data.shoppeClicks || '0',
+          metaClicks: data.metaClicks || '0',
+        }
+      };
+      
+      const result = await this.makeRequest('/api/user-ad-items', {
+        method: 'POST',
+        body: JSON.stringify(requestBody),
+      }) as ApiResponse<ApiUserAdItem>;
+      
+      // The API returns data directly, not in attributes
+      const createdItem = {
+        id: result.data?.id || 0,
+        documentId: result.data?.documentId || `item-${Date.now()}`,
+        date: result.data?.date || data.date || '',
+        valueDailyInvestment: result.data?.valueDailyInvestment || data.valueDailyInvestment || 0,
+        valueTotalSalesDay: result.data?.valueTotalSalesDay || data.valueTotalSalesDay || 0,
+        valueTotalCpc: result.data?.valueTotalCpc || data.valueTotalCpc || 0,
+        notes: result.data?.notes || data.notes || '',
+        subId: result.data?.subId || data.subId || '',
+        productLink: result.data?.productLink || data.productLink || '',
+        shoppeClicks: result.data?.shoppeClicks || data.shoppeClicks || '0',
+        metaClicks: result.data?.metaClicks || data.metaClicks || '0',
+      };
+      
+      return createdItem;
+    } catch (error) {
+      console.error('Error creating ad item:', error);
+      throw error;
+    }
+  }
+
   // Update an existing ad item
   async updateAdItem(documentId: string, data: UpdateAdItemRequest): Promise<UserAdItem> {
     try {
@@ -305,9 +395,11 @@ class ControlMasterService {
             ...(data.valueDailyInvestment !== undefined && { valueDailyInvestment: data.valueDailyInvestment }),
             ...(data.valueTotalSalesDay !== undefined && { valueTotalSalesDay: data.valueTotalSalesDay }),
             ...(data.valueTotalCpc !== undefined && { valueTotalCpc: data.valueTotalCpc }),
-            ...(data.totalClicks && { totalClicks: data.totalClicks }),
-            ...(data.totalImpressions && { totalImpressions: data.totalImpressions }),
             ...(data.notes && { notes: data.notes }),
+            ...(data.subId && { subId: data.subId }),
+            ...(data.productLink && { productLink: data.productLink }),
+            ...(data.shoppeClicks && { shoppeClicks: data.shoppeClicks }),
+            ...(data.metaClicks && { metaClicks: data.metaClicks }),
           }
         }),
       }) as ApiResponse<ApiUserAdItem>;
@@ -320,12 +412,26 @@ class ControlMasterService {
         valueDailyInvestment: result.data?.valueDailyInvestment || data.valueDailyInvestment || 0,
         valueTotalSalesDay: result.data?.valueTotalSalesDay || data.valueTotalSalesDay || 0,
         valueTotalCpc: result.data?.valueTotalCpc || data.valueTotalCpc || 0,
-        totalClicks: result.data?.totalClicks || data.totalClicks || '0',
-        totalImpressions: result.data?.totalImpressions || data.totalImpressions || '0',
         notes: result.data?.notes || data.notes || '',
+        subId: result.data?.subId || data.subId || '',
+        productLink: result.data?.productLink || data.productLink || '',
+        shoppeClicks: result.data?.shoppeClicks || data.shoppeClicks || '0',
+        metaClicks: result.data?.metaClicks || data.metaClicks || '0',
       };
     } catch (error) {
       console.error('Error updating ad item:', error);
+      throw error;
+    }
+  }
+
+  // Delete an ad item
+  async deleteAdItem(documentId: string): Promise<void> {
+    try {
+      await this.makeRequest(`/api/user-ad-items/${documentId}`, {
+        method: 'DELETE',
+      });
+    } catch (error) {
+      console.error('Error deleting ad item:', error);
       throw error;
     }
   }
@@ -339,8 +445,8 @@ class ControlMasterService {
     
     let totalInvestment = 0;
     let totalSales = 0;
-    let totalClicks = 0;
-    let totalImpressions = 0;
+    let totalShoppeClicks = 0;
+    let totalMetaClicks = 0;
     let totalCpc = 0;
     let itemCount = 0;
 
@@ -348,8 +454,8 @@ class ControlMasterService {
       ad.items.forEach(item => {
         totalInvestment += item.valueDailyInvestment;
         totalSales += item.valueTotalSalesDay;
-        totalClicks += parseInt(item.totalClicks) || 0;
-        totalImpressions += parseInt(item.totalImpressions) || 0;
+        totalShoppeClicks += parseInt(item.shoppeClicks || '0') || 0;
+        totalMetaClicks += parseInt(item.metaClicks || '0') || 0;
         totalCpc += item.valueTotalCpc;
         itemCount++;
       });
@@ -364,8 +470,8 @@ class ControlMasterService {
       totalSales,
       totalProfit,
       totalRoi,
-      totalClicks,
-      totalImpressions,
+      totalShoppeClicks,
+      totalMetaClicks,
       averageCpc,
     };
   }
