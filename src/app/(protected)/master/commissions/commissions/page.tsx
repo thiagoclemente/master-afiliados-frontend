@@ -45,6 +45,11 @@ import {
   BarChart,
   LineChart
 } from 'lucide-react';
+import {
+  CommissionsByChannelChart,
+  CommissionsBySubIdChart,
+  OrdersByChannelChart
+} from '@/components/charts';
 import SubscriptionProtection from '@/components/SubscriptionProtection';
 import { 
   commissionsService, 
@@ -438,62 +443,109 @@ function CommissionReportDisplay({ report }: { report: CommissionReport }) {
       {/* Detailed Reports */}
       <div className="space-y-6">
         {/* Comissões por Canal */}
-        <div className="bg-gray-700 rounded-lg p-6">
-          <h3 className="text-lg font-semibold text-white mb-4 flex items-center space-x-2">
-            <BarChart3 className="w-5 h-5 text-blue-400" />
-            <span>Comissões por Canal</span>
-          </h3>
-          <div className="space-y-4">
-            {report.comissoes_por_canal.map((item: ComissaoPorCanal, index: number) => (
-              <div key={index} className="bg-gray-600 rounded-lg p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-lg">{getChannelIcon(item.canal)}</span>
-                    <span className="font-medium text-white">{item.canal}</span>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="bg-gray-700 rounded-lg p-6">
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center space-x-2">
+              <BarChart3 className="w-5 h-5 text-blue-400" />
+              <span>Comissões por Canal</span>
+            </h3>
+            <div className="space-y-4">
+              {report.comissoes_por_canal.map((item: ComissaoPorCanal, index: number) => (
+                <div key={index} className="bg-gray-600 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-lg">{getChannelIcon(item.canal)}</span>
+                      <span className="font-medium text-white">{item.canal}</span>
+                    </div>
+                    <span className="text-green-400 font-bold">
+                      {formatCurrency(item.comissao)}
+                    </span>
+                  </div>
+                  <div className="text-sm text-gray-300 mb-3">
+                    {item.total_pedidos} pedidos
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-gray-300">Status dos Pedidos:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {item.por_status && Object.entries(item.por_status).map(([status, count]) => (
+                        <span
+                          key={status}
+                          className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(status)} bg-gray-800`}
+                        >
+                          {status}: {count}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Chart for Comissões por Canal */}
+          <div>
+            <CommissionsByChannelChart data={report.comissoes_por_canal} />
+          </div>
+        </div>
+
+        {/* Comissões por Sub ID */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="bg-gray-700 rounded-lg p-6">
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center space-x-2">
+              <Layers className="w-5 h-5 text-blue-400" />
+              <span>Comissões por Sub ID</span>
+            </h3>
+            <div className="space-y-3">
+              {report.comissoes_por_subid.map((item: ComissaoPorSubId, index: number) => (
+                <div key={index} className="flex items-center justify-between p-3 bg-gray-600 rounded-lg">
+                  <div>
+                    <p className="font-medium text-white">{item.sub_id}</p>
+                    <p className="text-sm text-gray-400">{item.total_pedidos} pedidos</p>
                   </div>
                   <span className="text-green-400 font-bold">
                     {formatCurrency(item.comissao)}
                   </span>
                 </div>
-                <div className="text-sm text-gray-300 mb-3">
-                  {item.total_pedidos} pedidos
-                </div>
-                <div className="space-y-2">
-                  <p className="text-sm font-medium text-gray-300">Status dos Pedidos:</p>
-                  <div className="flex flex-wrap gap-2">
-                    {item.por_status && Object.entries(item.por_status).map(([status, count]) => (
-                      <span
-                        key={status}
-                        className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(status)} bg-gray-800`}
-                      >
-                        {status}: {count}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
+          </div>
+
+          {/* Chart for Comissões por Sub ID */}
+          <div>
+            <CommissionsBySubIdChart data={report.comissoes_por_subid} />
           </div>
         </div>
 
-        {/* Comissões por Sub ID */}
-        <div className="bg-gray-700 rounded-lg p-6">
-          <h3 className="text-lg font-semibold text-white mb-4 flex items-center space-x-2">
-            <Layers className="w-5 h-5 text-blue-400" />
-            <span>Comissões por Sub ID</span>
-          </h3>
-          <div className="space-y-3">
-            {report.comissoes_por_subid.map((item: ComissaoPorSubId, index: number) => (
-              <div key={index} className="flex items-center justify-between p-3 bg-gray-600 rounded-lg">
-                <div>
-                  <p className="font-medium text-white">{item.sub_id}</p>
-                  <p className="text-sm text-gray-400">{item.total_pedidos} pedidos</p>
+        {/* Pedidos por Canal */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="bg-gray-700 rounded-lg p-6">
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center space-x-2">
+              <Users className="w-5 h-5 text-blue-400" />
+              <span>Pedidos por Canal</span>
+            </h3>
+            <div className="space-y-3">
+              {report.comissoes_por_canal.map((item: ComissaoPorCanal, index: number) => (
+                <div key={index} className="flex items-center justify-between p-3 bg-gray-600 rounded-lg">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-lg">{getChannelIcon(item.canal)}</span>
+                    <div>
+                      <p className="font-medium text-white">{item.canal}</p>
+                      <p className="text-sm text-gray-400">
+                        {formatCurrency(item.comissao)} em comissões
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-blue-400 font-bold">
+                    {item.total_pedidos} pedidos
+                  </span>
                 </div>
-                <span className="text-green-400 font-bold">
-                  {formatCurrency(item.comissao)}
-                </span>
-              </div>
-            ))}
+              ))}
+            </div>
+          </div>
+
+          {/* Chart for Pedidos por Canal */}
+          <div>
+            <OrdersByChannelChart data={report.comissoes_por_canal} />
           </div>
         </div>
       </div>

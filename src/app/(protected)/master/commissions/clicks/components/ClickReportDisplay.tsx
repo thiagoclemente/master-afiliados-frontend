@@ -15,6 +15,12 @@ import {
   CliquePorSubId,
   CliquePorRegiao
 } from "@/services/commissions.service";
+import {
+  ClicksByChannelChart,
+  ClicksByHourChart,
+  ClicksBySubIdChart,
+  ClicksByRegionChart
+} from '@/components/charts';
 
 // Helper function for channel icons
 const getChannelIcon = (channel: string) => {
@@ -37,6 +43,10 @@ const getChannelIcon = (channel: string) => {
 };
 
 export default function ClickReportDisplay({ report }: { report: ClickReport }) {
+  console.log('ClickReportDisplay report:', report);
+  console.log('ClickReportDisplay cliques_por_subid:', report.cliques_por_subid);
+  console.log('ClickReportDisplay cliques_por_hora:', report.cliques_por_hora);
+  
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
@@ -114,83 +124,111 @@ export default function ClickReportDisplay({ report }: { report: ClickReport }) 
       {/* Detailed Reports */}
       <div className="space-y-6">
         {/* Cliques por Canal */}
-        <div className="bg-gray-700 rounded-lg p-6">
-          <h3 className="text-lg font-semibold text-white mb-4 flex items-center space-x-2">
-            <BarChart3 className="w-5 h-5 text-blue-400" />
-            <span>Cliques por Canal</span>
-          </h3>
-          <div className="space-y-3">
-            {report.cliques_por_canal.map((item: CliquePorCanal, index: number) => (
-              <div key={index} className="flex items-center justify-between p-3 bg-gray-600 rounded-lg">
-                <div className="flex items-center space-x-3">
-                  <span className="text-lg">{getChannelIcon(item.canal)}</span>
-                  <span className="font-medium text-white">{item.canal}</span>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="bg-gray-700 rounded-lg p-6">
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center space-x-2">
+              <BarChart3 className="w-5 h-5 text-blue-400" />
+              <span>Cliques por Canal</span>
+            </h3>
+            <div className="space-y-3">
+              {report.cliques_por_canal.map((item: CliquePorCanal, index: number) => (
+                <div key={index} className="flex items-center justify-between p-3 bg-gray-600 rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <span className="text-lg">{getChannelIcon(item.canal)}</span>
+                    <span className="font-medium text-white">{item.canal}</span>
+                  </div>
+                  <div className="flex items-center space-x-4">
+                    <span className="text-blue-400 font-medium">{item.cliques.toLocaleString()} cliques</span>
+                    <span className="text-gray-400">•</span>
+                    <span className="text-green-400 font-medium">{item.percentual.toFixed(1)}%</span>
+                  </div>
                 </div>
-                <div className="flex items-center space-x-4">
-                  <span className="text-blue-400 font-medium">{item.cliques.toLocaleString()} cliques</span>
-                  <span className="text-gray-400">•</span>
-                  <span className="text-green-400 font-medium">{item.percentual.toFixed(1)}%</span>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
+          </div>
+
+          {/* Chart for Cliques por Canal */}
+          <div>
+            <ClicksByChannelChart data={report.cliques_por_canal} />
           </div>
         </div>
 
         {/* Cliques por Hora */}
-        <div className="bg-gray-700 rounded-lg p-6">
-          <h3 className="text-lg font-semibold text-white mb-4 flex items-center space-x-2">
-            <Clock className="w-5 h-5 text-green-400" />
-            <span>Cliques por Hora</span>
-          </h3>
-          <div className="space-y-3">
-            {report.cliques_por_hora.map((item: CliquePorHora, index: number) => (
-              <div key={index} className="flex items-center justify-between p-3 bg-gray-600 rounded-lg">
-                <div className="flex items-center space-x-3">
-                  <Clock className="w-5 h-5 text-gray-400" />
-                  <span className="font-medium text-white">{item.faixa_horario}</span>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="bg-gray-700 rounded-lg p-6">
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center space-x-2">
+              <Clock className="w-5 h-5 text-green-400" />
+              <span>Cliques por Hora</span>
+            </h3>
+            <div className="space-y-3">
+              {report.cliques_por_hora.map((item: CliquePorHora, index: number) => (
+                <div key={index} className="flex items-center justify-between p-3 bg-gray-600 rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <Clock className="w-5 h-5 text-gray-400" />
+                    <span className="font-medium text-white">{item.faixa_horario}</span>
+                  </div>
+                  <span className="text-green-400 font-medium">{item.total_cliques.toLocaleString()} cliques</span>
                 </div>
-                <span className="text-green-400 font-medium">{item.total_cliques.toLocaleString()} cliques</span>
-              </div>
-            ))}
+              ))}
+            </div>
+          </div>
+
+          {/* Chart for Cliques por Hora */}
+          <div>
+            <ClicksByHourChart data={report.cliques_por_hora} />
           </div>
         </div>
 
         {/* Cliques por Sub ID */}
-        <div className="bg-gray-700 rounded-lg p-6">
-          <h3 className="text-lg font-semibold text-white mb-4 flex items-center space-x-2">
-            <Layers className="w-5 h-5 text-orange-400" />
-            <span>Cliques por Sub ID</span>
-          </h3>
-          <div className="space-y-3">
-            {report.cliques_por_subid.map((item: CliquePorSubId, index: number) => (
-              <div key={index} className="flex items-center justify-between p-3 bg-gray-600 rounded-lg">
-                <span className="font-medium text-white">{item.sub_id}</span>
-                <div className="flex items-center space-x-4">
-                  <span className="text-blue-400 font-medium">{item.cliques.toLocaleString()} cliques</span>
-                  <span className="text-gray-400">•</span>
-                  <span className="text-green-400 font-medium">{item.percentual.toFixed(1)}%</span>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="bg-gray-700 rounded-lg p-6">
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center space-x-2">
+              <Layers className="w-5 h-5 text-orange-400" />
+              <span>Cliques por Sub ID</span>
+            </h3>
+            <div className="space-y-3">
+              {report.cliques_por_subid.map((item: CliquePorSubId, index: number) => (
+                <div key={index} className="flex items-center justify-between p-3 bg-gray-600 rounded-lg">
+                  <span className="font-medium text-white">{item.sub_id}</span>
+                  <div className="flex items-center space-x-4">
+                    <span className="text-blue-400 font-medium">{item.cliques.toLocaleString()} cliques</span>
+                    <span className="text-gray-400">•</span>
+                    <span className="text-green-400 font-medium">{item.percentual.toFixed(1)}%</span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
+          </div>
+
+          {/* Chart for Cliques por Sub ID */}
+          <div>
+            <ClicksBySubIdChart data={report.cliques_por_subid} />
           </div>
         </div>
 
         {/* Cliques por Região */}
-        <div className="bg-gray-700 rounded-lg p-6">
-          <h3 className="text-lg font-semibold text-white mb-4 flex items-center space-x-2">
-            <MapPin className="w-5 h-5 text-red-400" />
-            <span>Cliques por Região</span>
-          </h3>
-          <div className="space-y-3">
-            {report.cliques_por_regiao.map((item: CliquePorRegiao, index: number) => (
-              <div key={index} className="flex items-center justify-between p-3 bg-gray-600 rounded-lg">
-                <div className="flex items-center space-x-3">
-                  <MapPin className="w-5 h-5 text-gray-400" />
-                  <span className="font-medium text-white">{item.regiao}</span>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="bg-gray-700 rounded-lg p-6">
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center space-x-2">
+              <MapPin className="w-5 h-5 text-red-400" />
+              <span>Cliques por Região</span>
+            </h3>
+            <div className="space-y-3">
+              {report.cliques_por_regiao.map((item: CliquePorRegiao, index: number) => (
+                <div key={index} className="flex items-center justify-between p-3 bg-gray-600 rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <MapPin className="w-5 h-5 text-gray-400" />
+                    <span className="font-medium text-white">{item.regiao}</span>
+                  </div>
+                  <span className="text-red-400 font-medium">{item.cliques.toLocaleString()} cliques</span>
                 </div>
-                <span className="text-red-400 font-medium">{item.cliques.toLocaleString()} cliques</span>
-              </div>
-            ))}
+              ))}
+            </div>
+          </div>
+
+          {/* Chart for Cliques por Região */}
+          <div>
+            <ClicksByRegionChart data={report.cliques_por_regiao} />
           </div>
         </div>
       </div>
