@@ -19,6 +19,28 @@ interface VideoModel {
   };
 }
 
+interface VideoStreamingFile {
+  id: number;
+  documentId: string;
+  name: string;
+  alternativeText: string | null;
+  caption: string | null;
+  width: number | null;
+  height: number | null;
+  formats: Record<string, unknown> | null;
+  hash: string;
+  ext: string;
+  mime: string;
+  size: number;
+  url: string;
+  previewUrl: string | null;
+  provider: string;
+  provider_metadata: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+  publishedAt: string;
+}
+
 export interface Video {
   id: number;
   documentId: string;
@@ -28,6 +50,7 @@ export interface Video {
   updatedAt: string;
   publishedAt: string;
   video: VideoModel;
+  videoStreamingFiles?: VideoStreamingFile[];
   pack: Pack;
   category: Category;
   coverImage: ImageInterface;
@@ -77,7 +100,7 @@ export async function fetchVideos(
 
   const query = qs.stringify(
     {
-      populate: ["category", "video", "pack.image", "links", "coverImage"],
+      populate: ["category", "video", "videoStreamingFiles", "pack.image", "links", "coverImage"],
       sort: [sortOrder],
       pagination: {
         page,

@@ -4,6 +4,15 @@ import { useState, useRef, useEffect } from "react";
 import { X, ChevronLeft, ChevronRight, Play, Pause, Volume2, VolumeX, Download, Link, Copy, Check, Loader2 } from "lucide-react";
 import type { Video } from "@/services/video.service";
 
+// Dynamic import for HLS.js to avoid SSR issues
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let HlsModule: any = null;
+if (typeof window !== 'undefined') {
+  import('hls.js').then((module) => {
+    HlsModule = module.default;
+  });
+}
+
 interface VideoPlayerProps {
   videos: Video[];
   currentIndex: number;
@@ -32,7 +41,20 @@ export default function VideoPlayer({
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const hlsRef = useRef<any>(null);
   const currentVideo = videos[currentIndex];
+
+  // Function to get streaming URL (m3u8 file)
+  const getStreamingUrl = () => {
+    if (currentVideo.videoStreamingFiles && currentVideo.videoStreamingFiles.length > 0) {
+      const m3u8File = currentVideo.videoStreamingFiles.find(file => file.ext === '.m3u8');
+      return m3u8File?.url || null;
+    }
+    return null;
+  };
+
+
 
   useEffect(() => {
     if (videoRef.current) {
@@ -40,6 +62,13 @@ export default function VideoPlayer({
       videoRef.current.pause();
       setCurrentTime(0);
       setIsPlaying(false);
+      
+      // Destroy previous HLS instance if exists
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+
       // Force reload the video source
       videoRef.current.load();
     }
@@ -70,6 +99,44 @@ export default function VideoPlayer({
       video.removeEventListener('ended', handleEnded);
     };
   }, [currentIndex, videos.length, hasMore, onNext, onLoadMore]);
+
+  // Effect to handle streaming video setup
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !HlsModule) return;
+
+    const streamingUrl = getStreamingUrl();
+    
+    if (streamingUrl && HlsModule.isSupported()) {
+      // Use HLS.js for streaming
+      hlsRef.current = new HlsModule();
+      hlsRef.current.loadSource(streamingUrl);
+      hlsRef.current.attachMedia(video);
+      
+      hlsRef.current.on(HlsModule.Events.MANIFEST_PARSED, () => {
+        // Video is ready to play
+        console.log('HLS manifest loaded');
+      });
+      
+      hlsRef.current.on(HlsModule.Events.ERROR, (event: unknown, data: unknown) => {
+        console.error('HLS error:', data);
+        // Fallback to regular video if HLS fails
+        if (currentVideo.video?.url) {
+          video.src = currentVideo.video.url;
+        }
+      });
+    } else if (currentVideo.video?.url) {
+      // Fallback to regular video
+      video.src = currentVideo.video.url;
+    }
+
+    return () => {
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+    };
+  }, [currentIndex, currentVideo]);
 
   const togglePlay = async () => {
     if (videoRef.current) {
@@ -276,8 +343,8 @@ export default function VideoPlayer({
           className="w-full h-full object-cover"
           poster={currentVideo.coverImage?.url}
           onClick={togglePlay}
+          controls={false}
         >
-          <source src={currentVideo.video?.url} type="video/mp4" />
           Seu navegador não suporta o elemento de vídeo.
         </video>
 
