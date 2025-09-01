@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useState, Suspense, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
 import { fetchCombos } from "@/services/combo.service";
@@ -37,16 +37,16 @@ function CombosPageContent() {
 
   const pageSize = 10;
 
-  const loadUserPacksRelease = async () => {
+  const loadUserPacksRelease = useCallback(async () => {
     try {
       const response = await fetchUserPacksRelease();
       setUserPacksRelease(response.data);
     } catch (err) {
       console.error("Error loading user packs release:", err);
     }
-  };
+  }, []);
 
-  const loadCombos = async (page: number, resetList: boolean = true) => {
+  const loadCombos = useCallback(async (page: number, resetList: boolean = true) => {
     try {
       if (resetList) {
         setIsLoading(true);
@@ -84,20 +84,20 @@ function CombosPageContent() {
       setIsLoading(false);
       setIsLoadingMore(false);
     }
-  };
+  }, [pageSize, logout, router]);
 
   // Load combos and user packs release on mount
   useEffect(() => {
     loadCombos(1, true);
     loadUserPacksRelease();
-  }, []);
+  }, [loadCombos, loadUserPacksRelease]);
 
   // Load more combos when page changes
   useEffect(() => {
     if (currentPage > 1) {
       loadCombos(currentPage, false);
     }
-  }, [currentPage]);
+  }, [currentPage, loadCombos]);
 
   const loadMoreCombos = async () => {
     if (currentPage < totalPages && !isLoadingMore) {

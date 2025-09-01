@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { X, ChevronLeft, ChevronRight, Play, Pause, Volume2, VolumeX, Download, Link, Copy, Check, Loader2 } from "lucide-react";
 import type { Video } from "@/services/video.service";
 
@@ -46,13 +46,13 @@ export default function VideoPlayer({
   const currentVideo = videos[currentIndex];
 
   // Function to get streaming URL (m3u8 file)
-  const getStreamingUrl = () => {
+  const getStreamingUrl = useCallback(() => {
     if (currentVideo.videoStreamingFiles && currentVideo.videoStreamingFiles.length > 0) {
       const m3u8File = currentVideo.videoStreamingFiles.find(file => file.ext === '.m3u8');
       return m3u8File?.url || null;
     }
     return null;
-  };
+  }, [currentVideo.videoStreamingFiles]);
 
 
 
@@ -136,9 +136,9 @@ export default function VideoPlayer({
         hlsRef.current = null;
       }
     };
-  }, [currentIndex, currentVideo]);
+  }, [currentIndex, currentVideo, getStreamingUrl]);
 
-  const togglePlay = async () => {
+  const togglePlay = useCallback(async () => {
     if (videoRef.current) {
       if (isPlaying) {
         videoRef.current.pause();
@@ -155,7 +155,7 @@ export default function VideoPlayer({
         }
       }
     }
-  };
+  }, [isPlaying]);
 
   const toggleMute = () => {
     if (videoRef.current) {
@@ -283,7 +283,7 @@ export default function VideoPlayer({
     return links;
   };
 
-  const handleKeyDown = async (e: KeyboardEvent) => {
+  const handleKeyDown = useCallback(async (e: KeyboardEvent) => {
     switch (e.key) {
       case 'Escape':
         onClose();
@@ -299,12 +299,12 @@ export default function VideoPlayer({
         await togglePlay();
         break;
     }
-  };
+  }, [onClose, onPrevious, onNext, togglePlay]);
 
   useEffect(() => {
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isPlaying]);
+  }, [handleKeyDown]);
 
   if (!currentVideo) return null;
 

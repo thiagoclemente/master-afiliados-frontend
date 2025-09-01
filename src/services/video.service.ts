@@ -54,6 +54,7 @@ export interface Video {
   pack: Pack;
   category: Category;
   coverImage: ImageInterface;
+  search_text: string;
 }
 
 interface VideoResponse {
@@ -109,7 +110,7 @@ export async function fetchVideos(
       filters: {
         ...(search
           ? {
-              title: {
+              search_text: {
                 $containsi: search,
               },
             }

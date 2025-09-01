@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useState, Suspense, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
 import { fetchVideos, fetchVideoCategories, type Video } from "@/services/video.service";
@@ -44,6 +44,7 @@ function VideosPageContent() {
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [packInfo, setPackInfo] = useState<Pack | null>(null);
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
+  const [totalVideos, setTotalVideos] = useState<number>(0);
   const debouncedSearch = useDebounce(searchTerm, 500);
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -52,6 +53,84 @@ function VideosPageContent() {
 
   const packId = searchParams.get("pack");
   const pageSize = 20;
+
+  const loadCategories = useCallback(async () => {
+    try {
+      const categoriesData = await fetchVideoCategories();
+      setCategories(categoriesData);
+    } catch (err) {
+      console.error("Error loading categories:", err);
+    }
+  }, []);
+
+  const loadPackInfo = useCallback(async () => {
+    if (!packId) return;
+    
+    try {
+      // Buscar o pack específico usando o packId da URL
+      const response = await fetchPacks(1, 1000); // Buscar todos os packs
+      const pack = response.data.find((p: Pack) => p.documentId === packId);
+      if (pack) {
+        setPackInfo(pack);
+        // Track pack access
+        trackPackAccess(pack.name, pack.documentId);
+      }
+    } catch (err) {
+      console.error("Error loading pack info:", err);
+      trackError("Error loading pack info", "pack_info_error");
+    }
+  }, [packId, trackPackAccess, trackError]);
+
+
+
+  const loadVideos = useCallback(async (page: number, resetList: boolean = true) => {
+    try {
+      if (resetList) {
+        setIsLoading(true);
+        setVideos([]);
+      } else {
+        setIsLoadingMore(true);
+      }
+
+      const response = await fetchVideos(
+        page,
+        pageSize,
+        debouncedSearch,
+        undefined,
+        packId || undefined,
+        selectedCategory > 0 ? selectedCategory : undefined,
+        sortBy
+      );
+      
+      if (resetList) {
+        setVideos(response.data);
+        setTotalVideos(response.meta.pagination.total);
+      } else {
+        setVideos(prev => [...prev, ...response.data]);
+      }
+      
+      setTotalPages(response.meta.pagination.pageCount);
+      setError(null);
+    } catch (err) {
+      if (err instanceof Error) {
+        if (
+          err.message === "Authentication failed" ||
+          err.message === "Authentication required"
+        ) {
+          logout();
+          router.push("/login");
+          return;
+        }
+        setError(err.message);
+      } else {
+        setError("Erro ao carregar os vídeos");
+      }
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+      setIsLoadingMore(false);
+    }
+  }, [debouncedSearch, packId, selectedCategory, sortBy, pageSize, logout, router]);
 
   // Verificar acesso ao pacote antes de carregar dados
   useEffect(() => {
@@ -85,84 +164,7 @@ function VideosPageContent() {
     };
 
     checkAccess();
-  }, [packId]);
-
-  const loadCategories = async () => {
-    try {
-      const categoriesData = await fetchVideoCategories();
-      setCategories(categoriesData);
-    } catch (err) {
-      console.error("Error loading categories:", err);
-    }
-  };
-
-  const loadPackInfo = async () => {
-    if (!packId) return;
-    
-    try {
-      // Buscar o pack específico usando o packId da URL
-      const response = await fetchPacks(1, 1000); // Buscar todos os packs
-      const pack = response.data.find((p: Pack) => p.documentId === packId);
-      if (pack) {
-        setPackInfo(pack);
-        // Track pack access
-        trackPackAccess(pack.name, pack.documentId);
-      }
-    } catch (err) {
-      console.error("Error loading pack info:", err);
-      trackError("Error loading pack info", "pack_info_error");
-    }
-  };
-
-
-
-  const loadVideos = async (page: number, resetList: boolean = true) => {
-    try {
-      if (resetList) {
-        setIsLoading(true);
-        setVideos([]);
-      } else {
-        setIsLoadingMore(true);
-      }
-
-      const response = await fetchVideos(
-        page,
-        pageSize,
-        debouncedSearch,
-        undefined,
-        packId || undefined,
-        selectedCategory > 0 ? selectedCategory : undefined,
-        sortBy
-      );
-      
-      if (resetList) {
-        setVideos(response.data);
-      } else {
-        setVideos(prev => [...prev, ...response.data]);
-      }
-      
-      setTotalPages(response.meta.pagination.pageCount);
-      setError(null);
-    } catch (err) {
-      if (err instanceof Error) {
-        if (
-          err.message === "Authentication failed" ||
-          err.message === "Authentication required"
-        ) {
-          logout();
-          router.push("/login");
-          return;
-        }
-        setError(err.message);
-      } else {
-        setError("Erro ao carregar os vídeos");
-      }
-      console.error(err);
-    } finally {
-      setIsLoading(false);
-      setIsLoadingMore(false);
-    }
-  };
+  }, [packId, loadCategories, loadPackInfo]);
 
   // Load videos when filters change
   useEffect(() => {
@@ -171,12 +173,15 @@ function VideosPageContent() {
     const timeoutId = setTimeout(() => {
       setCurrentPage(1);
       if (packId) {
-        loadVideos(1, true);
+        // Só executa a busca se tiver 3 ou mais caracteres ou se for uma busca vazia (limpar filtros)
+        if (debouncedSearch.length === 0 || debouncedSearch.length >= 3) {
+          loadVideos(1, true);
+        }
       }
     }, 300);
 
     return () => clearTimeout(timeoutId);
-  }, [debouncedSearch, packId, selectedCategory, sortBy, hasAccess]);
+  }, [debouncedSearch, packId, selectedCategory, sortBy, hasAccess, loadVideos]);
 
   // Load videos when page changes
   useEffect(() => {
@@ -185,7 +190,7 @@ function VideosPageContent() {
     if (packId && currentPage > 1) {
       loadVideos(currentPage, false);
     }
-  }, [currentPage, packId, hasAccess]);
+  }, [currentPage, packId, hasAccess, loadVideos]);
 
   // Load videos on mount
   useEffect(() => {
@@ -194,7 +199,7 @@ function VideosPageContent() {
     if (packId) {
       loadVideos(1, true);
     }
-  }, [packId, hasAccess]);
+  }, [packId, hasAccess, loadVideos]);
 
   const loadMoreVideos = async () => {
     if (currentPage < totalPages && !isLoadingMore) {
@@ -508,6 +513,19 @@ function VideosPageContent() {
                 className="w-full pl-10 pr-4 py-2 bg-gray-900 border border-gray-600 rounded-md focus:ring-2 focus:ring-[#7d570e] focus:border-[#7d570e] text-white placeholder-gray-400"
               />
             </div>
+            
+            {/* Total de registros encontrados */}
+            {!isLoading && ((searchTerm.length >= 3) || selectedCategory > 0) && (
+              <div className="mt-2 text-sm text-gray-400">
+                <span className="text-[#7d570e] font-medium">
+                  {videos.length}
+                </span>
+                {videos.length === 1 ? ' vídeo encontrado' : ' vídeos encontrados'}
+                <span className="text-gray-500 ml-1">
+                  de {totalVideos} total
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Category filter */}
@@ -560,9 +578,9 @@ function VideosPageContent() {
               <VideoIcon className="w-8 h-8 text-gray-400" />
             </div>
             <p className="text-gray-400 mb-4">
-              {searchTerm || selectedCategory ? "Nenhum vídeo encontrado" : "Nenhum vídeo disponível"}
+              {(searchTerm.length >= 3) || selectedCategory ? "Nenhum vídeo encontrado" : "Nenhum vídeo disponível"}
             </p>
-            {(searchTerm || selectedCategory) && (
+            {((searchTerm.length >= 3) || selectedCategory) && (
               <button
                 onClick={() => {
                   setSearchTerm("");
