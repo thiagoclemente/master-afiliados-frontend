@@ -14,6 +14,7 @@ import {
   X, 
   ChevronDown,
   StickyNote,
+  User,
 } from "lucide-react";
 
 export default function ProtectedLayout({
@@ -21,7 +22,7 @@ export default function ProtectedLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { user, logout } = useAuth();
+  const { logout } = useAuth();
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [masterMenuOpen, setMasterMenuOpen] = useState(false);
@@ -142,24 +143,19 @@ export default function ProtectedLayout({
 
             {/* User menu */}
             <div className="hidden md:ml-6 md:flex md:items-center md:space-x-4">
-              <div className="flex items-center space-x-3">
-                <div className="flex items-center space-x-2">
-                  <div className="w-8 h-8 bg-[#7d570e] rounded-full flex items-center justify-center">
-                    <span className="text-white font-medium text-sm">
-                      {user?.username?.charAt(0).toUpperCase()}
-                    </span>
-                  </div>
-                  <span className="text-sm font-medium text-gray-200">
-                    {user?.username}
-                  </span>
-                </div>
-                <button
-                  onClick={logout}
-                  className="text-sm text-[#7d570e] hover:text-[#6b4a0c] px-3 py-2 rounded-md hover:bg-gray-900 transition-colors duration-200"
-                >
-                  Sair
-                </button>
-              </div>
+              <Link
+                href="/profile"
+                className="flex items-center text-sm text-gray-300 hover:text-white px-3 py-2 rounded-md hover:bg-gray-900 transition-colors duration-200"
+              >
+                <User className="w-4 h-4 mr-2" />
+                Perfil
+              </Link>
+              <button
+                onClick={logout}
+                className="text-sm text-[#7d570e] hover:text-[#6b4a0c] px-3 py-2 rounded-md hover:bg-gray-900 transition-colors duration-200"
+              >
+                Sair
+              </button>
             </div>
 
             {/* Mobile menu button */}
@@ -236,18 +232,14 @@ export default function ProtectedLayout({
               
               {/* Mobile user menu */}
               <div className="border-t border-gray-800 pt-4">
-                <div className="flex items-center px-3 py-2">
-                  <div className="w-8 h-8 bg-[#7d570e] rounded-full flex items-center justify-center">
-                    <span className="text-white font-medium text-sm">
-                      {user?.username?.charAt(0).toUpperCase()}
-                    </span>
-                  </div>
-                  <div className="ml-3">
-                    <div className="text-base font-medium text-gray-200">
-                      {user?.username}
-                    </div>
-                  </div>
-                </div>
+                <Link
+                  href="/profile"
+                  className="flex items-center px-3 py-2 text-base font-medium text-gray-300 hover:bg-gray-900 hover:text-white rounded-md"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <User className="w-5 h-5 mr-3" />
+                  Meu Perfil
+                </Link>
                 <button
                   onClick={() => {
                     logout();

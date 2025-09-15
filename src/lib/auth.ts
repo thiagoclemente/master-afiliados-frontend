@@ -4,6 +4,7 @@ export function getAuthToken(): string | null {
   }
 
   const userStr = localStorage.getItem("user");
+  
   if (!userStr) {
     return null;
   }

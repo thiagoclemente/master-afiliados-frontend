@@ -1,4 +1,5 @@
 import { getAuthToken } from "@/lib/auth";
+import { UserService } from "./user.service";
 
 export interface ComissaoPorCanal {
   canal: string;
@@ -114,6 +115,47 @@ class CommissionsService {
       if (response.status === 401) throw new Error("Authentication failed");
       const errorData = await response.json().catch(() => ({}));
       throw new Error(errorData.detail?.[0]?.msg || errorData.detail || "Erro ao processar arquivo de cliques");
+    }
+
+    const data = await response.json();
+    return data;
+  }
+
+  async getShopeeConversionReport(startDate: string, endDate: string, limit: number = 300): Promise<CommissionReport> {
+    const token = getAuthToken();
+    if (!token) throw new Error("Authentication required");
+    
+    // Check if user has Shopee credentials configured
+    try {
+      const userProfile = await UserService.getCurrentUser();
+      if (!userProfile.shoppeId || !userProfile.shoppeApiPassword) {
+        throw new Error("CREDENTIALS_REQUIRED");
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message === "CREDENTIALS_REQUIRED") {
+        throw new Error("CREDENTIALS_REQUIRED");
+      }
+      throw error;
+    }
+    
+    const params = new URLSearchParams({
+      start_date: startDate,
+      end_date: endDate,
+      limit: limit.toString()
+    });
+
+    const response = await fetch(`${this.MY_METRICS_URL}/shopee-conversion-report?${params}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) throw new Error("Authentication failed");
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.detail?.[0]?.msg || errorData.detail || "Erro ao buscar relatório da Shopee");
     }
 
     const data = await response.json();
