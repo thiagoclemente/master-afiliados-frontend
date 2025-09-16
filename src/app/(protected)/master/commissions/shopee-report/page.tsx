@@ -61,7 +61,7 @@ import { UserProfile } from "@/interfaces/user.interface";
 import { useAuth } from "@/context/auth-context";
 import { useAnalytics } from "@/hooks/use-analytics";
 
-type DateFilter = '3' | '7' | '15' | '30';
+type DateFilter = 'yesterday' | '7' | '15' | '30';
 
 interface DateRange {
   start: string;
@@ -98,11 +98,27 @@ export default function ShopeeReportPage() {
   };
 
   const predefinedRanges = {
-    '3': getDateRange(3),
+    'yesterday': (() => {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      return {
+        start: yesterday.toISOString().split('T')[0],
+        end: yesterday.toISOString().split('T')[0],
+        label: 'Ontem'
+      };
+    })(),
     '7': getDateRange(7),
     '15': getDateRange(15),
     '30': getDateRange(30)
   };
+
+  // Create ordered array to control filter order
+  const orderedFilters = [
+    { key: 'yesterday' as DateFilter, range: predefinedRanges.yesterday },
+    { key: '7' as DateFilter, range: predefinedRanges['7'] },
+    { key: '15' as DateFilter, range: predefinedRanges['15'] },
+    { key: '30' as DateFilter, range: predefinedRanges['30'] }
+  ];
 
   // Check user credentials on component mount
   useEffect(() => {
@@ -184,13 +200,23 @@ export default function ShopeeReportPage() {
   const handleDateFilterChange = (filter: DateFilter) => {
     setSelectedDateFilter(filter);
     setCustomDateRange(null);
-    const dateRange = predefinedRanges[filter];
-    fetchReport(dateRange);
   };
 
   const handleCustomDateRange = () => {
     if (customDateRange) {
+      setSelectedDateFilter(null); // Clear predefined filter
       fetchReport(customDateRange);
+    }
+  };
+
+  const handleSearch = () => {
+    if (selectedDateFilter) {
+      const dateRange = predefinedRanges[selectedDateFilter];
+      fetchReport(dateRange);
+    } else if (customDateRange) {
+      fetchReport(customDateRange);
+    } else {
+      showErrorMessage('Selecione um filtro de data antes de buscar.');
     }
   };
 
@@ -198,8 +224,6 @@ export default function ShopeeReportPage() {
     if (selectedDateFilter) {
       const currentRange = customDateRange || predefinedRanges[selectedDateFilter];
       fetchReport(currentRange);
-    } else {
-      showErrorMessage('Selecione um filtro de data antes de atualizar.');
     }
   };
 
@@ -316,14 +340,16 @@ export default function ShopeeReportPage() {
                 </div>
               </div>
             </div>
-            <button
-              onClick={handleRefresh}
-              disabled={isLoading || !selectedDateFilter}
-              className="flex items-center space-x-2 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors disabled:opacity-50"
-            >
-              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-              <span>Atualizar</span>
-            </button>
+            {selectedDateFilter && (
+              <button
+                onClick={handleRefresh}
+                disabled={isLoading}
+                className="flex items-center space-x-2 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors disabled:opacity-50"
+              >
+                <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+                <span>Atualizar</span>
+              </button>
+            )}
           </div>
 
           {/* Success/Error Messages */}
@@ -368,11 +394,11 @@ export default function ShopeeReportPage() {
             </h3>
             
             {/* Predefined Filters */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {Object.entries(predefinedRanges).map(([key, range]) => (
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              {orderedFilters.map(({ key, range }) => (
                 <button
                   key={key}
-                  onClick={() => handleDateFilterChange(key as DateFilter)}
+                  onClick={() => handleDateFilterChange(key)}
                   disabled={isLoading}
                   className={`px-4 py-3 rounded-lg border transition-colors ${
                     selectedDateFilter === key && !customDateRange
@@ -383,6 +409,22 @@ export default function ShopeeReportPage() {
                   {range.label}
                 </button>
               ))}
+              
+              {/* Search Button */}
+              <button
+                onClick={handleSearch}
+                disabled={isLoading || (!selectedDateFilter && !customDateRange)}
+                className="px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+              >
+                {isLoading ? (
+                  <div className="flex items-center justify-center space-x-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Buscando...</span>
+                  </div>
+                ) : (
+                  'Buscar Relatório'
+                )}
+              </button>
             </div>
 
             {/* Custom Date Range */}
@@ -435,7 +477,14 @@ export default function ShopeeReportPage() {
                     disabled={isLoading || !customDateRange?.start || !customDateRange?.end}
                     className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Buscar
+                    {isLoading ? (
+                      <div className="flex items-center space-x-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Buscando...</span>
+                      </div>
+                    ) : (
+                      'Buscar'
+                    )}
                   </button>
                 </div>
               </div>
@@ -475,11 +524,13 @@ export default function ShopeeReportPage() {
             <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-white mb-2">Selecione um período</h3>
             <p className="text-gray-400 mb-4">
-              Escolha um dos filtros de data acima para carregar o relatório da Shopee
+              Selecione um filtro de data e clique em &quot;Buscar Relatório&quot; para carregar os dados da Shopee
             </p>
-            <div className="text-sm text-gray-500">
+            <div className="text-sm text-gray-500 space-y-1">
+              <p>• <strong>Ontem:</strong> Relatório do dia anterior</p>
+              <p>• <strong>7, 15, 30 dias:</strong> Períodos pré-definidos</p>
+              <p>• <strong>Personalizado:</strong> Escolha suas próprias datas</p>
               <p>• Período máximo: 3 meses</p>
-              <p>• Dados atualizados em tempo real</p>
             </div>
           </div>
         )}
