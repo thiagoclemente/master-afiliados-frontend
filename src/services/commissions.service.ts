@@ -14,6 +14,26 @@ export interface ComissaoPorSubId {
   total_pedidos: number;
 }
 
+export interface ProdutoTopVenda {
+  nome_item: string;
+  quantidade: number;
+  total_pedidos: number;
+  comissao: number;
+  item_id: number | string;
+  item_price: number | null;
+  actual_amount: number | null;
+  image_url: string | null;
+  display_item_status: string | null;
+  complete_time: string | null;
+}
+
+export interface CategoriaTopVenda {
+  categoria: string;
+  quantidade: number;
+  total_pedidos: number;
+  comissao: number;
+}
+
 export interface CliquePorCanal {
   canal: string;
   cliques: number;
@@ -44,6 +64,10 @@ export interface CommissionReport {
   periodo: string;
   canal_top_vendas: string;
   subid_top_vendas: string;
+  produtos_top_vendas?: ProdutoTopVenda[];
+  produto_top_vendas?: ProdutoTopVenda | null;
+  categorias_top_vendas?: CategoriaTopVenda[];
+  categoria_top_vendas?: string;
 }
 
 export interface ClickReport {
@@ -70,6 +94,7 @@ export interface ReportHistory {
 
 class CommissionsService {
   private MY_METRICS_URL = process.env.NEXT_PUBLIC_MY_METRICS || 'https://my-metrics.masterafiliados.com.br';
+  private API_URL = process.env.NEXT_PUBLIC_STRAPI_URL || 'https://api.masterafiliados.com.br';
 
   async uploadCommissionsFile(file: File): Promise<CommissionReport> {
     const token = getAuthToken();
@@ -160,6 +185,38 @@ class CommissionsService {
 
     const data = await response.json();
     return data;
+  }
+
+  async getShopeeProductLink(itemId: number | string): Promise<string> {
+    const token = getAuthToken();
+    if (!token) throw new Error("Authentication required");
+
+    const params = new URLSearchParams({
+      itemId: String(itemId),
+    });
+
+    const response = await fetch(`${this.API_URL}/api/master-comissions/product?${params.toString()}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) throw new Error("Authentication failed");
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.detail?.[0]?.msg || errorData.detail || "Erro ao buscar link do produto");
+    }
+
+    const data = await response.json();
+    const productLink = data?.data?.productLink;
+
+    if (!productLink) {
+      throw new Error("Link do produto não disponível");
+    }
+
+    return productLink as string;
   }
 
   // Local storage for report history

@@ -56,7 +56,9 @@ import {
   CommissionReport, 
   ReportHistory,
   ComissaoPorCanal,
-  ComissaoPorSubId
+  ComissaoPorSubId,
+  CategoriaTopVenda,
+  ProdutoTopVenda
 } from "@/services/commissions.service";
 import { useAuth } from "@/context/auth-context";
 import { useAnalytics } from "@/hooks/use-analytics";
@@ -331,7 +333,10 @@ export default function CommissionsPage() {
             </div>
           </div>
 
-          <CommissionReportDisplay report={selectedReport.data as CommissionReport} />
+          <CommissionReportDisplay
+            report={selectedReport.data as CommissionReport}
+            onError={showErrorMessage}
+          />
         </div>
       )}
 
@@ -381,7 +386,51 @@ export default function CommissionsPage() {
 }
 
 // Commission Report Display Component
-function CommissionReportDisplay({ report }: { report: CommissionReport }) {
+function CommissionReportDisplay({ report, onError }: { report: CommissionReport; onError?: (message: string) => void; }) {
+  const [loadingProductId, setLoadingProductId] = useState<string | null>(null);
+  const topProduct = report.produto_top_vendas ?? null;
+  const topProducts = report.produtos_top_vendas ?? [];
+  const topCategories = report.categorias_top_vendas ?? [];
+  const highlightCategory = report.categoria_top_vendas
+    ? topCategories.find(
+        (category: CategoriaTopVenda) =>
+          category.categoria === report.categoria_top_vendas
+      ) ?? topCategories[0] ?? null
+    : topCategories[0] ?? null;
+
+  const isLoadingProduct = (product: ProdutoTopVenda) => {
+    if (!product.item_id) return false;
+    return loadingProductId === String(product.item_id);
+  };
+
+  const handleProductClick = async (product: ProdutoTopVenda) => {
+    if (!product.item_id) {
+      onError?.('Item ID do produto não disponível.');
+      return;
+    }
+
+    const productId = String(product.item_id);
+
+    try {
+      setLoadingProductId(productId);
+      const productLink = await commissionsService.getShopeeProductLink(productId);
+      if (typeof window !== 'undefined') {
+        window.open(productLink, '_blank', 'noopener,noreferrer');
+      }
+    } catch (error) {
+      const message = error instanceof Error
+        ? error.message
+        : 'Não foi possível abrir o link do produto.';
+      if (onError) {
+        onError(message);
+      } else {
+        console.error(message);
+      }
+    } finally {
+      setLoadingProductId(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
@@ -549,6 +598,227 @@ function CommissionReportDisplay({ report }: { report: CommissionReport }) {
           </div>
         </div>
       </div>
+
+      {/* Highlights */}
+      {(topProduct || highlightCategory) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {topProduct && (
+            <button
+              type="button"
+              onClick={() => handleProductClick(topProduct)}
+              disabled={isLoadingProduct(topProduct)}
+              className={`bg-gray-700 rounded-lg p-6 text-left transition-colors border border-transparent ${
+                topProduct.item_id ? 'hover:border-orange-500' : 'cursor-not-allowed'
+              } ${isLoadingProduct(topProduct) ? 'opacity-75 cursor-wait' : ''}`}
+            >
+              <h3 className="text-lg font-semibold text-white flex items-center space-x-2">
+                <ShoppingCart className="w-5 h-5 text-orange-400" />
+                <span>Produto Destaque</span>
+              </h3>
+              {topProduct.image_url && (
+                <div className="mt-4">
+                  <img
+                    src={topProduct.image_url}
+                    alt={topProduct.nome_item}
+                    className="w-28 h-28 object-cover rounded-md border border-gray-600"
+                  />
+                </div>
+              )}
+              <p className="mt-3 text-base font-medium text-gray-100">{topProduct.nome_item}</p>
+              <div className="mt-4 space-y-3 text-sm text-gray-300">
+                <div className="flex items-center justify-between">
+                  <span>Quantidade vendida</span>
+                  <span className="text-white font-semibold">
+                    {topProduct.quantidade.toLocaleString('pt-BR')}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Total de pedidos</span>
+                  <span className="text-white font-semibold">
+                    {topProduct.total_pedidos.toLocaleString('pt-BR')}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Comissão gerada</span>
+                  <span className="text-green-400 font-semibold">
+                    {formatCurrency(topProduct.comissao)}
+                  </span>
+                </div>
+                {typeof topProduct.item_price === 'number' && (
+                  <div className="flex items-center justify-between">
+                    <span>Preço unitário</span>
+                    <span className="text-white font-semibold">
+                      {formatCurrency(topProduct.item_price)}
+                    </span>
+                  </div>
+                )}
+                {typeof topProduct.actual_amount === 'number' && (
+                  <div className="flex items-center justify-between">
+                    <span>Valor total</span>
+                    <span className="text-white font-semibold">
+                      {formatCurrency(topProduct.actual_amount)}
+                    </span>
+                  </div>
+                )}
+              </div>
+              {topProduct.item_id && (
+                <p className="mt-4 text-xs text-gray-500">
+                  Item ID: {topProduct.item_id}
+                </p>
+              )}
+              <div className="mt-4 text-xs text-gray-400 flex items-center space-x-2">
+                {isLoadingProduct(topProduct) ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-orange-400" />
+                    <span>Abrindo produto...</span>
+                  </>
+                ) : (
+                  <span>Clique para abrir o produto na Shopee</span>
+                )}
+              </div>
+            </button>
+          )}
+
+          {highlightCategory && (
+            <div className="bg-gray-700 rounded-lg p-6">
+              <h3 className="text-lg font-semibold text-white flex items-center space-x-2">
+                <BarChart3 className="w-5 h-5 text-blue-400" />
+                <span>Categoria Destaque</span>
+              </h3>
+              <p className="mt-3 text-base font-medium text-gray-100">
+                {report.categoria_top_vendas ?? highlightCategory.categoria}
+              </p>
+              <div className="mt-4 space-y-3 text-sm text-gray-300">
+                <div className="flex items-center justify-between">
+                  <span>Itens vendidos</span>
+                  <span className="text-white font-semibold">
+                    {highlightCategory.quantidade.toLocaleString('pt-BR')}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Total de pedidos</span>
+                  <span className="text-white font-semibold">
+                    {highlightCategory.total_pedidos.toLocaleString('pt-BR')}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Comissão gerada</span>
+                  <span className="text-green-400 font-semibold">
+                    {formatCurrency(highlightCategory.comissao)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Top Products and Categories */}
+      {(topProducts.length > 0 || topCategories.length > 0) && (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          {topProducts.length > 0 && (
+            <div className="bg-gray-700 rounded-lg p-6">
+              <h3 className="text-lg font-semibold text-white mb-4 flex items-center space-x-2">
+                <ShoppingCart className="w-5 h-5 text-orange-400" />
+                <span>Produtos Top Vendas</span>
+              </h3>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm text-left text-gray-300">
+                  <thead className="text-xs uppercase bg-gray-600/60 text-gray-200">
+                    <tr>
+                      <th className="px-3 py-2">Produto</th>
+                      <th className="px-3 py-2 text-right">Qtd.</th>
+                      <th className="px-3 py-2 text-right">Pedidos</th>
+                      <th className="px-3 py-2 text-right">Comissão</th>
+                      <th className="px-3 py-2 text-right">Valor</th>
+                    </tr>
+                  </thead>
+                <tbody>
+                  {topProducts.map((item: ProdutoTopVenda, index: number) => (
+                    <tr
+                      key={`${item.item_id ?? item.nome_item}-${index}`}
+                      className="border-b border-gray-600/40 last:border-0"
+                    >
+                      <td className="px-3 py-3 align-top">
+                          <div className="flex items-start space-x-3">
+                            {item.image_url && (
+                              <img
+                                src={item.image_url}
+                                alt={item.nome_item}
+                                className="w-12 h-12 object-cover rounded-md border border-gray-600"
+                              />
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleProductClick(item)}
+                              disabled={!item.item_id || isLoadingProduct(item)}
+                              className="text-white font-medium leading-snug text-left hover:text-orange-400 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                            >
+                              {item.nome_item}
+                            </button>
+                            {isLoadingProduct(item) && (
+                              <Loader2 className="w-4 h-4 mt-0.5 text-orange-400 animate-spin" />
+                            )}
+                          </div>
+                          {item.item_id && (
+                            <div className="text-xs text-gray-400 mt-1">
+                              ID: {item.item_id}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-3 py-3 text-right">
+                          {item.quantidade.toLocaleString('pt-BR')}
+                        </td>
+                        <td className="px-3 py-3 text-right">
+                          {item.total_pedidos.toLocaleString('pt-BR')}
+                        </td>
+                        <td className="px-3 py-3 text-right text-green-400">
+                          {formatCurrency(item.comissao)}
+                        </td>
+                        <td className="px-3 py-3 text-right">
+                          {typeof item.actual_amount === 'number'
+                            ? formatCurrency(item.actual_amount)
+                            : '-'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {topCategories.length > 0 && (
+            <div className="bg-gray-700 rounded-lg p-6">
+              <h3 className="text-lg font-semibold text-white mb-4 flex items-center space-x-2">
+                <Layers className="w-5 h-5 text-blue-400" />
+                <span>Categorias Top Vendas</span>
+              </h3>
+              <div className="space-y-3">
+                {topCategories.map((category: CategoriaTopVenda, index: number) => (
+                  <div
+                    key={`${category.categoria}-${index}`}
+                    className="flex items-center justify-between p-3 bg-gray-600 rounded-lg"
+                  >
+                    <div>
+                      <p className="font-medium text-white">
+                        {index + 1}. {category.categoria}
+                      </p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        {category.quantidade.toLocaleString('pt-BR')} itens •{' '}
+                        {category.total_pedidos.toLocaleString('pt-BR')} pedidos
+                      </p>
+                    </div>
+                    <span className="text-green-400 font-bold">
+                      {formatCurrency(category.comissao)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
