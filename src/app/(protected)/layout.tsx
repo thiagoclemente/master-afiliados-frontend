@@ -6,12 +6,12 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import LoadingBar from "@/components/loading-bar";
-import { 
-  Video, 
-  Image as ImageIcon, 
-  TrendingUp, 
-  Menu, 
-  X, 
+import {
+  Video,
+  Image as ImageIcon,
+  TrendingUp,
+  Menu,
+  X,
   ChevronDown,
   StickyNote,
   User,
@@ -41,7 +41,8 @@ export default function ProtectedLayout({
       current: pathname.startsWith("/master") || pathname.startsWith("/commissions") || pathname.startsWith("/control"),
       submenu: [
         { name: "Comissões Master", href: "/master/commissions" },
-        { name: "Controle Master", href: "/master/control" }
+        { name: "Controle Master", href: "/master/control" },
+        // { name: "Divulgador Master", href: "/master/promoter" },
       ]
     },
     { 

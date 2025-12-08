@@ -5,14 +5,15 @@ import { useAuth } from "@/context/auth-context";
 import { UserService } from "@/services/user.service";
 import { UserProfile } from "@/interfaces/user.interface";
 import { useRouter } from "next/navigation";
-import { 
-  User, 
-  Mail, 
-  Phone, 
-  Instagram, 
+import {
+  User,
+  Mail,
+  Phone,
+  Instagram,
   ShoppingBag,
   Edit,
-  Key
+  Key,
+  MessageCircle,
 } from "lucide-react";
 
 export default function ProfilePage() {
@@ -58,6 +59,10 @@ export default function ProfilePage() {
 
   const handleChangePassword = () => {
     router.push("/profile/change-password");
+  };
+
+  const handleWhatsAppConfig = () => {
+    router.push("/profile/whatsapp");
   };
 
 
@@ -222,6 +227,41 @@ export default function ProfilePage() {
               className="w-full mt-4 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
             >
               Configurar Shopee
+            </button>
+          </div>
+
+          {/* WhatsApp Configuration */}
+          <div className="bg-gray-900 rounded-lg shadow-sm p-6 border border-gray-800">
+            <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <MessageCircle className="w-5 h-5 text-green-500" />
+              Configuração WhatsApp
+            </h2>
+
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <MessageCircle className="w-5 h-5 text-gray-400" />
+                <div>
+                  <p className="text-sm text-gray-400">Integração</p>
+                  <p className="font-medium text-green-400">Disponível</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <MessageCircle className="w-5 h-5 text-gray-400" />
+                <div>
+                  <p className="text-sm text-gray-400">Status</p>
+                  <p className="font-medium text-gray-200">
+                    Configure contas, grupos e disparos automáticos.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={handleWhatsAppConfig}
+              className="w-full mt-4 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 transition-colors"
+            >
+              Configurar WhatsApp
             </button>
           </div>
         </div>

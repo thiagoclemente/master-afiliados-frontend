@@ -100,4 +100,9 @@ export function hasCommissionsMasterSubscription(subscriptions: UserSubscription
 // Função para verificar se o usuário tem assinatura de control master
 export function hasControlMasterSubscription(subscriptions: UserSubscription[]): boolean {
   return hasSubscription(subscriptions, 'CONTROL_MASTER') || isSubscriptionPremium(subscriptions);
-} 
+}
+
+// Função para verificar se o usuário tem assinatura de divulgador (promoter)
+export function hasPromoterSubscription(subscriptions: UserSubscription[]): boolean {
+  return hasSubscription(subscriptions, 'MASTER_PROMOTER') || isSubscriptionPremium(subscriptions);
+}
