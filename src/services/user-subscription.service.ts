@@ -1,14 +1,14 @@
-import { getAuthToken } from "@/lib/auth";
+import { authFetch } from "@/lib/auth";
 
 export interface UserSubscription {
   id: number;
   documentId: string;
-  code: string;
-  plan: string;
-  platform: string;
-  planStatus: string;
-  startDate: string;
-  endDate: string;
+  code?: string | null;
+  plan?: string | null;
+  platform?: string | null;
+  planStatus?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
   planRelationship?: {
     id: number;
     documentId: string;
@@ -24,20 +24,30 @@ export interface UserSubscriptionResponse {
   data: UserSubscription[];
 }
 
+function normalizeSubscriptionCode(value?: string | null): string {
+  return typeof value === "string" ? value.trim().toUpperCase() : "";
+}
+
+function isSubscriptionActive(subscription: UserSubscription): boolean {
+  const status = normalizeSubscriptionCode(subscription.planStatus);
+  return status === "" || status === "ACTIVE";
+}
+
+function getSubscriptionCodes(subscription: UserSubscription): string[] {
+  return [
+    normalizeSubscriptionCode(subscription.code),
+    normalizeSubscriptionCode(subscription.plan),
+    normalizeSubscriptionCode(subscription.planRelationship?.code),
+  ].filter(Boolean);
+}
+
 export async function fetchUserSubscriptions(): Promise<UserSubscriptionResponse> {
-  const token = getAuthToken();
-
-  if (!token) {
-    throw new Error("Authentication required");
-  }
-
   const url = `${process.env.NEXT_PUBLIC_STRAPI_URL}/api/auth/user-subscriptions`;
 
   try {
-    const response = await fetch(url, {
+    const response = await authFetch(url, {
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
       },
     });
 
@@ -84,7 +94,19 @@ export async function fetchUserSubscriptions(): Promise<UserSubscriptionResponse
 
 // Função para verificar se o usuário tem uma assinatura específica
 export function hasSubscription(subscriptions: UserSubscription[], code: string): boolean {
-  return subscriptions.some(subscription => subscription.code === code);
+  const expectedCode = normalizeSubscriptionCode(code);
+
+  if (!expectedCode) {
+    return false;
+  }
+
+  return subscriptions.some((subscription) => {
+    if (!isSubscriptionActive(subscription)) {
+      return false;
+    }
+
+    return getSubscriptionCodes(subscription).includes(expectedCode);
+  });
 }
 
 // Função para verificar se o usuário tem assinatura premium

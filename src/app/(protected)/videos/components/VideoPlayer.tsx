@@ -2,7 +2,20 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { X, ChevronLeft, ChevronRight, Play, Pause, Volume2, VolumeX, Download, Link, Copy, Check, Loader2 } from "lucide-react";
-import type { Video } from "@/services/video.service";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  fetchProtectedVideoDownloadUrl,
+  resolveVideoStreamingUrl,
+  type Video,
+} from "@/services/video.service";
 
 // Dynamic import for HLS.js to avoid SSR issues
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -40,6 +53,7 @@ export default function VideoPlayer({
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
+  const [downloadNotice, setDownloadNotice] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const hlsRef = useRef<any>(null);
@@ -49,7 +63,10 @@ export default function VideoPlayer({
   const getStreamingUrl = useCallback(() => {
     if (currentVideo.videoStreamingFiles && currentVideo.videoStreamingFiles.length > 0) {
       const m3u8File = currentVideo.videoStreamingFiles.find(file => file.ext === '.m3u8');
-      return m3u8File?.url || null;
+      if (!m3u8File?.url) return null;
+      return m3u8File.url.startsWith("http")
+        ? m3u8File.url
+        : `${process.env.NEXT_PUBLIC_STRAPI_URL}${m3u8File.url}`;
     }
     return null;
   }, [currentVideo.videoStreamingFiles]);
@@ -120,14 +137,17 @@ export default function VideoPlayer({
       
       hlsRef.current.on(HlsModule.Events.ERROR, (event: unknown, data: unknown) => {
         console.error('HLS error:', data);
-        // Fallback to regular video if HLS fails
-        if (currentVideo.video?.url) {
-          video.src = currentVideo.video.url;
+        // Fallback para MP4 da lista de streaming
+        const fallbackUrl = resolveVideoStreamingUrl(currentVideo);
+        if (fallbackUrl) {
+          video.src = fallbackUrl;
         }
       });
-    } else if (currentVideo.video?.url) {
-      // Fallback to regular video
-      video.src = currentVideo.video.url;
+    } else {
+      const fallbackUrl = resolveVideoStreamingUrl(currentVideo);
+      if (fallbackUrl) {
+        video.src = fallbackUrl;
+      }
     }
 
     return () => {
@@ -179,89 +199,84 @@ export default function VideoPlayer({
   };
 
   const handleDownload = async () => {
-    if (currentVideo.video?.url) {
-      try {
-        setIsDownloading(true);
-        setDownloadProgress(0);
-        
-        // Fetch the video as blob to force download with progress
-        const response = await fetch(currentVideo.video.url);
-        
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+    try {
+      setDownloadNotice(null);
+      setIsDownloading(true);
+      setDownloadProgress(0);
+
+      const protectedDownloadUrl = await fetchProtectedVideoDownloadUrl(
+        currentVideo.documentId
+      );
+      const response = await fetch(protectedDownloadUrl);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const contentLength = response.headers.get('content-length');
+      const total = contentLength ? parseInt(contentLength, 10) : 0;
+
+      if (!response.body) {
+        throw new Error('No response body');
+      }
+
+      const reader = response.body.getReader();
+      const chunks: BlobPart[] = [];
+      let receivedLength = 0;
+
+      while (true) {
+        const { done, value } = await reader.read();
+
+        if (done) break;
+
+        chunks.push(value);
+        receivedLength += value.length;
+
+        if (total > 0) {
+          const progress = (receivedLength / total) * 100;
+          setDownloadProgress(Math.round(progress));
         }
-        
-        const contentLength = response.headers.get('content-length');
-        const total = contentLength ? parseInt(contentLength, 10) : 0;
-        
-        if (!response.body) {
-          throw new Error('No response body');
-        }
-        
-        const reader = response.body.getReader();
-        const chunks: BlobPart[] = [];
-        let receivedLength = 0;
-        
-        while (true) {
-          const { done, value } = await reader.read();
-          
-          if (done) break;
-          
-          chunks.push(value);
-          receivedLength += value.length;
-          
-          if (total > 0) {
-            const progress = (receivedLength / total) * 100;
-            setDownloadProgress(Math.round(progress));
-          }
-        }
-        
-        // Combine chunks into blob
-        const blob = new Blob(chunks, { type: 'video/mp4' });
-        
-        // Create download link
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        
-        // Clean title for filename (remove special characters)
-        const cleanTitle = (currentVideo.title || 'video')
-          .replace(/[^a-zA-Z0-9\s-]/g, '') // Remove special characters
-          .replace(/\s+/g, '_') // Replace spaces with underscores
-          .trim();
-        
-        link.download = `${cleanTitle}.mp4`;
-        link.style.display = 'none';
-        
-        // Trigger download
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        // Clean up
-        window.URL.revokeObjectURL(url);
-        
-        // Reset progress
-        setDownloadProgress(100);
-        setTimeout(() => {
-          setIsDownloading(false);
-          setDownloadProgress(0);
-        }, 1000);
-        
-      } catch (error) {
-        console.error('Erro ao baixar vídeo:', error);
+      }
+
+      const blob = new Blob(chunks, { type: 'video/mp4' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+
+      const cleanTitle = (currentVideo.title || 'video')
+        .replace(/[^a-zA-Z0-9\s-]/g, '')
+        .replace(/\s+/g, '_')
+        .trim();
+
+      link.download = `${cleanTitle}.mp4`;
+      link.style.display = 'none';
+
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      setDownloadProgress(100);
+      setTimeout(() => {
         setIsDownloading(false);
         setDownloadProgress(0);
-        
-        // Fallback to direct link if fetch fails
-        const link = document.createElement('a');
-        link.href = currentVideo.video.url;
-        link.download = `${currentVideo.title || 'video'}.mp4`;
-        link.target = '_blank';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+      }, 1000);
+
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Não foi possível baixar o vídeo no momento.";
+      const isLimitRule =
+        /limite diário de downloads/i.test(message) ||
+        /limite de downloads/i.test(message);
+
+      if (!isLimitRule) {
+        console.error('Erro ao baixar vídeo:', error);
       }
+      setIsDownloading(false);
+      setDownloadProgress(0);
+      setDownloadNotice(message);
     }
   };
 
@@ -401,6 +416,12 @@ export default function VideoPlayer({
           </div>
         )}
 
+        {downloadNotice && (
+          <div className="absolute top-4 left-1/2 z-20 w-[min(92%,560px)] -translate-x-1/2 rounded-md border border-red-500/50 bg-red-950/80 px-3 py-2 text-sm text-red-100">
+            {downloadNotice}
+          </div>
+        )}
+
         {/* Action Buttons */}
         <div className="absolute bottom-4 right-4 flex flex-col space-y-2">
           {/* Volume Control */}
@@ -412,19 +433,17 @@ export default function VideoPlayer({
           </button>
 
           {/* Download Button */}
-          {currentVideo.video?.url && (
-            <button
-              onClick={handleDownload}
-              disabled={isDownloading}
-              className="p-2 bg-[#7d570e] rounded-full text-white hover:bg-[#6b4a0c] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isDownloading ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                <Download className="w-5 h-5" />
-              )}
-            </button>
-          )}
+          <button
+            onClick={handleDownload}
+            disabled={isDownloading}
+            className="p-2 bg-[#7d570e] rounded-full text-white hover:bg-[#6b4a0c] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isDownloading ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <Download className="w-5 h-5" />
+            )}
+          </button>
 
           {/* Links Button */}
           {getProductLinks().length > 0 && (
@@ -440,6 +459,13 @@ export default function VideoPlayer({
         {/* Video Counter */}
         <div className="absolute top-4 left-4 bg-black bg-opacity-50 rounded-full px-3 py-1 text-white text-sm">
           {currentIndex + 1} / {videos.length}
+        </div>
+
+        {/* Watermark */}
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
+          <span className="select-none text-white/18 text-3xl md:text-5xl font-semibold tracking-wide">
+            Master Afiliados
+          </span>
         </div>
       </div>
 
@@ -483,6 +509,18 @@ export default function VideoPlayer({
           </div>
         </div>
       )}
+
+      <Dialog open={Boolean(downloadNotice)} onOpenChange={(open) => !open && setDownloadNotice(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Download bloqueado</DialogTitle>
+            <DialogDescription>{downloadNotice}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => setDownloadNotice(null)}>Entendi</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 } 

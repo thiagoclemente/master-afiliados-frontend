@@ -1,4 +1,4 @@
-import { getAuthToken } from "@/lib/auth";
+import { authFetch } from "@/lib/auth";
 
 export interface UserPack {
   id: number;
@@ -22,18 +22,11 @@ export interface UserPackResponse {
 }
 
 export async function fetchUserPacks(): Promise<UserPackResponse> {
-  const token = getAuthToken();
-
-  if (!token) {
-    throw new Error("Authentication required");
-  }
-
-  const response = await fetch(
+  const response = await authFetch(
     `${process.env.NEXT_PUBLIC_STRAPI_URL}/api/auth/user-packs`,
     {
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
       },
     }
   );

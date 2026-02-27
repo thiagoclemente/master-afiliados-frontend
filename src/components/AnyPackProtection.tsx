@@ -3,6 +3,10 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { fetchUserPacks } from "@/services/user-pack.service";
+import {
+  fetchUserSubscriptions,
+  isSubscriptionPremium,
+} from "@/services/user-subscription.service";
 import { Loader2 } from "lucide-react";
 
 interface AnyPackProtectionProps {
@@ -17,17 +21,19 @@ export default function AnyPackProtection({ children }: AnyPackProtectionProps) 
   useEffect(() => {
     const checkUserPacks = async () => {
       try {
-        const response = await fetchUserPacks();
-        const userPacks = response.data;
-        
-        const hasPacks = userPacks.length > 0;
-        
-        if (!hasPacks) {
+        const [userPacksResponse, userSubscriptionsResponse] = await Promise.all([
+          fetchUserPacks(),
+          fetchUserSubscriptions(),
+        ]);
+        const hasPacks = userPacksResponse.data.length > 0;
+        const hasPremium = isSubscriptionPremium(userSubscriptionsResponse.data || []);
+
+        if (!hasPacks && !hasPremium) {
           // Se não tem pacotes, redirecionar para combos com mensagem
           router.push('/combos?message=pack-required');
           return;
         }
-        
+
         setHasAnyPack(true);
       } catch {
         // Em caso de erro, redirecionar para combos com mensagem

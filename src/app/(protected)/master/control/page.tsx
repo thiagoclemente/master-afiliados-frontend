@@ -2,6 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardContent
+} from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { 
   Plus, 
   DollarSign,
@@ -206,62 +213,63 @@ export default function ControlMasterPage() {
     <SubscriptionProtection type="control">
       <div className="space-y-8">
       {/* Header */}
-      <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
+      <Card>
+        <CardContent className="p-6">
         <div className="flex items-center space-x-3 mb-6">
-          <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-            <BarChart3 className="w-6 h-6 text-purple-600" />
+          <div className="w-10 h-10 bg-purple-600/20 border border-purple-600/40 rounded-lg flex items-center justify-center">
+            <BarChart3 className="w-6 h-6 text-purple-500" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-white">Controle Master</h1>
-            <p className="text-gray-400">Controle completo das suas campanhas publicitárias</p>
+            <h1 className="text-2xl font-bold text-foreground">Controle Master</h1>
+            <p className="text-muted-foreground">Controle completo das suas campanhas publicitárias</p>
           </div>
         </div>
 
         {/* Success/Error Messages */}
         {successMessage && (
-          <div className="mb-6 bg-green-900 border border-green-700 rounded-lg p-4">
-            <div className="flex items-center space-x-2">
-              <CheckCircle className="w-5 h-5 text-green-400" />
-              <span className="text-green-200">{successMessage}</span>
-            </div>
-          </div>
+          <Alert className="mb-6 border-green-700/60 bg-green-950/40 text-green-100 [&>svg]:text-green-400">
+            <CheckCircle className="w-4 h-4" />
+            <AlertDescription>{successMessage}</AlertDescription>
+          </Alert>
         )}
 
         {error && (
-          <div className="mb-6 bg-red-900 border border-red-700 rounded-lg p-4">
-            <div className="flex items-center space-x-2">
-              <XCircle className="w-5 h-5 text-red-400" />
-              <span className="text-red-200">{error}</span>
-            </div>
-          </div>
+          <Alert className="mb-6 border-red-700/60 bg-red-950/40 text-red-100 [&>svg]:text-red-400">
+            <XCircle className="w-4 h-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         )}
 
         {/* Month Navigator */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center space-x-4">
-            <button
+            <Button
               onClick={previousMonth}
-              className="p-2 text-gray-400 hover:text-gray-200 hover:bg-gray-900 rounded-md"
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground"
             >
               <ChevronLeft className="w-5 h-5" />
-            </button>
-            <h2 className="text-lg font-semibold text-white capitalize">
+            </Button>
+            <h2 className="text-lg font-semibold text-foreground capitalize">
               {controlMasterService.formatMonthName(currentMonth)}
             </h2>
-            <button
+            <Button
               onClick={nextMonth}
-              className="p-2 text-gray-400 hover:text-gray-200 hover:bg-gray-900 rounded-md"
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground"
             >
               <ChevronRight className="w-5 h-5" />
-            </button>
+            </Button>
           </div>
-          <button
+          <Button
             onClick={() => setIsCreateModalOpen(true)}
-            className="flex items-center space-x-2 bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 transition-colors"
+            className="bg-purple-600 text-white hover:bg-purple-700"
           >
             <Plus className="w-4 h-4" />
             <span>Nova Campanha</span>
-          </button>
+          </Button>
         </div>
 
         {/* Summary Cards */}
@@ -353,14 +361,16 @@ export default function ControlMasterPage() {
             </div>
           </div>
         </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Campaigns List */}
-      <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
+      <Card>
+        <CardContent className="p-6">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold text-white">Campanhas do Mês</h2>
+          <h2 className="text-xl font-semibold text-foreground">Campanhas do Mês</h2>
           {isLoading && (
-            <div className="flex items-center space-x-2 text-gray-400">
+            <div className="flex items-center space-x-2 text-muted-foreground">
               <Loader2 className="w-4 h-4 animate-spin" />
               <span>Carregando...</span>
             </div>
@@ -369,43 +379,43 @@ export default function ControlMasterPage() {
         
         {isLoading ? (
           <div className="text-center py-12">
-            <Loader2 className="w-8 h-8 text-gray-400 animate-spin mx-auto mb-4" />
-            <p className="text-gray-400">Carregando campanhas...</p>
+            <Loader2 className="w-8 h-8 text-muted-foreground animate-spin mx-auto mb-4" />
+            <p className="text-muted-foreground">Carregando campanhas...</p>
           </div>
         ) : monthAds.length === 0 ? (
           <div className="text-center py-12">
-            <div className="w-16 h-16 bg-gray-900 rounded-full flex items-center justify-center mx-auto mb-4">
-              <BarChart3 className="w-8 h-8 text-gray-400" />
+            <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
+              <BarChart3 className="w-8 h-8 text-muted-foreground" />
             </div>
-            <p className="text-gray-400 mb-4">Nenhuma campanha criada ainda</p>
-            <button
+            <p className="text-muted-foreground mb-4">Nenhuma campanha criada ainda</p>
+            <Button
               onClick={() => setIsCreateModalOpen(true)}
-              className="bg-purple-600 text-white px-6 py-2 rounded-md hover:bg-purple-700 transition-colors"
+              className="bg-purple-600 text-white hover:bg-purple-700"
             >
               Criar primeira campanha
-            </button>
+            </Button>
           </div>
         ) : (
           <div className="space-y-4">
             {monthAds.map((ad) => (
               <div
                 key={ad.id}
-                className="border border-gray-700 rounded-lg p-4 hover:shadow-md transition-shadow bg-gray-900 hover:bg-gray-800"
+                className="border border-border rounded-lg p-4 hover:shadow-md transition-shadow bg-card hover:bg-muted/30"
               >
                 <div className="flex items-center justify-between">
                   <div 
                     className="flex items-center space-x-4 flex-1 cursor-pointer"
                     onClick={() => router.push(`/master/control/${ad.documentId}`)}
                   >
-                    <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                      <Target className="w-5 h-5 text-purple-600" />
+                    <div className="w-10 h-10 bg-purple-600/20 border border-purple-600/40 rounded-lg flex items-center justify-center">
+                      <Target className="w-5 h-5 text-purple-500" />
                     </div>
                     <div>
-                      <h3 className="text-lg font-semibold text-white hover:text-purple-300 transition-colors">
+                      <h3 className="text-lg font-semibold text-foreground hover:text-purple-400 transition-colors">
                         {ad.name}
                       </h3>
                       <div className="flex items-center space-x-2">
-                        <p className="text-sm text-gray-400">
+                        <p className="text-sm text-muted-foreground">
                           {ad.items.length} item{ad.items.length !== 1 ? 's' : ''} • ID: {ad.documentId}
                         </p>
                         <span className={`px-2 py-1 text-xs font-medium rounded-full ${
@@ -420,16 +430,16 @@ export default function ControlMasterPage() {
                   </div>
                   <div className="flex items-center space-x-4">
                     <div className="text-right">
-                      <p className="text-sm text-gray-400">Total Investimento</p>
-                      <p className="text-white font-medium">
+                      <p className="text-sm text-muted-foreground">Total Investimento</p>
+                      <p className="text-foreground font-medium">
                         {controlMasterService.formatCurrency(
                           ad.items.reduce((sum, item) => sum + item.valueDailyInvestment, 0)
                         )}
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm text-gray-400">Total Vendas</p>
-                      <p className="text-white font-medium">
+                      <p className="text-sm text-muted-foreground">Total Vendas</p>
+                      <p className="text-foreground font-medium">
                         {controlMasterService.formatCurrency(
                           ad.items.reduce((sum, item) => sum + item.valueTotalSalesDay, 0)
                         )}
@@ -442,7 +452,7 @@ export default function ControlMasterPage() {
                         const profit = totalSales - totalInvestment;
                         return (
                           <>
-                            <p className="text-sm text-gray-400">Lucro</p>
+                            <p className="text-sm text-muted-foreground">Lucro</p>
                             <p className={`font-medium ${profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                               {controlMasterService.formatCurrency(profit)}
                             </p>
@@ -451,30 +461,34 @@ export default function ControlMasterPage() {
                       })()}
                     </div>
                     <div className="flex items-center space-x-2">
-                      <button
+                      <Button
                         onClick={(e) => {
                           e.stopPropagation();
                           setEditingAd(ad);
                           setIsEditModalOpen(true);
                         }}
-                        className="p-2 text-gray-400 hover:text-blue-400 hover:bg-gray-800 rounded-md transition-colors"
+                        size="icon-sm"
+                        variant="ghost"
+                        className="text-muted-foreground hover:text-blue-400"
                         title="Editar campanha"
                       >
                         <Edit className="w-4 h-4" />
-                      </button>
-                      <button
+                      </Button>
+                      <Button
                         onClick={(e) => {
                           e.stopPropagation();
                           if (confirm('Tem certeza que deseja deletar esta campanha?')) {
                             deleteAd(ad.documentId);
                           }
                         }}
-                        className="p-2 text-gray-400 hover:text-red-400 hover:bg-gray-800 rounded-md transition-colors"
+                        size="icon-sm"
+                        variant="ghost"
+                        className="text-muted-foreground hover:text-red-400"
                         title="Deletar campanha"
                       >
                         <Trash2 className="w-4 h-4" />
-                      </button>
-                      <div className="w-6 h-6 text-gray-400">
+                      </Button>
+                      <div className="w-6 h-6 text-muted-foreground">
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                         </svg>
@@ -486,45 +500,44 @@ export default function ControlMasterPage() {
             ))}
           </div>
         )}
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Create Campaign Modal */}
       {isCreateModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-black rounded-lg max-w-md w-full p-6 border border-gray-800">
-            <h3 className="text-lg font-semibold text-white mb-4">Nova Campanha</h3>
+          <div className="bg-card rounded-lg max-w-md w-full p-6 border">
+            <h3 className="text-lg font-semibold text-foreground mb-4">Nova Campanha</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Nome da Campanha
                 </label>
-                <input
+                <Input
                   type="text"
                   value={newAd.name}
                   onChange={(e) => setNewAd(prev => ({ ...prev, name: e.target.value }))}
-                  className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                   placeholder="Ex: Campanha Black Friday"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Data de Início
                 </label>
-                <input
+                <Input
                   type="date"
                   value={newAd.date}
                   onChange={(e) => setNewAd(prev => ({ ...prev, date: e.target.value }))}
-                  className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Tipo de Campanha
                 </label>
                 <select
                   value={newAd.type}
                   onChange={(e) => setNewAd(prev => ({ ...prev, type: e.target.value as ControlMasterType }))}
-                  className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  className="w-full bg-background border border-input rounded-md px-3 py-2 text-foreground focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                 >
                   <option value={ControlMasterType.PER_DAY}>{ControlMasterTypeLabels[ControlMasterType.PER_DAY]}</option>
                   <option value={ControlMasterType.PER_AD}>{ControlMasterTypeLabels[ControlMasterType.PER_AD]}</option>
@@ -532,22 +545,22 @@ export default function ControlMasterPage() {
               </div>
             </div>
             <div className="flex justify-end space-x-3 mt-6">
-              <button
+              <Button
                 onClick={() => {
                   setIsCreateModalOpen(false);
                   setNewAd({ name: '', date: '', type: ControlMasterType.PER_DAY });
                 }}
-                className="px-4 py-2 text-gray-300 hover:text-white transition-colors"
+                variant="ghost"
               >
                 Cancelar
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={createAd}
                 disabled={!newAd.name || !newAd.date}
-                className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="bg-purple-600 text-white hover:bg-purple-700"
               >
                 Criar Campanha
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -556,39 +569,38 @@ export default function ControlMasterPage() {
       {/* Edit Campaign Modal */}
       {isEditModalOpen && editingAd && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-black rounded-lg max-w-md w-full p-6 border border-gray-800">
-            <h3 className="text-lg font-semibold text-white mb-4">Editar Campanha</h3>
+          <div className="bg-card rounded-lg max-w-md w-full p-6 border">
+            <h3 className="text-lg font-semibold text-foreground mb-4">Editar Campanha</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Nome da Campanha
                 </label>
-                <input
+                <Input
                   type="text"
                   value={editingAd.name}
                   onChange={(e) => setEditingAd(prev => prev ? { ...prev, name: e.target.value } : null)}
-                  className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                   placeholder="Ex: Campanha Black Friday"
                 />
               </div>
             </div>
             <div className="flex justify-end space-x-3 mt-6">
-              <button
+              <Button
                 onClick={() => {
                   setIsEditModalOpen(false);
                   setEditingAd(null);
                 }}
-                className="px-4 py-2 text-gray-300 hover:text-white transition-colors"
+                variant="ghost"
               >
                 Cancelar
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => editAd(editingAd.documentId, editingAd.name)}
                 disabled={!editingAd.name.trim()}
-                className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="bg-purple-600 text-white hover:bg-purple-700"
               >
                 Salvar Alterações
-              </button>
+              </Button>
             </div>
           </div>
         </div>

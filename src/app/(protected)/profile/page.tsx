@@ -5,6 +5,16 @@ import { useAuth } from "@/context/auth-context";
 import { UserService } from "@/services/user.service";
 import { UserProfile } from "@/interfaces/user.interface";
 import { useRouter } from "next/navigation";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   User,
   Mail,
@@ -14,6 +24,7 @@ import {
   Edit,
   Key,
   MessageCircle,
+  Loader2,
 } from "lucide-react";
 
 export default function ProfilePage() {
@@ -27,8 +38,7 @@ export default function ProfilePage() {
     const fetchUserProfile = async () => {
       try {
         const profile = await UserService.getCurrentUser();
-        
-        // Verificar se o perfil tem os dados necessários
+
         if (profile && profile.id) {
           setUserProfile(profile);
         } else {
@@ -36,7 +46,11 @@ export default function ProfilePage() {
         }
       } catch (err) {
         console.error("Error fetching user profile:", err);
-        setError(`Erro ao carregar dados do perfil: ${err instanceof Error ? err.message : 'Erro desconhecido'}`);
+        setError(
+          `Erro ao carregar dados do perfil: ${
+            err instanceof Error ? err.message : "Erro desconhecido"
+          }`
+        );
       } finally {
         setIsLoading(false);
       }
@@ -65,13 +79,12 @@ export default function ProfilePage() {
     router.push("/profile/whatsapp");
   };
 
-
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
+      <div className="flex min-h-[60vh] items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#7d570e] mx-auto"></div>
-          <p className="mt-4 text-gray-300">Carregando perfil...</p>
+          <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
+          <p className="mt-3 text-muted-foreground">Carregando perfil...</p>
         </div>
       </div>
     );
@@ -79,208 +92,192 @@ export default function ProfilePage() {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-red-500 text-xl mb-4">🔒</div>
-          <p className="text-gray-300">Você precisa estar logado para acessar esta página</p>
-          <button 
-            onClick={() => router.push('/login')} 
-            className="mt-4 px-4 py-2 bg-[#7d570e] text-white rounded-lg hover:bg-[#6b4a0c]"
-          >
-            Fazer Login
-          </button>
-        </div>
+      <div className="mx-auto max-w-xl">
+        <Card>
+          <CardContent className="py-10 text-center">
+            <p className="text-muted-foreground mb-4">
+              Você precisa estar logado para acessar esta página.
+            </p>
+            <Button onClick={() => router.push("/login")}>Fazer Login</Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-red-500 text-xl mb-4">⚠️</div>
-          <p className="text-gray-300">{error}</p>
-          <button 
-            onClick={() => window.location.reload()} 
-            className="mt-4 px-4 py-2 bg-[#7d570e] text-white rounded-lg hover:bg-[#6b4a0c]"
-          >
-            Tentar novamente
-          </button>
-        </div>
+      <div className="mx-auto max-w-xl">
+        <Alert variant="destructive" className="border-destructive/60 bg-destructive/10">
+          <AlertTitle>Falha ao carregar perfil</AlertTitle>
+          <AlertDescription className="space-y-3">
+            <p>{error}</p>
+            <Button variant="outline" onClick={() => window.location.reload()}>
+              Tentar novamente
+            </Button>
+          </AlertDescription>
+        </Alert>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-black">
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="bg-gray-900 rounded-lg shadow-sm p-6 mb-6 border border-gray-800">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              {/* Avatar */}
-              <div className="w-16 h-16 bg-[#7d570e] rounded-full flex items-center justify-center">
-                <span className="text-white font-bold text-xl">
-                  {userProfile?.name?.charAt(0).toUpperCase() || user?.username?.charAt(0).toUpperCase() || 'U'}
-                </span>
-              </div>
+    <div className="space-y-6">
+      <Card>
+        <CardContent className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center gap-4">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary text-primary-foreground text-xl font-bold">
+              {userProfile?.name?.charAt(0).toUpperCase() ||
+                user?.username?.charAt(0).toUpperCase() ||
+                "U"}
+            </div>
+            <div>
+              <h1 className="text-2xl font-semibold">Meu Perfil</h1>
+              <p className="text-muted-foreground">Gerencie suas informações pessoais</p>
+              {userProfile?.email && <p className="mt-1 text-sm text-muted-foreground">{userProfile.email}</p>}
+            </div>
+          </div>
+          <Button onClick={handleEditProfile} className="inline-flex items-center gap-2">
+            <Edit className="h-4 w-4" />
+            Editar Perfil
+          </Button>
+        </CardContent>
+      </Card>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <User className="h-5 w-5 text-primary" />
+              Informações Pessoais
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <div className="flex items-center gap-3">
+              <User className="h-5 w-5 text-muted-foreground" />
               <div>
-                <h1 className="text-2xl font-bold text-white">Meu Perfil</h1>
-                <p className="text-gray-300">Gerencie suas informações pessoais</p>
-                {userProfile?.email && (
-                  <p className="text-sm text-gray-400 mt-1">{userProfile.email}</p>
+                <p className="text-sm text-muted-foreground">Nome</p>
+                <p className="font-medium">{userProfile?.name || "Não informado"}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <Mail className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <p className="text-sm text-muted-foreground">E-mail</p>
+                <p className="font-medium">{userProfile?.email}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <Phone className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <p className="text-sm text-muted-foreground">Telefone</p>
+                <p className="font-medium">{userProfile?.phone || "Não informado"}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <Instagram className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <p className="text-sm text-muted-foreground">Instagram</p>
+                <p className="font-medium">{userProfile?.instagram || "Não informado"}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ShoppingBag className="h-5 w-5 text-orange-500" />
+              Configuração Shopee
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center gap-3">
+              <ShoppingBag className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <p className="text-sm text-muted-foreground">Shopee ID</p>
+                {userProfile?.shoppeId ? (
+                  <Badge variant="outline" className="border-emerald-500/60 text-emerald-300">
+                    Configurado
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="border-rose-500/60 text-rose-300">
+                    Não configurado
+                  </Badge>
                 )}
               </div>
             </div>
-            <button
-              onClick={handleEditProfile}
-              className="flex items-center gap-2 px-4 py-2 bg-[#7d570e] text-white rounded-lg hover:bg-[#6b4a0c] transition-colors"
-            >
-              <Edit className="w-4 h-4" />
-              Editar Perfil
-            </button>
-          </div>
-        </div>
 
-
-        {/* Profile Information */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Personal Information */}
-          <div className="bg-gray-900 rounded-lg shadow-sm p-6 border border-gray-800">
-            <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-              <User className="w-5 h-5 text-[#7d570e]" />
-              Informações Pessoais
-            </h2>
-            
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <User className="w-5 h-5 text-gray-400" />
-                <div>
-                  <p className="text-sm text-gray-400">Nome</p>
-                  <p className="font-medium text-white">
-                    {userProfile?.name || "Não informado"}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <Mail className="w-5 h-5 text-gray-400" />
-                <div>
-                  <p className="text-sm text-gray-400">E-mail</p>
-                  <p className="font-medium text-white">{userProfile?.email}</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <Phone className="w-5 h-5 text-gray-400" />
-                <div>
-                  <p className="text-sm text-gray-400">Telefone</p>
-                  <p className="font-medium text-white">
-                    {userProfile?.phone || "Não informado"}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <Instagram className="w-5 h-5 text-gray-400" />
-                <div>
-                  <p className="text-sm text-gray-400">Instagram</p>
-                  <p className="font-medium text-white">
-                    {userProfile?.instagram || "Não informado"}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Shopee Configuration */}
-          <div className="bg-gray-900 rounded-lg shadow-sm p-6 border border-gray-800">
-            <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-              <ShoppingBag className="w-5 h-5 text-orange-500" />
-              Configuração Shopee
-            </h2>
-            
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <ShoppingBag className="w-5 h-5 text-gray-400" />
-                <div>
-                  <p className="text-sm text-gray-400">Shopee ID</p>
-                  <p className="font-medium text-white">
-                    {userProfile?.shoppeId ? "✅ Configurado" : "❌ Não configurado"}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <Key className="w-5 h-5 text-gray-400" />
-                <div>
-                  <p className="text-sm text-gray-400">Senha da API</p>
-                  <p className="font-medium text-white">
-                    {userProfile?.shoppeApiPassword ? "✅ Configurado" : "❌ Não configurado"}
-                  </p>
-                </div>
+            <div className="flex items-center gap-3">
+              <Key className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <p className="text-sm text-muted-foreground">Senha da API</p>
+                {userProfile?.shoppeApiPassword ? (
+                  <Badge variant="outline" className="border-emerald-500/60 text-emerald-300">
+                    Configurado
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="border-rose-500/60 text-rose-300">
+                    Não configurado
+                  </Badge>
+                )}
               </div>
             </div>
 
-            <button
-              onClick={handleShopeeConfig}
-              className="w-full mt-4 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
-            >
+            <Button onClick={handleShopeeConfig} className="w-full bg-orange-600 text-white hover:bg-orange-700">
               Configurar Shopee
-            </button>
-          </div>
+            </Button>
+          </CardContent>
+        </Card>
 
-          {/* WhatsApp Configuration */}
-          <div className="bg-gray-900 rounded-lg shadow-sm p-6 border border-gray-800">
-            <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-              <MessageCircle className="w-5 h-5 text-green-500" />
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <MessageCircle className="h-5 w-5 text-emerald-500" />
               Configuração WhatsApp
-            </h2>
-
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <MessageCircle className="w-5 h-5 text-gray-400" />
-                <div>
-                  <p className="text-sm text-gray-400">Integração</p>
-                  <p className="font-medium text-green-400">Disponível</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <MessageCircle className="w-5 h-5 text-gray-400" />
-                <div>
-                  <p className="text-sm text-gray-400">Status</p>
-                  <p className="font-medium text-gray-200">
-                    Configure contas, grupos e disparos automáticos.
-                  </p>
-                </div>
+            </CardTitle>
+            <CardDescription>Configure contas, grupos e disparos automáticos.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center gap-3">
+              <MessageCircle className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <p className="text-sm text-muted-foreground">Integração</p>
+                <Badge variant="outline" className="border-emerald-500/60 text-emerald-300">
+                  Disponível
+                </Badge>
               </div>
             </div>
 
-            <button
-              onClick={handleWhatsAppConfig}
-              className="w-full mt-4 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 transition-colors"
-            >
-              Configurar WhatsApp
-            </button>
-          </div>
-        </div>
+            <div className="flex items-center gap-3">
+              <MessageCircle className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <p className="text-sm text-muted-foreground">Status</p>
+                <p className="font-medium">Configure contas, grupos e disparos automáticos.</p>
+              </div>
+            </div>
 
-        {/* Action Buttons */}
-        <div className="mt-6 bg-gray-900 rounded-lg shadow-sm p-6 border border-gray-800">
-          <h2 className="text-lg font-semibold text-white mb-4">Ações da Conta</h2>
-          
-          <div className="flex justify-center">
-            <button
-              onClick={handleChangePassword}
-              className="flex items-center justify-center gap-2 px-6 py-3 border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-800 hover:text-white transition-colors"
-            >
-              <Key className="w-4 h-4" />
-              Alterar Senha
-            </button>
-          </div>
-        </div>
+            <Button onClick={handleWhatsAppConfig} className="w-full bg-emerald-600 text-white hover:bg-emerald-500">
+              Configurar WhatsApp
+            </Button>
+          </CardContent>
+        </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Ações da Conta</CardTitle>
+        </CardHeader>
+        <CardContent className="flex justify-center">
+          <Button onClick={handleChangePassword} variant="outline" className="inline-flex items-center gap-2">
+            <Key className="h-4 w-4" />
+            Alterar Senha
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }

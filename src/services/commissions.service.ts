@@ -1,4 +1,4 @@
-import { getAuthToken } from "@/lib/auth";
+import { authFetch } from "@/lib/auth";
 import { UserService } from "./user.service";
 
 export interface ComissaoPorCanal {
@@ -97,17 +97,11 @@ class CommissionsService {
   private API_URL = process.env.NEXT_PUBLIC_STRAPI_URL || 'https://api.masterafiliados.com.br';
 
   async uploadCommissionsFile(file: File): Promise<CommissionReport> {
-    const token = getAuthToken();
-    if (!token) throw new Error("Authentication required");
-    
     const formData = new FormData();
     formData.append('file', file);
 
-    const response = await fetch(`${this.MY_METRICS_URL}/upload`, {
+    const response = await authFetch(`${this.MY_METRICS_URL}/upload`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
       body: formData,
     });
 
@@ -122,17 +116,11 @@ class CommissionsService {
   }
 
   async uploadClicksFile(file: File): Promise<ClickReport> {
-    const token = getAuthToken();
-    if (!token) throw new Error("Authentication required");
-    
     const formData = new FormData();
     formData.append('file', file);
 
-    const response = await fetch(`${this.MY_METRICS_URL}/upload-clicks`, {
+    const response = await authFetch(`${this.MY_METRICS_URL}/upload-clicks`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
       body: formData,
     });
 
@@ -147,9 +135,6 @@ class CommissionsService {
   }
 
   async getShopeeConversionReport(startDate: string, endDate: string, limit: number = 300): Promise<CommissionReport> {
-    const token = getAuthToken();
-    if (!token) throw new Error("Authentication required");
-    
     // Check if user has Shopee credentials configured
     try {
       const userProfile = await UserService.getCurrentUser();
@@ -169,10 +154,9 @@ class CommissionsService {
       limit: limit.toString()
     });
 
-    const response = await fetch(`${this.MY_METRICS_URL}/shopee-conversion-report?${params}`, {
+    const response = await authFetch(`${this.MY_METRICS_URL}/shopee-conversion-report?${params}`, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
     });
@@ -188,17 +172,13 @@ class CommissionsService {
   }
 
   async getShopeeProductLink(itemId: number | string): Promise<string> {
-    const token = getAuthToken();
-    if (!token) throw new Error("Authentication required");
-
     const params = new URLSearchParams({
       itemId: String(itemId),
     });
 
-    const response = await fetch(`${this.API_URL}/api/master-comissions/product?${params.toString()}`, {
+    const response = await authFetch(`${this.API_URL}/api/master-comissions/product?${params.toString()}`, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
     });

@@ -4,12 +4,25 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { UserService } from "@/services/user.service";
 import { PasswordChangeRequest } from "@/interfaces/user.interface";
-import { 
-  Key, 
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+  Key,
   Save,
   ArrowLeft,
   Eye,
-  EyeOff
+  EyeOff,
+  Loader2,
+  AlertCircle,
+  CheckCircle2,
 } from "lucide-react";
 
 export default function ChangePasswordPage() {
@@ -23,7 +36,6 @@ export default function ChangePasswordPage() {
     confirm: false,
   });
 
-  // Form data
   const [formData, setFormData] = useState({
     currentPassword: "",
     password: "",
@@ -32,16 +44,16 @@ export default function ChangePasswordPage() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
   };
 
   const togglePasswordVisibility = (field: keyof typeof showPasswords) => {
-    setShowPasswords(prev => ({
+    setShowPasswords((prev) => ({
       ...prev,
-      [field]: !prev[field]
+      [field]: !prev[field],
     }));
   };
 
@@ -90,20 +102,21 @@ export default function ChangePasswordPage() {
 
       await UserService.changePassword(passwordData);
       setSuccess("Senha alterada com sucesso!");
-      
-      // Clear form
+
       setFormData({
         currentPassword: "",
         password: "",
         passwordConfirmation: "",
       });
 
-      // Redirect back to profile after a short delay
       setTimeout(() => {
         router.push("/profile");
       }, 1500);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Erro ao alterar senha. Verifique se a senha atual está correta.";
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : "Erro ao alterar senha. Verifique se a senha atual está correta.";
       setError(errorMessage);
       console.error("Error changing password:", err);
     } finally {
@@ -112,168 +125,156 @@ export default function ChangePasswordPage() {
   };
 
   return (
-    <div className="min-h-screen bg-black">
-      <div className="max-w-2xl mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="bg-gray-900 rounded-lg shadow-sm p-6 mb-6 border border-gray-800">
-          <div className="flex items-center gap-4 mb-4">
-            <button
-              onClick={() => router.back()}
-              className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5 text-gray-300" />
-            </button>
+    <div className="mx-auto max-w-2xl space-y-6">
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" onClick={() => router.back()}>
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
             <div>
-              <h1 className="text-2xl font-bold text-white">Alterar Senha</h1>
-              <p className="text-gray-300">Atualize sua senha de acesso</p>
+              <CardTitle>Alterar Senha</CardTitle>
+              <CardDescription>Atualize sua senha de acesso</CardDescription>
             </div>
           </div>
-
-          {/* Success/Error Messages */}
+        </CardHeader>
+        <CardContent className="space-y-4">
           {success && (
-            <div className="mb-4 p-4 bg-green-900 border border-green-600 text-green-300 rounded-lg">
-              {success}
-            </div>
+            <Alert className="border-emerald-500/50 bg-emerald-500/10 text-emerald-200 [&>svg]:text-emerald-300">
+              <CheckCircle2 className="h-4 w-4" />
+              <AlertDescription className="text-emerald-200">{success}</AlertDescription>
+            </Alert>
           )}
-          
+
           {error && (
-            <div className="mb-4 p-4 bg-red-900 border border-red-600 text-red-300 rounded-lg">
-              {error}
-            </div>
+            <Alert variant="destructive" className="border-destructive/60 bg-destructive/10">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription className="text-destructive/90">{error}</AlertDescription>
+            </Alert>
           )}
-        </div>
 
-        {/* Form */}
-        <div className="bg-gray-900 rounded-lg shadow-sm p-6 border border-gray-800">
-          <form onSubmit={(e) => { e.preventDefault(); handleSave(); }}>
-            <div className="space-y-6">
-              {/* Current Password Field */}
-              <div>
-                <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-300 mb-2">
-                  <Key className="w-4 h-4 inline mr-2 text-[#7d570e]" />
-                  Senha Atual *
-                </label>
-                <div className="relative">
-                  <input
-                    type={showPasswords.current ? "text" : "password"}
-                    id="currentPassword"
-                    name="currentPassword"
-                    value={formData.currentPassword}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 pr-10 border border-gray-600 rounded-lg bg-gray-800 text-white focus:ring-2 focus:ring-[#7d570e] focus:border-[#7d570e]"
-                    placeholder="Digite sua senha atual"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => togglePasswordVisibility('current')}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-300"
-                  >
-                    {showPasswords.current ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-
-              {/* New Password Field */}
-              <div>
-                <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
-                  <Key className="w-4 h-4 inline mr-2 text-[#7d570e]" />
-                  Nova Senha *
-                </label>
-                <div className="relative">
-                  <input
-                    type={showPasswords.new ? "text" : "password"}
-                    id="password"
-                    name="password"
-                    value={formData.password}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 pr-10 border border-gray-600 rounded-lg bg-gray-800 text-white focus:ring-2 focus:ring-[#7d570e] focus:border-[#7d570e]"
-                    placeholder="Digite sua nova senha"
-                    required
-                    minLength={6}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => togglePasswordVisibility('new')}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-300"
-                  >
-                    {showPasswords.new ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-                <p className="text-sm text-gray-400 mt-1">
-                  Mínimo de 6 caracteres
-                </p>
-              </div>
-
-              {/* Confirm Password Field */}
-              <div>
-                <label htmlFor="passwordConfirmation" className="block text-sm font-medium text-gray-300 mb-2">
-                  <Key className="w-4 h-4 inline mr-2 text-[#7d570e]" />
-                  Confirmar Nova Senha *
-                </label>
-                <div className="relative">
-                  <input
-                    type={showPasswords.confirm ? "text" : "password"}
-                    id="passwordConfirmation"
-                    name="passwordConfirmation"
-                    value={formData.passwordConfirmation}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 pr-10 border border-gray-600 rounded-lg bg-gray-800 text-white focus:ring-2 focus:ring-[#7d570e] focus:border-[#7d570e]"
-                    placeholder="Confirme sua nova senha"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => togglePasswordVisibility('confirm')}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-300"
-                  >
-                    {showPasswords.confirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleSave();
+            }}
+            className="space-y-5"
+          >
+            <div className="space-y-2">
+              <label htmlFor="currentPassword" className="text-sm font-medium text-foreground/90">
+                <Key className="mr-2 inline h-4 w-4 text-primary" />
+                Senha Atual *
+              </label>
+              <div className="relative">
+                <Input
+                  type={showPasswords.current ? "text" : "password"}
+                  id="currentPassword"
+                  name="currentPassword"
+                  value={formData.currentPassword}
+                  onChange={handleInputChange}
+                  className="h-11 pr-10"
+                  placeholder="Digite sua senha atual"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => togglePasswordVisibility("current")}
+                  className="absolute right-2 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  {showPasswords.current ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
               </div>
             </div>
 
-            {/* Save Button */}
-            <div className="mt-8 flex gap-4">
-              <button
-                type="button"
-                onClick={() => router.back()}
-                className="flex-1 px-4 py-2 border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-800 transition-colors"
-              >
+            <div className="space-y-2">
+              <label htmlFor="password" className="text-sm font-medium text-foreground/90">
+                <Key className="mr-2 inline h-4 w-4 text-primary" />
+                Nova Senha *
+              </label>
+              <div className="relative">
+                <Input
+                  type={showPasswords.new ? "text" : "password"}
+                  id="password"
+                  name="password"
+                  value={formData.password}
+                  onChange={handleInputChange}
+                  className="h-11 pr-10"
+                  placeholder="Digite sua nova senha"
+                  required
+                  minLength={6}
+                />
+                <button
+                  type="button"
+                  onClick={() => togglePasswordVisibility("new")}
+                  className="absolute right-2 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  {showPasswords.new ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground">Mínimo de 6 caracteres</p>
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="passwordConfirmation" className="text-sm font-medium text-foreground/90">
+                <Key className="mr-2 inline h-4 w-4 text-primary" />
+                Confirmar Nova Senha *
+              </label>
+              <div className="relative">
+                <Input
+                  type={showPasswords.confirm ? "text" : "password"}
+                  id="passwordConfirmation"
+                  name="passwordConfirmation"
+                  value={formData.passwordConfirmation}
+                  onChange={handleInputChange}
+                  className="h-11 pr-10"
+                  placeholder="Confirme sua nova senha"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => togglePasswordVisibility("confirm")}
+                  className="absolute right-2 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  {showPasswords.confirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <Button type="button" variant="outline" className="flex-1" onClick={() => router.back()}>
                 Cancelar
-              </button>
-              <button
-                type="submit"
-                disabled={isSaving}
-                className="flex-1 px-4 py-2 bg-[#7d570e] text-white rounded-lg hover:bg-[#6b4a0c] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
-              >
+              </Button>
+              <Button type="submit" className="flex-1" disabled={isSaving}>
                 {isSaving ? (
                   <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <Loader2 className="h-4 w-4 animate-spin" />
                     Alterando...
                   </>
                 ) : (
                   <>
-                    <Save className="w-4 h-4" />
+                    <Save className="h-4 w-4" />
                     Alterar Senha
                   </>
                 )}
-              </button>
+              </Button>
             </div>
           </form>
-        </div>
+        </CardContent>
+      </Card>
 
-        {/* Security Tips */}
-        <div className="mt-6 bg-gray-900 border border-gray-800 rounded-lg p-6">
-          <h3 className="font-semibold text-white mb-3">Dicas de Segurança</h3>
-          <ul className="text-sm text-gray-300 space-y-2">
-            <li>• Use uma senha forte com pelo menos 6 caracteres</li>
-            <li>• Combine letras maiúsculas, minúsculas, números e símbolos</li>
-            <li>• Evite usar informações pessoais óbvias</li>
-            <li>• Não compartilhe sua senha com outras pessoas</li>
+      <Card>
+        <CardHeader>
+          <CardTitle>Dicas de Segurança</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ul className="space-y-2 text-sm text-muted-foreground">
+            <li>• Use uma senha forte com pelo menos 6 caracteres.</li>
+            <li>• Combine letras maiúsculas, minúsculas, números e símbolos.</li>
+            <li>• Evite usar informações pessoais óbvias.</li>
+            <li>• Não compartilhe sua senha com outras pessoas.</li>
           </ul>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { getAuthToken } from "@/lib/auth";
+import { authFetch } from "@/lib/auth";
 import type {
   PaginationMeta,
   PromoterHistoryItem,
@@ -12,17 +12,10 @@ async function request<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const token = getAuthToken();
-
-  if (!token) {
-    throw new Error("Authentication required");
-  }
-
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await authFetch(`${API_BASE}${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
       ...(options.headers ?? {}),
     },
   });
@@ -61,6 +54,52 @@ export async function promoterPreview(
     message: (data?.message as string) ?? "",
     payload:
       (data?.payload as Record<string, unknown> | undefined) ?? {},
+  };
+}
+
+export type PromoterShopeeProduct = {
+  itemId: string | number;
+  productName?: string;
+  productLink?: string;
+  offerLink?: string;
+  imageUrl?: string;
+  price?: number;
+  priceMin?: number;
+  priceMax?: number;
+  sales?: number;
+  commissionRate?: number;
+};
+
+export async function fetchPromoterShopeeProducts(params?: {
+  page?: number;
+  limit?: number;
+  query?: string;
+  sortType?: number;
+  isAMSOffer?: boolean;
+}): Promise<{
+  nodes: PromoterShopeeProduct[];
+  pageInfo?: { hasNextPage?: boolean };
+}> {
+  const searchParams = new URLSearchParams();
+  if (params?.page) searchParams.set("page", String(params.page));
+  if (params?.limit) searchParams.set("limit", String(params.limit));
+  if (params?.query?.trim()) searchParams.set("query", params.query.trim());
+  if (typeof params?.sortType === "number") {
+    searchParams.set("sortType", String(params.sortType));
+  }
+  if (typeof params?.isAMSOffer === "boolean") {
+    searchParams.set("isAMSOffer", String(params.isAMSOffer));
+  }
+
+  const suffix = searchParams.toString();
+  const data = await request<{
+    nodes?: PromoterShopeeProduct[];
+    pageInfo?: { hasNextPage?: boolean };
+  }>(`/api/whatsapp/promoter/shopee-products${suffix ? `?${suffix}` : ""}`);
+
+  return {
+    nodes: Array.isArray(data?.nodes) ? data.nodes : [],
+    pageInfo: data?.pageInfo,
   };
 }
 
@@ -168,6 +207,16 @@ export async function fetchWhatsappBatchDetail(batchId: string): Promise<WhatsAp
   return data as WhatsAppBatch;
 }
 
+export async function deleteWhatsappBatch(
+  batchId: string,
+  shouldDelete = true
+): Promise<void> {
+  await request(
+    `/api/whatsapp/campaigns/batches/${batchId}?delete=${shouldDelete ? "true" : "false"}`,
+    { method: "DELETE" }
+  );
+}
+
 export async function scheduleWhatsappList(payload: {
   title?: string;
   groupId: string;
@@ -175,6 +224,9 @@ export async function scheduleWhatsappList(payload: {
   sessionName: string;
   intervalMinutes?: number;
   startAt?: string;
+  endAt?: string;
+  overflowStartAt?: string;
+  overflowDayStarts?: string[];
   items: { link: string; message?: string; payload?: Record<string, unknown> }[];
 }): Promise<void> {
   await request("/api/whatsapp/campaigns/list", {
@@ -187,5 +239,28 @@ export async function scheduleWhatsappList(payload: {
         ...(item.payload ? { payload: item.payload } : {}),
       })),
     }),
+  });
+}
+
+export type WhatsAppQuotaCheck = {
+  allowed: boolean;
+  dailyLimit: number;
+  usedToday: number;
+  requestedCampaigns: number;
+  extraCampaignsNeeded: number;
+  creditsAvailable: number;
+  creditsRequired: number;
+  creditsAfterSend: number;
+  requiresCredits: boolean;
+  code?: string | null;
+  message?: string | null;
+};
+
+export async function checkWhatsappQuota(
+  requestedCampaigns: number
+): Promise<WhatsAppQuotaCheck> {
+  return request<WhatsAppQuotaCheck>("/api/whatsapp/campaigns/quota-check", {
+    method: "POST",
+    body: JSON.stringify({ requestedCampaigns }),
   });
 }

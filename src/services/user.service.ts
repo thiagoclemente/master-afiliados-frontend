@@ -1,4 +1,4 @@
-import { getAuthToken } from "@/lib/auth";
+import { authFetch } from "@/lib/auth";
 import type { UserProfile, UserUpdateRequest, PasswordChangeRequest, UserUpdateResponse } from "@/interfaces/user.interface";
 
 const STRAPI_URL = process.env.NEXT_PUBLIC_STRAPI_URL;
@@ -10,17 +10,10 @@ export class UserService {
       throw new Error("This function can only be called on the client side");
     }
 
-    const token = getAuthToken();
-
-    if (!token) {
-      throw new Error("Authentication required");
-    }
-
-    const response = await fetch(`${STRAPI_URL}${endpoint}`, {
+    const response = await authFetch(`${STRAPI_URL}${endpoint}`, {
       ...options,
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
         ...options.headers,
       },
     });

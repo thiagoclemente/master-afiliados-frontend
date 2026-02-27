@@ -4,6 +4,15 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
 import { stickerService, Sticker, StickerCategory } from "@/services/sticker.service";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import Image from "next/image";
 import { 
   Search, 
@@ -232,20 +241,19 @@ export default function StickersPage() {
 
   if (error) {
     return (
-      <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
-        <div className="text-center">
-          <div className="text-red-300 mb-4">{error}</div>
-          <button
+      <Card>
+        <CardContent className="text-center space-y-4">
+          <p className="text-destructive">{error}</p>
+          <Button
             onClick={() => {
               setError(null);
               loadStickers(1, true);
             }}
-            className="px-4 py-2 bg-[#7d570e] text-white rounded-md hover:bg-[#6b4a0c] transition-colors"
           >
             Tentar novamente
-          </button>
-        </div>
-      </div>
+          </Button>
+        </CardContent>
+      </Card>
     );
   }
 
@@ -254,31 +262,34 @@ export default function StickersPage() {
       <div className="space-y-6">
       <PageLoadingBar isLoading={isLoading} />
       {/* Header */}
-      <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
+      <Card>
+        <CardHeader className="pb-4">
+          <CardTitle className="text-2xl">Biblioteca de Stickers</CardTitle>
+          <CardDescription>
+            Explore stickers para campanhas e redes sociais.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-          <h1 className="text-2xl font-bold text-white mb-4 sm:mb-0">
-            Biblioteca de Stickers
-          </h1>
           <div className="flex flex-col sm:flex-row gap-4">
             {/* Search */}
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <input
-                type="text"
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+              <Input
                 placeholder="Buscar stickers..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 pr-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#7d570e] focus:border-[#7d570e] w-full sm:w-64"
+                className="pl-10 w-full sm:w-64"
               />
             </div>
 
             {/* Category Filter */}
             <div className="relative">
-              <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
               <select
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(Number(e.target.value))}
-                className="pl-10 pr-8 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-[#7d570e] focus:border-[#7d570e] appearance-none cursor-pointer w-full sm:w-48"
+                className="pl-10 pr-8 py-2 h-9 bg-background border border-input rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-ring appearance-none cursor-pointer w-full sm:w-48"
               >
                 <option value={0}>Todas as categorias</option>
                 {categories.map((category) => (
@@ -290,18 +301,20 @@ export default function StickersPage() {
             </div>
           </div>
         </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Stickers Grid */}
-      <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
+      <Card>
+        <CardContent className="p-6">
         {isLoading ? (
           <div className="flex justify-center items-center py-12">
-            <Loader2 className="w-8 h-8 animate-spin text-[#7d570e]" />
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
           </div>
         ) : stickers.length === 0 ? (
           <div className="text-center py-12">
-            <StickyNote className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-            <p className="text-gray-400">Nenhum sticker encontrado</p>
+            <StickyNote className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+            <p className="text-muted-foreground">Nenhum sticker encontrado</p>
           </div>
         ) : (
           <>
@@ -309,7 +322,7 @@ export default function StickersPage() {
               {stickers.map((sticker) => (
                 <div
                   key={sticker.id}
-                  className="group relative bg-gray-900 rounded-lg overflow-hidden cursor-pointer hover:shadow-lg transition-all duration-200 transform hover:scale-105"
+                  className="group relative bg-card border rounded-lg overflow-hidden cursor-pointer hover:shadow-lg transition-all duration-200 transform hover:scale-105"
                   onClick={() => setSelectedSticker(sticker)}
                 >
                   <div className="aspect-square relative">
@@ -321,7 +334,7 @@ export default function StickersPage() {
                     />
                     
                     {/* Overlay sutil como nos vídeos */}
-                    <div className="absolute inset-0 bg-black/60 group-hover:bg-black/10 transition-all duration-200 flex items-center justify-center">
+                    <div className="absolute inset-0 bg-black/50 group-hover:bg-black/10 transition-all duration-200 flex items-center justify-center">
                       <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                         <Search className="w-8 h-8 text-white" />
                       </div>
@@ -330,40 +343,42 @@ export default function StickersPage() {
                     {/* Botões de Ação */}
                     <div className="absolute top-2 right-2 flex flex-col space-y-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                       {/* Botão de Download */}
-                      <button
+                      <Button
                         onClick={(e) => {
                           e.stopPropagation();
                           handleDownload(sticker);
                         }}
                         disabled={isDownloading === sticker.id}
-                        className="bg-[#7d570e] hover:bg-[#6b4a0c] text-white p-2 rounded-full transition-colors"
+                        size="icon-sm"
+                        className="rounded-full"
                       >
                         {isDownloading === sticker.id ? (
                           <Loader2 className="w-4 h-4 animate-spin" />
                         ) : (
                           <Download className="w-4 h-4" />
                         )}
-                      </button>
+                      </Button>
 
                       {/* Botão de Links */}
                       {getProductLinks(sticker).length > 0 && (
-                        <button
+                        <Button
                           onClick={(e) => {
                             e.stopPropagation();
                             handleShowLinks(sticker);
                           }}
-                          className="bg-[#7d570e] hover:bg-[#6b4a0c] text-white p-2 rounded-full transition-colors"
+                          size="icon-sm"
+                          className="rounded-full"
                         >
                           <Link className="w-4 h-4" />
-                        </button>
+                        </Button>
                       )}
                     </div>
                   </div>
                   <div className="p-3">
-                    <h3 className="text-sm font-medium text-white truncate">
+                    <h3 className="text-sm font-medium text-foreground truncate">
                       {sticker.title}
                     </h3>
-                    <p className="text-xs text-gray-400 mt-1">
+                    <p className="text-xs text-muted-foreground mt-1">
                       {sticker.category.name}
                     </p>
                   </div>
@@ -374,10 +389,10 @@ export default function StickersPage() {
             {/* Load More Button */}
             {currentPage < totalPages && (
               <div className="flex justify-center mt-8">
-                <button
+                <Button
                   onClick={loadMore}
                   disabled={isLoadingMore}
-                  className="flex items-center space-x-2 px-6 py-3 bg-[#7d570e] text-white rounded-lg hover:bg-[#6b4a0c] disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+                  size="lg"
                 >
                   {isLoadingMore ? (
                     <>
@@ -387,45 +402,48 @@ export default function StickersPage() {
                   ) : (
                     <span>Carregar Mais</span>
                   )}
-                </button>
+                </Button>
               </div>
             )}
           </>
         )}
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Sticker Modal */}
       {selectedSticker && (
         <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4">
-          <div className="bg-black border border-gray-800 rounded-lg w-full max-w-4xl h-full max-h-[95vh] flex flex-col">
+          <div className="bg-card border rounded-lg w-full max-w-4xl h-full max-h-[95vh] flex flex-col">
             {/* Header */}
-            <div className="flex justify-between items-center p-4 border-b border-gray-800 flex-shrink-0">
+            <div className="flex justify-between items-center p-4 border-b flex-shrink-0">
               <div>
-                <h3 className="text-lg font-semibold text-white">
+                <h3 className="text-lg font-semibold text-foreground">
                   {selectedSticker.title}
                 </h3>
-                <p className="text-sm text-gray-400">
+                <p className="text-sm text-muted-foreground">
                   {selectedSticker.category.name}
                 </p>
               </div>
               <div className="flex items-center space-x-2">
-                <button
+                <Button
                   onClick={() => handleDownload(selectedSticker)}
                   disabled={isDownloading === selectedSticker.id}
-                  className="p-2 text-[#7d570e] hover:text-[#6b4a0c] disabled:opacity-50 transition-colors"
+                  size="icon-sm"
+                  variant="ghost"
                 >
                   {isDownloading === selectedSticker.id ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
                   ) : (
                     <Download className="w-5 h-5" />
                   )}
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={() => setSelectedSticker(null)}
-                  className="p-2 text-[#7d570e] hover:text-[#6b4a0c] transition-colors"
+                  size="icon-sm"
+                  variant="ghost"
                 >
                   <X className="w-5 h-5" />
-                </button>
+                </Button>
               </div>
             </div>
 
@@ -445,8 +463,8 @@ export default function StickersPage() {
             </div>
 
             {/* Footer */}
-            <div className="p-4 border-t border-gray-800 bg-gray-900 flex-shrink-0">
-              <div className="flex flex-col sm:flex-row sm:justify-between text-sm text-gray-400">
+            <div className="p-4 border-t bg-muted/40 flex-shrink-0">
+              <div className="flex flex-col sm:flex-row sm:justify-between text-sm text-muted-foreground">
                 <div>
                   Dimensões: {selectedSticker.image.width} x {selectedSticker.image.height}px
                 </div>
@@ -462,38 +480,40 @@ export default function StickersPage() {
       {/* Links Popup */}
       {showLinksPopup && selectedStickerForLinks && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-          <div className="bg-black border border-gray-800 rounded-lg max-w-md w-full p-6">
+          <div className="bg-card border rounded-lg max-w-md w-full p-6">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold text-white">Links do Produto</h3>
-              <button
+              <h3 className="text-lg font-semibold text-foreground">Links do Produto</h3>
+              <Button
                 onClick={() => setShowLinksPopup(false)}
-                className="p-2 text-[#7d570e] hover:text-[#6b4a0c] transition-colors"
+                size="icon-sm"
+                variant="ghost"
               >
                 <X className="w-5 h-5" />
-              </button>
+              </Button>
             </div>
             
             <div className="mb-4">
-              <h4 className="text-white font-medium mb-2">{selectedStickerForLinks.title}</h4>
+              <h4 className="text-foreground font-medium mb-2">{selectedStickerForLinks.title}</h4>
             </div>
 
             <div className="space-y-3">
               {getProductLinks(selectedStickerForLinks).map((link, index) => (
-                <div key={index} className="flex items-center justify-between p-3 bg-gray-900 rounded-lg border border-gray-800">
+                <div key={index} className="flex items-center justify-between p-3 bg-muted/40 rounded-lg border">
                   <div className="flex-1 min-w-0">
-                    <p className="text-white text-sm truncate">{link}</p>
+                    <p className="text-foreground text-sm truncate">{link}</p>
                   </div>
                   <div className="flex items-center space-x-2 ml-3">
-                    <button
+                    <Button
                       onClick={() => window.open(link, '_blank')}
-                      className="p-2 bg-blue-600 rounded-lg text-white hover:bg-blue-700 transition-colors flex-shrink-0"
+                      size="icon-sm"
+                      className="bg-blue-600 text-white hover:bg-blue-700"
                       title="Abrir link"
                     >
                       <ExternalLink className="w-4 h-4" />
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       onClick={() => handleCopyLink(link, index)}
-                      className="p-2 bg-[#7d570e] rounded-lg text-white hover:bg-[#6b4a0c] transition-colors flex-shrink-0"
+                      size="icon-sm"
                       title="Copiar link"
                     >
                       {copiedIndex === index ? (
@@ -501,7 +521,7 @@ export default function StickersPage() {
                       ) : (
                         <Copy className="w-4 h-4" />
                       )}
-                    </button>
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -512,14 +532,14 @@ export default function StickersPage() {
 
       {/* Download Progress Overlay */}
       {isDownloading && (
-        <div className="fixed bottom-4 right-4 bg-black bg-opacity-90 rounded-lg p-4 z-50 min-w-64">
-          <div className="flex items-center justify-between text-white text-sm mb-2">
+        <div className="fixed bottom-4 right-4 bg-card border shadow-lg rounded-lg p-4 z-50 min-w-64">
+          <div className="flex items-center justify-between text-foreground text-sm mb-2">
             <span>Baixando sticker...</span>
             <span>{downloadProgress}%</span>
           </div>
-          <div className="w-full bg-gray-600 rounded-full h-2">
+          <div className="w-full bg-muted rounded-full h-2">
             <div 
-              className="bg-[#7d570e] h-2 rounded-full transition-all duration-300"
+              className="bg-primary h-2 rounded-full transition-all duration-300"
               style={{ width: `${downloadProgress}%` }}
             ></div>
           </div>

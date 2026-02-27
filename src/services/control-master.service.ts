@@ -1,4 +1,5 @@
 // Control Master Service
+import { authFetch } from "@/lib/auth";
 
 export enum ControlMasterType {
   PER_DAY = 'PER_DAY',
@@ -120,30 +121,11 @@ interface ApiResponse<T> {
 class ControlMasterService {
   private API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.masterafiliados.com.br';
 
-  private async getAuthToken(): Promise<string | null> {
-    if (typeof window !== 'undefined') {
-      const userStr = localStorage.getItem('user');
-      if (userStr) {
-        try {
-          const user = JSON.parse(userStr);
-          return user.jwt;
-        } catch (error) {
-          console.error('Error parsing user data:', error);
-          return null;
-        }
-      }
-    }
-    return null;
-  }
-
   private async makeRequest(endpoint: string, options: RequestInit = {}): Promise<unknown> {
-    const token = await this.getAuthToken();
-    
-    const response = await fetch(`${this.API_URL}${endpoint}`, {
+    const response = await authFetch(`${this.API_URL}${endpoint}`, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
-        ...(token && { 'Authorization': `Bearer ${token}` }),
         ...options.headers,
       },
     });

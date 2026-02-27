@@ -1,17 +1,11 @@
 import qs from "qs";
-import { getAuthToken } from "@/lib/auth";
+import { authFetch } from "@/lib/auth";
 import type { ComboResponse } from "@/interfaces/combo";
 
 export async function fetchCombos(
   page: number = 1,
   pageSize: number = 20
 ): Promise<ComboResponse> {
-  const token = getAuthToken();
-
-  if (!token) {
-    throw new Error("Authentication required");
-  }
-
   const query = qs.stringify(
     {
       populate: ["packs.image", "packs.officialPackage", "packs.plan"],
@@ -26,12 +20,11 @@ export async function fetchCombos(
     }
   );
 
-  const response = await fetch(
+  const response = await authFetch(
     `${process.env.NEXT_PUBLIC_STRAPI_URL}/api/combos?${query}`,
     {
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
       },
     }
   );

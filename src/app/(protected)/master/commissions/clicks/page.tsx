@@ -13,6 +13,14 @@ import {
   ChevronLeft,
   AlertCircle
 } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardTitle
+} from '@/components/ui/card';
 import SubscriptionProtection from '@/components/SubscriptionProtection';
 import { 
   commissionsService, 
@@ -144,23 +152,25 @@ export default function ClicksPage() {
     <SubscriptionProtection type="commissions">
       <div className="space-y-6">
       {/* Header */}
-      <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
+      <Card>
+        <CardContent className="p-6">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center space-x-4">
-            <button
+            <Button
               onClick={() => router.push('/master/commissions')}
-              className="flex items-center space-x-2 text-gray-300 hover:text-white transition-colors"
+              variant="ghost"
+              className="text-muted-foreground"
             >
               <ChevronLeft className="w-5 h-5" />
               <span>Voltar</span>
-            </button>
+            </Button>
             <div className="flex items-center space-x-3">
-              <div className="w-12 h-12 rounded-lg bg-blue-600 flex items-center justify-center">
-                <MousePointer className="w-7 h-7 text-white" />
+              <div className="w-12 h-12 rounded-lg bg-blue-600/20 border border-blue-600/40 flex items-center justify-center">
+                <MousePointer className="w-7 h-7 text-blue-500" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-white">Meus Cliques Shopee</h1>
-                <p className="text-gray-400">Analise seus cliques e tráfego</p>
+                <h1 className="text-2xl font-bold text-foreground">Meus Cliques Shopee</h1>
+                <p className="text-muted-foreground">Analise seus cliques e tráfego</p>
               </div>
             </div>
           </div>
@@ -168,21 +178,17 @@ export default function ClicksPage() {
 
         {/* Success/Error Messages */}
         {successMessage && (
-          <div className="mb-6 bg-green-900 border border-green-700 rounded-lg p-4">
-            <div className="flex items-center space-x-2">
-              <CheckCircle className="w-5 h-5 text-green-400" />
-              <span className="text-green-200">{successMessage}</span>
-            </div>
-          </div>
+          <Alert className="mb-6 border-green-700/60 bg-green-950/40 text-green-100 [&>svg]:text-green-400">
+            <CheckCircle className="w-4 h-4" />
+            <AlertDescription>{successMessage}</AlertDescription>
+          </Alert>
         )}
 
         {error && (
-          <div className="mb-6 bg-red-900 border border-red-700 rounded-lg p-4">
-            <div className="flex items-center space-x-2">
-              <XCircle className="w-5 h-5 text-red-400" />
-              <span className="text-red-200">{error}</span>
-            </div>
-          </div>
+          <Alert className="mb-6 border-red-700/60 bg-red-950/40 text-red-100 [&>svg]:text-red-400">
+            <XCircle className="w-4 h-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         )}
 
         {/* Upload Area */}
@@ -200,15 +206,15 @@ export default function ClicksPage() {
             {isUploading ? (
               <div className="flex flex-col items-center">
                 <Loader2 className="w-12 h-12 text-blue-400 animate-spin mb-4" />
-                <p className="text-gray-400">Processando arquivo...</p>
+                <p className="text-muted-foreground">Processando arquivo...</p>
               </div>
             ) : (
               <div className="flex flex-col items-center">
-                <Upload className="w-12 h-12 text-gray-400 mb-4" />
-                <p className="text-lg font-medium text-white mb-2">
+                <Upload className="w-12 h-12 text-muted-foreground mb-4" />
+                <p className="text-lg font-medium text-foreground mb-2">
                   Faça upload do seu arquivo CSV de cliques
                 </p>
-                <p className="text-gray-400 mb-4">
+                <p className="text-muted-foreground mb-4">
                   Arraste e solte um arquivo CSV com relatório de cliques da Shopee
                 </p>
                 <input
@@ -220,7 +226,7 @@ export default function ClicksPage() {
                 />
                 <label
                   htmlFor="file-upload"
-                  className="cursor-pointer bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                  className="cursor-pointer inline-flex items-center justify-center bg-primary text-primary-foreground px-6 py-3 rounded-lg hover:bg-primary/90 transition-colors font-medium"
                 >
                   Selecionar arquivo CSV
                 </label>
@@ -230,78 +236,79 @@ export default function ClicksPage() {
         )}
 
         {/* Instructions */}
-        <div className="mt-6 bg-blue-900/30 border border-blue-700 rounded-lg p-4">
-          <div className="flex items-start space-x-3">
-            <AlertCircle className="w-5 h-5 text-blue-400 mt-0.5" />
-            <div>
-              <h3 className="text-sm font-medium text-blue-200 mb-1">
-                Como usar:
-              </h3>
-              <ul className="text-sm text-blue-100 space-y-1">
-                <li>1. Baixe o relatório CSV de cliques da sua plataforma de afiliados</li>
-                <li>2. Faça upload do arquivo aqui</li>
-                <li>3. Visualize suas métricas e insights automaticamente</li>
-                <li>4. Acesse o histórico para comparar relatórios anteriores</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      </div>
+        <Alert className="mt-6 border-blue-700/60 bg-blue-950/30 text-blue-100 [&>svg]:text-blue-400">
+          <AlertCircle className="w-4 h-4" />
+          <AlertTitle>Como usar</AlertTitle>
+          <AlertDescription>
+            <ul className="space-y-1">
+              <li>1. Baixe o relatório CSV de cliques da sua plataforma de afiliados</li>
+              <li>2. Faça upload do arquivo aqui</li>
+              <li>3. Visualize suas métricas e insights automaticamente</li>
+              <li>4. Acesse o histórico para comparar relatórios anteriores</li>
+            </ul>
+          </AlertDescription>
+        </Alert>
+        </CardContent>
+      </Card>
 
       {/* Report Display */}
       {selectedReport && (
-        <div className="bg-gray-800 shadow rounded-lg p-6">
+        <Card>
+          <CardContent className="p-6">
           <div className="flex justify-between items-center mb-6">
             <div>
-              <h2 className="text-xl font-semibold text-white">
+              <CardTitle className="text-xl">
                 Relatório: {selectedReport.fileName}
-              </h2>
-              <p className="text-gray-400">
+              </CardTitle>
+              <CardDescription>
                 {formatDate(selectedReport.createdAt)} • Cliques
-              </p>
+              </CardDescription>
             </div>
             <div className="flex items-center space-x-2">
-              <button
+              <Button
                 onClick={() => setSelectedReport(null)}
-                className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                variant="secondary"
               >
                 Novo Relatório
-              </button>
+              </Button>
             </div>
           </div>
 
           <ClickReportDisplay report={selectedReport.data as ClickReport} />
-        </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* History */}
       {!selectedReport && reportHistory.length > 0 && (
-        <div className="bg-gray-800 shadow rounded-lg p-6">
+        <Card>
+          <CardContent className="p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-white">Histórico de Relatórios de Cliques</h2>
-            <button
+            <h2 className="text-xl font-semibold text-foreground">Histórico de Relatórios de Cliques</h2>
+            <Button
               onClick={clearAllData}
-              className="flex items-center space-x-2 px-3 py-1 text-sm text-red-400 hover:text-red-300"
+              variant="ghost"
+              className="text-red-400 hover:text-red-300"
             >
               <Trash2 className="w-4 h-4" />
               <span>Limpar tudo</span>
-            </button>
+            </Button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {reportHistory.slice(0, 6).map((report) => (
               <div
                 key={report.id}
-                className="bg-gray-700 border border-gray-600 rounded-lg p-4 hover:border-gray-500 cursor-pointer"
+                className="bg-card border rounded-lg p-4 hover:border-muted-foreground/40 cursor-pointer"
                 onClick={() => setSelectedReport(report)}
               >
                 <div className="flex items-center space-x-3 mb-2">
-                  <FileSpreadsheet className="w-5 h-5 text-gray-400" />
-                  <span className="text-sm text-gray-400">Cliques</span>
+                  <FileSpreadsheet className="w-5 h-5 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">Cliques</span>
                 </div>
-                <p className="font-medium text-white text-sm mb-1 truncate">
+                <p className="font-medium text-foreground text-sm mb-1 truncate">
                   {report.fileName}
                 </p>
-                <p className="text-xs text-gray-400">
+                <p className="text-xs text-muted-foreground">
                   {formatDate(report.createdAt)}
                 </p>
                 {report.type === 'clicks' && 'total_cliques' in report.data && (
@@ -312,9 +319,10 @@ export default function ClicksPage() {
               </div>
             ))}
           </div>
-        </div>
+          </CardContent>
+        </Card>
       )}
       </div>
     </SubscriptionProtection>
   );
-} 
+}

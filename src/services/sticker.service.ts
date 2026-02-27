@@ -1,3 +1,5 @@
+import { authFetch } from "@/lib/auth";
+
 export interface StickerCategory {
   id: number;
   name: string;
@@ -82,18 +84,10 @@ class StickerService {
   private baseUrl = process.env.NEXT_PUBLIC_STRAPI_URL;
 
   private async makeRequest(url: string, options: RequestInit = {}) {
-    const user = JSON.parse(localStorage.getItem("user") || "{}");
-    const token = user.jwt;
-
-    if (!token) {
-      throw new Error("Authentication required");
-    }
-
-    const response = await fetch(`${this.baseUrl}${url}`, {
+    const response = await authFetch(`${this.baseUrl}${url}`, {
       ...options,
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
         ...options.headers,
       },
     });

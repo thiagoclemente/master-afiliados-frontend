@@ -3,6 +3,10 @@
 import { useEffect, useState } from "react";
 import { fetchUserPacks } from "@/services/user-pack.service";
 import { fetchPacks } from "@/services/pack.service";
+import {
+  fetchUserSubscriptions,
+  isSubscriptionPremium,
+} from "@/services/user-subscription.service";
 import type { Pack } from "@/interfaces/pack";
 import { Loader2, Video as VideoIcon } from "lucide-react";
 
@@ -19,6 +23,14 @@ export default function PackProtection({ children, packId }: PackProtectionProps
   useEffect(() => {
     const checkUserPacks = async () => {
       try {
+        const userSubscriptionsResponse = await fetchUserSubscriptions();
+        const hasPremium = isSubscriptionPremium(userSubscriptionsResponse.data || []);
+
+        if (hasPremium) {
+          setHasUserPacks(true);
+          return;
+        }
+
         // Verificar se o usuário tem pacotes
         const userPacksResponse = await fetchUserPacks();
         const userPacks = userPacksResponse.data;
@@ -95,7 +107,7 @@ export default function PackProtection({ children, packId }: PackProtectionProps
             Acesso Negado
           </div>
           <div className="text-gray-400 mb-4 max-w-md mx-auto">
-            Você precisa adquirir um pacote para acessar os vídeos.
+            Você precisa adquirir um pacote ou ter assinatura Master Premium para acessar os vídeos.
           </div>
           
           {packInfo && (

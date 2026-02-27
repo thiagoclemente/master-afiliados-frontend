@@ -17,9 +17,10 @@ import {
   setDefaultWhatsappGroup,
   syncWhatsappSession,
 } from "@/services/whatsapp.service";
-import { fetchUserSubscriptions } from "@/services/user-subscription.service";
-
-const REQUIRED_SUBSCRIPTIONS = ["MASTER_PREMIUM", "MASTER_PROMOTER"];
+import {
+  fetchUserSubscriptions,
+  hasPromoterSubscription,
+} from "@/services/user-subscription.service";
 const PREVIEW_CACHE_KEY = "whatsappPreviewCache";
 
 function loadPreviewCache(): Record<string, WhatsAppCampaignPreview> {
@@ -93,9 +94,7 @@ export function useWhatsApp() {
     try {
       const response = await fetchUserSubscriptions();
       const subscriptions = response.data || [];
-      const allowed = subscriptions.some((subscription) =>
-        REQUIRED_SUBSCRIPTIONS.includes(subscription.code)
-      );
+      const allowed = hasPromoterSubscription(subscriptions);
       setHasAccess(allowed);
       return allowed;
     } catch (err) {

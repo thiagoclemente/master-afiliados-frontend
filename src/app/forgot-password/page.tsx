@@ -3,6 +3,16 @@
 import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { 
   ArrowLeft, 
   Mail, 
@@ -37,116 +47,93 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-black py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        {/* Logo e Título */}
-        <div className="text-center">
-          <div className="flex justify-center mb-6">
-            <Image
-              src="/logo.png"
-              alt="Master Afiliados Logo"
-              width={120}
-              height={120}
-              className="rounded-lg"
-              priority
-              unoptimized
-            />
-          </div>
-          <h2 className="text-3xl font-extrabold text-white mb-2">
-            Recuperar senha
-          </h2>
-          <p className="text-gray-400">
-            Digite seu email para receber um código de recuperação
-          </p>
-        </div>
-
-        {/* Formulário */}
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          <div className="space-y-4">
-            {/* Email */}
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
-                Email
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Mail className="h-5 w-5 text-gray-400" />
-                </div>
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  required
-                  className="appearance-none relative block w-full pl-10 pr-3 py-3 border border-gray-600 bg-gray-900 placeholder-gray-400 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-[#7d570e] focus:border-[#7d570e] focus:z-10 sm:text-sm transition-colors"
-                  placeholder="Digite seu email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  disabled={isLoading}
+    <div className="min-h-screen bg-background px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-md items-center">
+        <Card className="w-full border-border/70 bg-card/80 backdrop-blur-sm">
+          <CardHeader className="space-y-5 text-center">
+            <div className="flex justify-center">
+              <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
+                <Image
+                  src="/logo.png"
+                  alt="Master Afiliados Logo"
+                  width={88}
+                  height={88}
+                  className="rounded-lg"
+                  priority
+                  unoptimized
                 />
               </div>
             </div>
-          </div>
-
-          {/* Mensagem de Erro */}
-          {error && (
-            <div className="bg-red-900 border border-red-700 rounded-md p-4">
-              <div className="flex items-center space-x-2">
-                <AlertCircle className="h-5 w-5 text-red-400" />
-                <div className="text-sm text-red-300">{error}</div>
-              </div>
+            <div className="space-y-2">
+              <CardTitle className="text-3xl">Recuperar senha</CardTitle>
+              <CardDescription className="text-base">
+                Digite seu email para receber um código de recuperação
+              </CardDescription>
             </div>
-          )}
-
-          {/* Mensagem de Sucesso */}
-          {success && (
-            <div className="bg-green-900 border border-green-700 rounded-md p-4">
-              <div className="flex items-center space-x-2">
-                <CheckCircle className="h-5 w-5 text-green-400" />
-                <div className="text-sm text-green-300">{success}</div>
+          </CardHeader>
+          <CardContent>
+            <form className="space-y-5" onSubmit={handleSubmit}>
+              <div className="space-y-2">
+                <label htmlFor="email" className="text-sm font-medium text-foreground/90">
+                  Email
+                </label>
+                <div className="relative">
+                  <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    id="email"
+                    name="email"
+                    type="email"
+                    autoComplete="email"
+                    required
+                    className="h-11 pl-9"
+                    placeholder="Digite seu email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    disabled={isLoading}
+                  />
+                </div>
               </div>
-            </div>
-          )}
-
-          {/* Botão de Envio */}
-          <div>
-            <button
-              type="submit"
-              className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-[#7d570e] hover:bg-[#6b4a0c] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7d570e] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <div className="flex items-center space-x-2">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Enviando...</span>
-                </div>
-              ) : (
-                <div className="flex items-center space-x-2">
-                  <Send className="w-4 h-4" />
-                  <span>Enviar código de recuperação</span>
-                </div>
+              {error && (
+                <Alert variant="destructive" className="border-destructive/60 bg-destructive/10">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription className="text-destructive/90">{error}</AlertDescription>
+                </Alert>
               )}
-            </button>
-          </div>
-
-          {/* Link de Volta */}
-          <div className="text-center">
-            <Link
-              href="/login"
-              className="inline-flex items-center text-sm text-[#7d570e] hover:text-[#6b4a0c] transition-colors"
-            >
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Voltar para o login
-            </Link>
-          </div>
-        </form>
-
-        {/* Footer */}
-        <div className="text-center">
-          <p className="text-xs text-gray-500">
-            © 2024 Master Afiliados. Todos os direitos reservados.
-          </p>
-        </div>
+              {success && (
+                <Alert className="border-emerald-500/50 bg-emerald-500/10 text-emerald-200 [&>svg]:text-emerald-300">
+                  <CheckCircle className="h-4 w-4" />
+                  <AlertDescription className="text-emerald-200">{success}</AlertDescription>
+                </Alert>
+              )}
+              <Button type="submit" className="h-11 w-full" disabled={isLoading}>
+                {isLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Enviando...
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-4 w-4" />
+                    Enviar código de recuperação
+                  </>
+                )}
+              </Button>
+              <div className="text-center">
+                <Button asChild variant="link" className="h-auto p-0 text-sm">
+                  <Link href="/login" className="inline-flex items-center gap-2">
+                    <ArrowLeft className="h-4 w-4" />
+                    Voltar para o login
+                  </Link>
+                </Button>
+              </div>
+            </form>
+            <div className="mt-6 border-t border-border/60 pt-4 text-center">
+              <p className="text-xs text-muted-foreground">
+                © 2024 Master Afiliados. Todos os direitos reservados.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

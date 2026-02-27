@@ -50,6 +50,14 @@ import {
   CommissionsBySubIdChart,
   OrdersByChannelChart
 } from '@/components/charts';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardTitle
+} from '@/components/ui/card';
 import SubscriptionProtection from '@/components/SubscriptionProtection';
 import { 
   commissionsService, 
@@ -207,23 +215,25 @@ export default function CommissionsPage() {
     <SubscriptionProtection type="commissions">
       <div className="space-y-6">
       {/* Header */}
-      <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
+      <Card>
+        <CardContent className="p-6">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center space-x-4">
-            <button
+            <Button
               onClick={() => router.push('/master/commissions')}
-              className="flex items-center space-x-2 text-gray-300 hover:text-white transition-colors"
+              variant="ghost"
+              className="text-muted-foreground"
             >
               <ChevronLeft className="w-5 h-5" />
               <span>Voltar</span>
-            </button>
+            </Button>
             <div className="flex items-center space-x-3">
-              <div className="w-12 h-12 rounded-lg bg-green-600 flex items-center justify-center">
-                <DollarSign className="w-7 h-7 text-white" />
+              <div className="w-12 h-12 rounded-lg bg-green-600/20 border border-green-600/40 flex items-center justify-center">
+                <DollarSign className="w-7 h-7 text-green-500" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-white">Minhas Comissões Shopee</h1>
-                <p className="text-gray-400">Analise suas vendas e comissões</p>
+                <h1 className="text-2xl font-bold text-foreground">Minhas Comissões Shopee</h1>
+                <p className="text-muted-foreground">Analise suas vendas e comissões</p>
               </div>
             </div>
           </div>
@@ -231,21 +241,17 @@ export default function CommissionsPage() {
 
         {/* Success/Error Messages */}
         {successMessage && (
-          <div className="mb-6 bg-green-900 border border-green-700 rounded-lg p-4">
-            <div className="flex items-center space-x-2">
-              <CheckCircle className="w-5 h-5 text-green-400" />
-              <span className="text-green-200">{successMessage}</span>
-            </div>
-          </div>
+          <Alert className="mb-6 border-green-700/60 bg-green-950/40 text-green-100 [&>svg]:text-green-400">
+            <CheckCircle className="w-4 h-4" />
+            <AlertDescription>{successMessage}</AlertDescription>
+          </Alert>
         )}
 
         {error && (
-          <div className="mb-6 bg-red-900 border border-red-700 rounded-lg p-4">
-            <div className="flex items-center space-x-2">
-              <XCircle className="w-5 h-5 text-red-400" />
-              <span className="text-red-200">{error}</span>
-            </div>
-          </div>
+          <Alert className="mb-6 border-red-700/60 bg-red-950/40 text-red-100 [&>svg]:text-red-400">
+            <XCircle className="w-4 h-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         )}
 
         {/* Upload Area */}
@@ -254,7 +260,7 @@ export default function CommissionsPage() {
             className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
               isDragOver
                 ? "border-green-400 bg-green-900/20"
-                : "border-gray-600 hover:border-gray-400"
+                : "border-border hover:border-muted-foreground/60"
             }`}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
@@ -263,15 +269,15 @@ export default function CommissionsPage() {
             {isUploading ? (
               <div className="flex flex-col items-center">
                 <Loader2 className="w-12 h-12 text-green-400 animate-spin mb-4" />
-                <p className="text-gray-400">Processando arquivo...</p>
+                <p className="text-muted-foreground">Processando arquivo...</p>
               </div>
             ) : (
               <div className="flex flex-col items-center">
-                <Upload className="w-12 h-12 text-gray-400 mb-4" />
-                <p className="text-lg font-medium text-white mb-2">
+                <Upload className="w-12 h-12 text-muted-foreground mb-4" />
+                <p className="text-lg font-medium text-foreground mb-2">
                   Faça upload do seu arquivo CSV de comissões
                 </p>
-                <p className="text-gray-400 mb-4">
+                <p className="text-muted-foreground mb-4">
                   Arraste e solte um arquivo CSV com relatório de vendas da Shopee
                 </p>
                 <input
@@ -283,7 +289,7 @@ export default function CommissionsPage() {
                 />
                 <label
                   htmlFor="file-upload"
-                  className="cursor-pointer bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors font-medium"
+                  className="cursor-pointer inline-flex items-center justify-center bg-primary text-primary-foreground px-6 py-3 rounded-lg hover:bg-primary/90 transition-colors font-medium"
                 >
                   Selecionar arquivo CSV
                 </label>
@@ -293,43 +299,41 @@ export default function CommissionsPage() {
         )}
 
         {/* Instructions */}
-        <div className="mt-6 bg-blue-900/20 border border-blue-700 rounded-lg p-4">
-          <div className="flex items-start space-x-3">
-            <AlertCircle className="w-5 h-5 text-blue-400 mt-0.5" />
-            <div>
-              <h3 className="text-sm font-medium text-blue-200 mb-1">
-                Como usar:
-              </h3>
-              <ul className="text-sm text-blue-100 space-y-1">
-                <li>1. Baixe o relatório CSV de comissões da sua plataforma de afiliados</li>
-                <li>2. Faça upload do arquivo aqui</li>
-                <li>3. Visualize suas métricas e insights automaticamente</li>
-                <li>4. Acesse o histórico para comparar relatórios anteriores</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      </div>
+        <Alert className="mt-6 border-blue-700/60 bg-blue-950/30 text-blue-100 [&>svg]:text-blue-400">
+          <AlertCircle className="w-4 h-4" />
+          <AlertTitle>Como usar</AlertTitle>
+          <AlertDescription>
+            <ul className="space-y-1">
+              <li>1. Baixe o relatório CSV de comissões da sua plataforma de afiliados</li>
+              <li>2. Faça upload do arquivo aqui</li>
+              <li>3. Visualize suas métricas e insights automaticamente</li>
+              <li>4. Acesse o histórico para comparar relatórios anteriores</li>
+            </ul>
+          </AlertDescription>
+        </Alert>
+        </CardContent>
+      </Card>
 
       {/* Report Display */}
       {selectedReport && (
-        <div className="bg-gray-800 shadow rounded-lg p-6">
+        <Card>
+          <CardContent className="p-6">
           <div className="flex justify-between items-center mb-6">
             <div>
-              <h2 className="text-xl font-semibold text-white">
+              <CardTitle className="text-xl">
                 Relatório: {selectedReport.fileName}
-              </h2>
-              <p className="text-gray-400">
+              </CardTitle>
+              <CardDescription>
                 {formatDate(selectedReport.createdAt)} • Comissões
-              </p>
+              </CardDescription>
             </div>
             <div className="flex items-center space-x-2">
-              <button
+              <Button
                 onClick={() => setSelectedReport(null)}
-                className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                variant="secondary"
               >
                 Novo Relatório
-              </button>
+              </Button>
             </div>
           </div>
 
@@ -337,37 +341,40 @@ export default function CommissionsPage() {
             report={selectedReport.data as CommissionReport}
             onError={showErrorMessage}
           />
-        </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* History */}
       {!selectedReport && reportHistory.length > 0 && (
-        <div className="bg-gray-800 shadow rounded-lg p-6">
+        <Card>
+          <CardContent className="p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-white">Histórico de Relatórios de Comissões</h2>
-            <button
+            <h2 className="text-xl font-semibold text-foreground">Histórico de Relatórios de Comissões</h2>
+            <Button
               onClick={clearAllData}
-              className="flex items-center space-x-2 px-3 py-1 text-sm text-red-400 hover:text-red-300"
+              variant="ghost"
+              className="text-red-400 hover:text-red-300"
             >
               <Trash2 className="w-4 h-4" />
               <span>Limpar tudo</span>
-            </button>
+            </Button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {reportHistory.slice(0, 6).map((report) => (
               <div
                 key={report.id}
-                className="bg-gray-700 border border-gray-600 rounded-lg p-4 hover:border-gray-500 cursor-pointer"
+                className="bg-card border rounded-lg p-4 hover:border-muted-foreground/40 cursor-pointer"
                 onClick={() => setSelectedReport(report)}
               >
                 <div className="flex items-center space-x-3 mb-2">
-                  <FileSpreadsheet className="w-5 h-5 text-gray-400" />
-                  <span className="text-sm text-gray-400">Comissões</span>
+                  <FileSpreadsheet className="w-5 h-5 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">Comissões</span>
                 </div>
-                <p className="font-medium text-white text-sm mb-1 truncate">
+                <p className="font-medium text-foreground text-sm mb-1 truncate">
                   {report.fileName}
                 </p>
-                <p className="text-xs text-gray-400">
+                <p className="text-xs text-muted-foreground">
                   {formatDate(report.createdAt)}
                 </p>
                 {report.type === 'commissions' && 'total_comissoes' in report.data && (
@@ -378,7 +385,8 @@ export default function CommissionsPage() {
               </div>
             ))}
           </div>
-        </div>
+          </CardContent>
+        </Card>
       )}
       </div>
     </SubscriptionProtection>
@@ -486,40 +494,40 @@ function CommissionReportDisplay({ report, onError }: { report: CommissionReport
 
       {/* Period */}
       <div className="text-center">
-        <h3 className="text-lg font-semibold text-white">{report.periodo}</h3>
+        <h3 className="text-lg font-semibold text-foreground">{report.periodo}</h3>
       </div>
 
       {/* Detailed Reports */}
       <div className="space-y-6">
         {/* Comissões por Canal */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-gray-700 rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-white mb-4 flex items-center space-x-2">
+          <div className="bg-card border rounded-lg p-6">
+            <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center space-x-2">
               <BarChart3 className="w-5 h-5 text-blue-400" />
               <span>Comissões por Canal</span>
             </h3>
             <div className="space-y-4">
               {report.comissoes_por_canal.map((item: ComissaoPorCanal, index: number) => (
-                <div key={index} className="bg-gray-600 rounded-lg p-4">
+                <div key={index} className="bg-muted/40 border rounded-lg p-4">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center space-x-2">
                       <span className="text-lg">{getChannelIcon(item.canal)}</span>
-                      <span className="font-medium text-white">{item.canal}</span>
+                      <span className="font-medium text-foreground">{item.canal}</span>
                     </div>
                     <span className="text-green-400 font-bold">
                       {formatCurrency(item.comissao)}
                     </span>
                   </div>
-                  <div className="text-sm text-gray-300 mb-3">
+                  <div className="text-sm text-muted-foreground mb-3">
                     {item.total_pedidos} pedidos
                   </div>
                   <div className="space-y-2">
-                    <p className="text-sm font-medium text-gray-300">Status dos Pedidos:</p>
+                    <p className="text-sm font-medium text-muted-foreground">Status dos Pedidos:</p>
                     <div className="flex flex-wrap gap-2">
                       {item.por_status && Object.entries(item.por_status).map(([status, count]) => (
                         <span
                           key={status}
-                          className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(status)} bg-gray-800`}
+                          className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(status)} bg-muted`}
                         >
                           {status}: {count}
                         </span>
@@ -539,17 +547,17 @@ function CommissionReportDisplay({ report, onError }: { report: CommissionReport
 
         {/* Comissões por Sub ID */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-gray-700 rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-white mb-4 flex items-center space-x-2">
+          <div className="bg-card border rounded-lg p-6">
+            <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center space-x-2">
               <Layers className="w-5 h-5 text-blue-400" />
               <span>Comissões por Sub ID</span>
             </h3>
             <div className="space-y-3">
               {report.comissoes_por_subid.map((item: ComissaoPorSubId, index: number) => (
-                <div key={index} className="flex items-center justify-between p-3 bg-gray-600 rounded-lg">
+                <div key={index} className="flex items-center justify-between p-3 bg-muted/40 border rounded-lg">
                   <div>
-                    <p className="font-medium text-white">{item.sub_id}</p>
-                    <p className="text-sm text-gray-400">{item.total_pedidos} pedidos</p>
+                    <p className="font-medium text-foreground">{item.sub_id}</p>
+                    <p className="text-sm text-muted-foreground">{item.total_pedidos} pedidos</p>
                   </div>
                   <span className="text-green-400 font-bold">
                     {formatCurrency(item.comissao)}
@@ -567,19 +575,19 @@ function CommissionReportDisplay({ report, onError }: { report: CommissionReport
 
         {/* Pedidos por Canal */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-gray-700 rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-white mb-4 flex items-center space-x-2">
+          <div className="bg-card border rounded-lg p-6">
+            <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center space-x-2">
               <Users className="w-5 h-5 text-blue-400" />
               <span>Pedidos por Canal</span>
             </h3>
             <div className="space-y-3">
               {report.comissoes_por_canal.map((item: ComissaoPorCanal, index: number) => (
-                <div key={index} className="flex items-center justify-between p-3 bg-gray-600 rounded-lg">
+                <div key={index} className="flex items-center justify-between p-3 bg-muted/40 border rounded-lg">
                   <div className="flex items-center space-x-2">
                     <span className="text-lg">{getChannelIcon(item.canal)}</span>
                     <div>
-                      <p className="font-medium text-white">{item.canal}</p>
-                      <p className="text-sm text-gray-400">
+                      <p className="font-medium text-foreground">{item.canal}</p>
+                      <p className="text-sm text-muted-foreground">
                         {formatCurrency(item.comissao)} em comissões
                       </p>
                     </div>
@@ -607,11 +615,11 @@ function CommissionReportDisplay({ report, onError }: { report: CommissionReport
               type="button"
               onClick={() => handleProductClick(topProduct)}
               disabled={isLoadingProduct(topProduct)}
-              className={`bg-gray-700 rounded-lg p-6 text-left transition-colors border border-transparent ${
+              className={`bg-card rounded-lg p-6 text-left transition-colors border border-border ${
                 topProduct.item_id ? 'hover:border-orange-500' : 'cursor-not-allowed'
               } ${isLoadingProduct(topProduct) ? 'opacity-75 cursor-wait' : ''}`}
             >
-              <h3 className="text-lg font-semibold text-white flex items-center space-x-2">
+              <h3 className="text-lg font-semibold text-foreground flex items-center space-x-2">
                 <ShoppingCart className="w-5 h-5 text-orange-400" />
                 <span>Produto Destaque</span>
               </h3>
@@ -620,21 +628,21 @@ function CommissionReportDisplay({ report, onError }: { report: CommissionReport
                   <img
                     src={topProduct.image_url}
                     alt={topProduct.nome_item}
-                    className="w-28 h-28 object-cover rounded-md border border-gray-600"
+                    className="w-28 h-28 object-cover rounded-md border"
                   />
                 </div>
               )}
-              <p className="mt-3 text-base font-medium text-gray-100">{topProduct.nome_item}</p>
-              <div className="mt-4 space-y-3 text-sm text-gray-300">
+              <p className="mt-3 text-base font-medium text-foreground">{topProduct.nome_item}</p>
+              <div className="mt-4 space-y-3 text-sm text-muted-foreground">
                 <div className="flex items-center justify-between">
                   <span>Quantidade vendida</span>
-                  <span className="text-white font-semibold">
+                  <span className="text-foreground font-semibold">
                     {topProduct.quantidade.toLocaleString('pt-BR')}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span>Total de pedidos</span>
-                  <span className="text-white font-semibold">
+                  <span className="text-foreground font-semibold">
                     {topProduct.total_pedidos.toLocaleString('pt-BR')}
                   </span>
                 </div>
@@ -647,7 +655,7 @@ function CommissionReportDisplay({ report, onError }: { report: CommissionReport
                 {typeof topProduct.item_price === 'number' && (
                   <div className="flex items-center justify-between">
                     <span>Preço unitário</span>
-                    <span className="text-white font-semibold">
+                    <span className="text-foreground font-semibold">
                       {formatCurrency(topProduct.item_price)}
                     </span>
                   </div>
@@ -655,18 +663,18 @@ function CommissionReportDisplay({ report, onError }: { report: CommissionReport
                 {typeof topProduct.actual_amount === 'number' && (
                   <div className="flex items-center justify-between">
                     <span>Valor total</span>
-                    <span className="text-white font-semibold">
+                    <span className="text-foreground font-semibold">
                       {formatCurrency(topProduct.actual_amount)}
                     </span>
                   </div>
                 )}
               </div>
               {topProduct.item_id && (
-                <p className="mt-4 text-xs text-gray-500">
+                <p className="mt-4 text-xs text-muted-foreground">
                   Item ID: {topProduct.item_id}
                 </p>
               )}
-              <div className="mt-4 text-xs text-gray-400 flex items-center space-x-2">
+              <div className="mt-4 text-xs text-muted-foreground flex items-center space-x-2">
                 {isLoadingProduct(topProduct) ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin text-orange-400" />
@@ -680,24 +688,24 @@ function CommissionReportDisplay({ report, onError }: { report: CommissionReport
           )}
 
           {highlightCategory && (
-            <div className="bg-gray-700 rounded-lg p-6">
-              <h3 className="text-lg font-semibold text-white flex items-center space-x-2">
+            <div className="bg-card border rounded-lg p-6">
+              <h3 className="text-lg font-semibold text-foreground flex items-center space-x-2">
                 <BarChart3 className="w-5 h-5 text-blue-400" />
                 <span>Categoria Destaque</span>
               </h3>
-              <p className="mt-3 text-base font-medium text-gray-100">
+              <p className="mt-3 text-base font-medium text-foreground">
                 {report.categoria_top_vendas ?? highlightCategory.categoria}
               </p>
-              <div className="mt-4 space-y-3 text-sm text-gray-300">
+              <div className="mt-4 space-y-3 text-sm text-muted-foreground">
                 <div className="flex items-center justify-between">
                   <span>Itens vendidos</span>
-                  <span className="text-white font-semibold">
+                  <span className="text-foreground font-semibold">
                     {highlightCategory.quantidade.toLocaleString('pt-BR')}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span>Total de pedidos</span>
-                  <span className="text-white font-semibold">
+                  <span className="text-foreground font-semibold">
                     {highlightCategory.total_pedidos.toLocaleString('pt-BR')}
                   </span>
                 </div>
@@ -717,14 +725,14 @@ function CommissionReportDisplay({ report, onError }: { report: CommissionReport
       {(topProducts.length > 0 || topCategories.length > 0) && (
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           {topProducts.length > 0 && (
-            <div className="bg-gray-700 rounded-lg p-6">
-              <h3 className="text-lg font-semibold text-white mb-4 flex items-center space-x-2">
+            <div className="bg-card border rounded-lg p-6">
+              <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center space-x-2">
                 <ShoppingCart className="w-5 h-5 text-orange-400" />
                 <span>Produtos Top Vendas</span>
               </h3>
               <div className="overflow-x-auto">
-                <table className="min-w-full text-sm text-left text-gray-300">
-                  <thead className="text-xs uppercase bg-gray-600/60 text-gray-200">
+                <table className="min-w-full text-sm text-left text-muted-foreground">
+                  <thead className="text-xs uppercase bg-muted/70 text-foreground">
                     <tr>
                       <th className="px-3 py-2">Produto</th>
                       <th className="px-3 py-2 text-right">Qtd.</th>
@@ -737,7 +745,7 @@ function CommissionReportDisplay({ report, onError }: { report: CommissionReport
                   {topProducts.map((item: ProdutoTopVenda, index: number) => (
                     <tr
                       key={`${item.item_id ?? item.nome_item}-${index}`}
-                      className="border-b border-gray-600/40 last:border-0"
+                      className="border-b border-border/60 last:border-0"
                     >
                       <td className="px-3 py-3 align-top">
                           <div className="flex items-start space-x-3">
@@ -745,14 +753,14 @@ function CommissionReportDisplay({ report, onError }: { report: CommissionReport
                               <img
                                 src={item.image_url}
                                 alt={item.nome_item}
-                                className="w-12 h-12 object-cover rounded-md border border-gray-600"
+                                className="w-12 h-12 object-cover rounded-md border"
                               />
                             )}
                             <button
                               type="button"
                               onClick={() => handleProductClick(item)}
                               disabled={!item.item_id || isLoadingProduct(item)}
-                              className="text-white font-medium leading-snug text-left hover:text-orange-400 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                              className="text-foreground font-medium leading-snug text-left hover:text-orange-400 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                             >
                               {item.nome_item}
                             </button>
@@ -761,7 +769,7 @@ function CommissionReportDisplay({ report, onError }: { report: CommissionReport
                             )}
                           </div>
                           {item.item_id && (
-                            <div className="text-xs text-gray-400 mt-1">
+                            <div className="text-xs text-muted-foreground mt-1">
                               ID: {item.item_id}
                             </div>
                           )}
@@ -789,8 +797,8 @@ function CommissionReportDisplay({ report, onError }: { report: CommissionReport
           )}
 
           {topCategories.length > 0 && (
-            <div className="bg-gray-700 rounded-lg p-6">
-              <h3 className="text-lg font-semibold text-white mb-4 flex items-center space-x-2">
+            <div className="bg-card border rounded-lg p-6">
+              <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center space-x-2">
                 <Layers className="w-5 h-5 text-blue-400" />
                 <span>Categorias Top Vendas</span>
               </h3>
@@ -798,13 +806,13 @@ function CommissionReportDisplay({ report, onError }: { report: CommissionReport
                 {topCategories.map((category: CategoriaTopVenda, index: number) => (
                   <div
                     key={`${category.categoria}-${index}`}
-                    className="flex items-center justify-between p-3 bg-gray-600 rounded-lg"
+                    className="flex items-center justify-between p-3 bg-muted/40 border rounded-lg"
                   >
                     <div>
-                      <p className="font-medium text-white">
+                      <p className="font-medium text-foreground">
                         {index + 1}. {category.categoria}
                       </p>
-                      <p className="text-xs text-gray-400 mt-1">
+                      <p className="text-xs text-muted-foreground mt-1">
                         {category.quantidade.toLocaleString('pt-BR')} itens •{' '}
                         {category.total_pedidos.toLocaleString('pt-BR')} pedidos
                       </p>

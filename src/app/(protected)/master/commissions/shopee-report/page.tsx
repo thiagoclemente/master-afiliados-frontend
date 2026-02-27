@@ -49,6 +49,14 @@ import {
   CommissionsBySubIdChart,
   OrdersByChannelChart
 } from '@/components/charts';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardTitle
+} from '@/components/ui/card';
 import SubscriptionProtection from '@/components/SubscriptionProtection';
 import { 
   commissionsService, 
@@ -331,10 +339,10 @@ export default function ShopeeReportPage() {
   if (isCheckingCredentials) {
     return (
       <SubscriptionProtection type="commissions">
-        <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="min-h-screen flex items-center justify-center">
           <div className="text-center">
             <Loader2 className="w-12 h-12 text-orange-400 animate-spin mx-auto mb-4" />
-            <p className="text-gray-300">Verificando credenciais da Shopee...</p>
+            <p className="text-muted-foreground">Verificando credenciais da Shopee...</p>
           </div>
         </div>
       </SubscriptionProtection>
@@ -347,62 +355,55 @@ export default function ShopeeReportPage() {
       <SubscriptionProtection type="commissions">
         <div className="space-y-6">
           {/* Header */}
-          <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
+          <Card>
+            <CardContent className="p-6">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center space-x-4">
-                <button
+                <Button
                   onClick={() => router.push('/master/commissions')}
-                  className="flex items-center space-x-2 text-gray-300 hover:text-white transition-colors"
+                  variant="ghost"
+                  className="text-muted-foreground"
                 >
                   <ChevronLeft className="w-5 h-5" />
                   <span>Voltar</span>
-                </button>
+                </Button>
                 <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 rounded-lg bg-orange-600 flex items-center justify-center">
-                    <ShoppingCart className="w-7 h-7 text-white" />
+                  <div className="w-12 h-12 rounded-lg bg-orange-600/20 border border-orange-600/40 flex items-center justify-center">
+                    <ShoppingCart className="w-7 h-7 text-orange-500" />
                   </div>
                   <div>
-                    <h1 className="text-2xl font-bold text-white">Relatório Shopee</h1>
-                    <p className="text-gray-400">Dados diretos da plataforma Shopee</p>
+                    <h1 className="text-2xl font-bold text-foreground">Relatório Shopee</h1>
+                    <p className="text-muted-foreground">Dados diretos da plataforma Shopee</p>
                   </div>
                 </div>
               </div>
             </div>
 
             {/* Credentials Required Message */}
-            <div className="bg-orange-900/20 border border-orange-700 rounded-lg p-6">
-              <div className="flex items-start space-x-3">
-                <AlertCircle className="w-6 h-6 text-orange-400 mt-0.5" />
-                <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-orange-200 mb-2">
-                    Credenciais da Shopee Necessárias
-                  </h3>
-                  <p className="text-orange-300 mb-4">
-                    Para usar o relatório direto da Shopee, você precisa configurar suas credenciais de API.
-                    Sem elas, não é possível acessar os dados da plataforma.
-                  </p>
-                  <div className="space-y-2 text-sm text-orange-200">
-                    <p>• <strong>Shopee ID:</strong> Seu identificador de afiliado</p>
-                    <p>• <strong>Senha da API:</strong> Chave fornecida pela Shopee</p>
-                  </div>
-                  <div className="mt-4 flex space-x-3">
-                    <button
-                      onClick={() => router.push('/profile/shopee-config')}
-                      className="px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-medium"
-                    >
-                      Configurar Credenciais
-                    </button>
-                    <button
-                      onClick={() => router.push('/master/commissions')}
-                      className="px-6 py-3 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
-                    >
-                      Voltar para Comissões
-                    </button>
-                  </div>
+            <Alert className="border-orange-700/60 bg-orange-950/30 text-orange-100 [&>svg]:text-orange-400 p-6">
+              <AlertCircle className="w-5 h-5 mt-1" />
+              <AlertTitle className="text-lg">Credenciais da Shopee Necessárias</AlertTitle>
+              <AlertDescription className="space-y-3">
+                <p>
+                  Para usar o relatório direto da Shopee, você precisa configurar suas credenciais de API.
+                  Sem elas, não é possível acessar os dados da plataforma.
+                </p>
+                <div className="space-y-1 text-sm">
+                  <p>• <strong>Shopee ID:</strong> Seu identificador de afiliado</p>
+                  <p>• <strong>Senha da API:</strong> Chave fornecida pela Shopee</p>
                 </div>
-              </div>
-            </div>
-          </div>
+                <div className="mt-4 flex space-x-3">
+                  <Button onClick={() => router.push('/profile/shopee-config')} className="bg-orange-600 hover:bg-orange-700 text-white">
+                    Configurar Credenciais
+                  </Button>
+                  <Button onClick={() => router.push('/master/commissions')} variant="secondary">
+                    Voltar para Comissões
+                  </Button>
+                </div>
+              </AlertDescription>
+            </Alert>
+            </CardContent>
+          </Card>
         </div>
       </SubscriptionProtection>
     );
@@ -412,23 +413,25 @@ export default function ShopeeReportPage() {
     <SubscriptionProtection type="commissions">
       <div className="space-y-6">
         {/* Header */}
-        <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
+        <Card>
+          <CardContent className="p-6">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center space-x-4">
-              <button
+              <Button
                 onClick={() => router.push('/master/commissions')}
-                className="flex items-center space-x-2 text-gray-300 hover:text-white transition-colors"
+                variant="ghost"
+                className="text-muted-foreground"
               >
                 <ChevronLeft className="w-5 h-5" />
                 <span>Voltar</span>
-              </button>
+              </Button>
               <div className="flex items-center space-x-3">
-                <div className="w-12 h-12 rounded-lg bg-orange-600 flex items-center justify-center">
-                  <ShoppingCart className="w-7 h-7 text-white" />
+                <div className="w-12 h-12 rounded-lg bg-orange-600/20 border border-orange-600/40 flex items-center justify-center">
+                  <ShoppingCart className="w-7 h-7 text-orange-500" />
                 </div>
                 <div>
-                  <h1 className="text-2xl font-bold text-white">Relatório Shopee</h1>
-                  <p className="text-gray-400">Dados diretos da plataforma Shopee</p>
+                  <h1 className="text-2xl font-bold text-foreground">Relatório Shopee</h1>
+                  <p className="text-muted-foreground">Dados diretos da plataforma Shopee</p>
                   <div className="flex items-center space-x-2 mt-1">
                     <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                     <span className="text-xs text-green-400">Credenciais configuradas</span>
@@ -437,54 +440,53 @@ export default function ShopeeReportPage() {
               </div>
             </div>
             {selectedDateFilter && (
-              <button
+              <Button
                 onClick={handleRefresh}
                 disabled={isLoading}
-                className="flex items-center space-x-2 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors disabled:opacity-50"
+                variant="secondary"
               >
                 <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
                 <span>Atualizar</span>
-              </button>
+              </Button>
             )}
           </div>
 
           {/* Success/Error Messages */}
           {successMessage && (
-            <div className="mb-6 bg-green-900 border border-green-700 rounded-lg p-4">
-              <div className="flex items-center space-x-2">
-                <CheckCircle className="w-5 h-5 text-green-400" />
-                <span className="text-green-200">{successMessage}</span>
-              </div>
-            </div>
+            <Alert className="mb-6 border-green-700/60 bg-green-950/40 text-green-100 [&>svg]:text-green-400">
+              <CheckCircle className="w-4 h-4" />
+              <AlertDescription>{successMessage}</AlertDescription>
+            </Alert>
           )}
 
           {error && (
-            <div className="mb-6 bg-red-900 border border-red-700 rounded-lg p-4">
-              <div className="flex items-center space-x-2">
-                <XCircle className="w-5 h-5 text-red-400" />
-                <span className="text-red-200">
+            <Alert className="mb-6 border-red-700/60 bg-red-950/40 text-red-100 [&>svg]:text-red-400">
+              <XCircle className="w-4 h-4" />
+              <AlertDescription>
+                <span>
                   {error === "CREDENTIALS_REQUIRED" 
                     ? "Credenciais da Shopee não configuradas. Configure suas credenciais para usar esta funcionalidade."
                     : error
                   }
                 </span>
-              </div>
+              </AlertDescription>
               {error === "CREDENTIALS_REQUIRED" && (
                 <div className="mt-3">
-                  <button
+                  <Button
                     onClick={() => router.push('/profile/shopee-config')}
-                    className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm"
+                    className="bg-orange-600 text-white hover:bg-orange-700"
+                    size="sm"
                   >
                     Configurar Credenciais
-                  </button>
+                  </Button>
                 </div>
               )}
-            </div>
+            </Alert>
           )}
 
           {/* Date Filters */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-white flex items-center space-x-2">
+            <h3 className="text-lg font-semibold text-foreground flex items-center space-x-2">
               <Calendar className="w-5 h-5 text-blue-400" />
               <span>Filtros de Data</span>
             </h3>
@@ -492,25 +494,26 @@ export default function ShopeeReportPage() {
             {/* Predefined Filters */}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
               {orderedFilters.map(({ key, range }) => (
-                <button
+                <Button
                   key={key}
                   onClick={() => handleDateFilterChange(key)}
                   disabled={isLoading}
-                  className={`px-4 py-3 rounded-lg border transition-colors ${
+                  className={`h-auto px-4 py-3 rounded-lg border transition-colors ${
                     selectedDateFilter === key && !customDateRange
                       ? 'bg-orange-600 border-orange-500 text-white'
-                      : 'bg-gray-700 border-gray-600 text-gray-300 hover:border-gray-500'
+                      : 'bg-card border-border text-muted-foreground hover:border-muted-foreground'
                   } disabled:opacity-50`}
+                  variant="ghost"
                 >
                   {range.label}
-                </button>
+                </Button>
               ))}
               
               {/* Search Button */}
-              <button
+              <Button
                 onClick={handleSearch}
                 disabled={isLoading || (!selectedDateFilter && !customDateRange)}
-                className="px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                className="h-auto px-4 py-3 bg-green-600 text-white hover:bg-green-700 font-medium"
               >
                 {isLoading ? (
                   <div className="flex items-center justify-center space-x-2">
@@ -520,15 +523,15 @@ export default function ShopeeReportPage() {
                 ) : (
                   'Buscar Relatório'
                 )}
-              </button>
+              </Button>
             </div>
 
             {/* Custom Date Range */}
-            <div className="bg-gray-700 rounded-lg p-4">
-              <h4 className="text-sm font-medium text-gray-300 mb-3">Período Personalizado</h4>
+            <div className="bg-card border rounded-lg p-4">
+              <h4 className="text-sm font-medium text-muted-foreground mb-3">Período Personalizado</h4>
               <div className="flex flex-col sm:flex-row gap-3">
               <div className="flex-1">
-                <label className="block text-xs text-gray-400 mb-1">Data Inicial</label>
+                <label className="block text-xs text-muted-foreground mb-1">Data Inicial</label>
                 <input
                   type="date"
                   value={customDateRange?.start || ''}
@@ -556,11 +559,11 @@ export default function ShopeeReportPage() {
                       };
                     });
                   }}
-                  className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-lg text-white focus:border-orange-500 focus:outline-none"
+                  className="w-full px-3 py-2 bg-background border border-input rounded-lg text-foreground focus:border-orange-500 focus:outline-none"
                 />
               </div>
               <div className="flex-1">
-                <label className="block text-xs text-gray-400 mb-1">Data Final</label>
+                <label className="block text-xs text-muted-foreground mb-1">Data Final</label>
                 <input
                   type="date"
                   value={customDateRange?.end || ''}
@@ -588,14 +591,14 @@ export default function ShopeeReportPage() {
                       };
                     });
                   }}
-                  className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-lg text-white focus:border-orange-500 focus:outline-none"
+                  className="w-full px-3 py-2 bg-background border border-input rounded-lg text-foreground focus:border-orange-500 focus:outline-none"
                 />
               </div>
                 <div className="flex items-end">
-                  <button
+                  <Button
                     onClick={handleCustomDateRange}
                     disabled={isLoading || !customDateRange?.start || !customDateRange?.end}
-                    className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="bg-orange-600 text-white hover:bg-orange-700"
                   >
                     {isLoading ? (
                       <div className="flex items-center space-x-2">
@@ -605,62 +608,64 @@ export default function ShopeeReportPage() {
                     ) : (
                       'Buscar'
                     )}
-                  </button>
+                  </Button>
                 </div>
               </div>
             </div>
           </div>
 
           {/* Instructions */}
-          <div className="mt-6 bg-blue-900/20 border border-blue-700 rounded-lg p-4">
-            <div className="flex items-start space-x-3">
-              <AlertCircle className="w-5 h-5 text-blue-400 mt-0.5" />
-              <div>
-                <h3 className="text-sm font-medium text-blue-200 mb-1">
-                  Relatório Direto da Shopee:
-                </h3>
-                <ul className="text-sm text-blue-100 space-y-1">
-                  <li>• Dados atualizados em tempo real da plataforma Shopee</li>
-                  <li>• Não é necessário fazer upload de arquivos CSV</li>
-                  <li>• Escolha o período desejado usando os filtros acima</li>
-                  <li>• Consulta dos últimos 3 meses</li>
-                </ul>
-              </div>
-            </div>
-          </div>
-        </div>
+          <Alert className="mt-6 border-blue-700/60 bg-blue-950/30 text-blue-100 [&>svg]:text-blue-400">
+            <AlertCircle className="w-4 h-4" />
+            <AlertTitle>Relatório Direto da Shopee</AlertTitle>
+            <AlertDescription>
+              <ul className="space-y-1">
+                <li>• Dados atualizados em tempo real da plataforma Shopee</li>
+                <li>• Não é necessário fazer upload de arquivos CSV</li>
+                <li>• Escolha o período desejado usando os filtros acima</li>
+                <li>• Consulta dos últimos 3 meses</li>
+              </ul>
+            </AlertDescription>
+          </Alert>
+          </CardContent>
+        </Card>
 
         {/* Loading State */}
         {isLoading && (
-          <div className="bg-gray-800 shadow rounded-lg p-8 text-center">
+          <Card>
+            <CardContent className="p-8 text-center">
             <Loader2 className="w-12 h-12 text-orange-400 animate-spin mx-auto mb-4" />
-            <p className="text-gray-400">Carregando relatório da Shopee...</p>
-          </div>
+            <p className="text-muted-foreground">Carregando relatório da Shopee...</p>
+            </CardContent>
+          </Card>
         )}
 
         {/* No Data State */}
         {!hasLoadedData && !isLoading && (
-          <div className="bg-gray-800 shadow rounded-lg p-8 text-center">
-            <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-white mb-2">Selecione um período</h3>
-            <p className="text-gray-400 mb-4">
+          <Card>
+            <CardContent className="p-8 text-center">
+            <Calendar className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-foreground mb-2">Selecione um período</h3>
+            <p className="text-muted-foreground mb-4">
               Selecione um filtro de data e clique em &quot;Buscar Relatório&quot; para carregar os dados da Shopee
             </p>
-            <div className="text-sm text-gray-500 space-y-1">
+            <div className="text-sm text-muted-foreground space-y-1">
               <p>• <strong>Ontem:</strong> Relatório do dia anterior</p>
               <p>• <strong>7, 15, 30 dias:</strong> Períodos pré-definidos</p>
               <p>• <strong>Personalizado:</strong> Escolha suas próprias datas</p>
               <p>• Período máximo: 3 meses</p>
             </div>
-          </div>
+            </CardContent>
+          </Card>
         )}
 
         {/* Report Display */}
         {reportData && !isLoading && hasLoadedData && (
-          <div className="bg-gray-800 shadow rounded-lg p-6">
+          <Card>
+            <CardContent className="p-6">
             <div className="flex justify-between items-center mb-6">
               <div>
-                <h2 className="text-xl font-semibold text-white">
+                <CardTitle className="text-xl">
                   Relatório Shopee - {activeDateRange
                     ? (() => {
                         const startLabel = formatDateForDisplay(activeDateRange.start);
@@ -668,15 +673,16 @@ export default function ShopeeReportPage() {
                         return startLabel === endLabel ? startLabel : `${startLabel} a ${endLabel}`;
                       })()
                     : reportData.periodo}
-                </h2>
-                <p className="text-gray-400">
+                </CardTitle>
+                <CardDescription>
                   Dados diretos da plataforma • Última atualização: {new Date().toLocaleString('pt-BR')}
-                </p>
+                </CardDescription>
               </div>
             </div>
 
             <CommissionReportDisplay report={reportData} onError={showErrorMessage} />
-          </div>
+            </CardContent>
+          </Card>
         )}
       </div>
     </SubscriptionProtection>

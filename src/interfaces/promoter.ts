@@ -37,6 +37,9 @@ export interface WhatsAppBatch {
   intervalMinutes?: number | null;
   itemsCount?: number | null;
   startAt?: string | null;
+  endAt?: string | null;
+  overflowStartAt?: string | null;
+  overflowDayStarts?: string[] | null;
   payload?: Record<string, unknown> | null;
   campaigns?: WhatsAppBatchCampaign[] | null;
 }

@@ -1,13 +1,26 @@
 const STRAPI_URL = process.env.NEXT_PUBLIC_STRAPI_URL;
 
+export interface CurrentUserResponse {
+  id: number;
+  username?: string;
+  name?: string;
+  email?: string;
+  documentId?: string;
+  credits?: number | string | null;
+  [key: string]: unknown;
+}
+
 export interface LoginResponse {
   user: {
     id: number;
     username: string;
+    name?: string;
     email: string;
     documentId: string;
+    credits?: number;
   };
   jwt: string;
+  refreshToken?: string;
 }
 
 export interface ForgotPasswordResponse {
@@ -84,5 +97,33 @@ export class AuthService {
     }
 
     return data;
+  }
+
+  static async me(jwt: string): Promise<CurrentUserResponse> {
+    const headers = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${jwt}`,
+    };
+
+    let response = await fetch(`${STRAPI_URL}/api/users/me?populate=*`, {
+      method: "GET",
+      headers,
+    });
+
+    if (!response.ok) {
+      // Fallback compatível com backends que não aceitam populate no /users/me
+      response = await fetch(`${STRAPI_URL}/api/users/me`, {
+        method: "GET",
+        headers,
+      });
+    }
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error?.message || "Erro ao carregar perfil do usuário");
+    }
+
+    return data as CurrentUserResponse;
   }
 } 

@@ -1,23 +1,8 @@
 import qs from "qs";
-import { getAuthToken } from "@/lib/auth";
+import { authFetch } from "@/lib/auth";
 import { ImageInterface } from "@/interfaces/image.interface";
 import { Pack } from "@/interfaces/pack";
 import { Category } from "@/interfaces/category";
-
-interface VideoFormat {
-  url: string;
-  ext: string;
-  size: number;
-  mime: string;
-}
-
-interface VideoModel {
-  id: number;
-  url: string;
-  formats: {
-    thumbnail: VideoFormat;
-  };
-}
 
 interface VideoStreamingFile {
   id: number;
@@ -49,7 +34,6 @@ export interface Video {
   createdAt: string;
   updatedAt: string;
   publishedAt: string;
-  video: VideoModel;
   videoStreamingFiles?: VideoStreamingFile[];
   pack: Pack;
   category: Category;
@@ -78,12 +62,6 @@ export async function fetchVideos(
   categoryId?: number,
   sortBy?: "newest" | "oldest" | "name"
 ) {
-  const token = getAuthToken();
-
-  if (!token) {
-    throw new Error("Authentication required");
-  }
-
   // Determine sort order
   let sortOrder: string;
   switch (sortBy) {
@@ -101,7 +79,7 @@ export async function fetchVideos(
 
   const query = qs.stringify(
     {
-      populate: ["category", "video", "videoStreamingFiles", "pack.image", "links", "coverImage"],
+      populate: ["category", "videoStreamingFiles", "pack.image", "links", "coverImage"],
       sort: [sortOrder],
       pagination: {
         page,
@@ -147,12 +125,11 @@ export async function fetchVideos(
     }
   );
 
-  const response = await fetch(
+  const response = await authFetch(
     `${process.env.NEXT_PUBLIC_STRAPI_URL}/api/videos?${query}`,
     {
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
       },
     }
   );
@@ -168,22 +145,15 @@ export async function fetchVideos(
 }
 
 export async function fetchVideoCategories() {
-  const token = getAuthToken();
-
-  if (!token) {
-    throw new Error("Authentication required");
-  }
-
   const query = qs.stringify({
     sort: "name:ASC",
   });
 
-  const response = await fetch(
+  const response = await authFetch(
     `${process.env.NEXT_PUBLIC_STRAPI_URL}/api/video-categories?${query}`,
     {
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
       },
     }
   );
@@ -197,4 +167,60 @@ export async function fetchVideoCategories() {
 
   const result = await response.json();
   return result.data;
+}
+
+export function resolveVideoStreamingUrl(video: Video): string | null {
+  const files = video.videoStreamingFiles ?? [];
+  if (!files.length) return null;
+
+  const m3u8 = files.find((file) => file.ext === ".m3u8");
+  const mp4 = files.find((file) => file.ext === ".mp4");
+  const fallback = m3u8 ?? mp4 ?? files[0];
+
+  if (!fallback?.url) return null;
+  if (fallback.url.startsWith("http")) return fallback.url;
+  return `${process.env.NEXT_PUBLIC_STRAPI_URL}${fallback.url}`;
+}
+
+export async function fetchProtectedVideoDownloadUrl(
+  videoDocumentId: string
+): Promise<string> {
+  const response = await authFetch(
+    `${process.env.NEXT_PUBLIC_STRAPI_URL}/api/videos/download/${videoDocumentId}`,
+    {
+      headers: {
+        "Content-Type": "application/json",
+      },
+    }
+  );
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      throw new Error("Authentication failed");
+    }
+
+    let errorMessage = "Não foi possível baixar o vídeo no momento.";
+    try {
+      const errorData = (await response.json()) as {
+        message?: string;
+        error?: { message?: string };
+      };
+      errorMessage =
+        errorData?.error?.message ||
+        errorData?.message ||
+        errorMessage;
+    } catch {
+      // mantém fallback
+    }
+
+    throw new Error(errorMessage);
+  }
+
+  const data = (await response.json()) as { url?: string };
+  if (!data.url) {
+    throw new Error("Protected download URL not available");
+  }
+
+  if (data.url.startsWith("http")) return data.url;
+  return `${process.env.NEXT_PUBLIC_STRAPI_URL}${data.url}`;
 }

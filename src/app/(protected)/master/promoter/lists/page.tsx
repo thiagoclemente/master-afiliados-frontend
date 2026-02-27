@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -10,17 +10,35 @@ import {
   ListPlus,
   Calendar,
   X,
-  Info,
+  Search,
+  ShoppingBag,
+  Link2,
+  Trash2,
+  Ban,
 } from "lucide-react";
 import {
   fetchWhatsappBatches,
   scheduleWhatsappList,
+  checkWhatsappQuota,
+  deleteWhatsappBatch,
   promoterPreview,
   fetchWhatsappBatchDetail,
+  fetchPromoterShopeeProducts,
+  type PromoterShopeeProduct,
 } from "@/services/promoter.service";
 import type { WhatsAppBatch, WhatsAppBatchCampaign } from "@/interfaces/promoter";
 import { useWhatsApp } from "@/hooks/use-whatsapp";
 import type { WhatsAppGroup } from "@/interfaces/whatsapp";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 
 type ListItem = {
   link: string;
@@ -28,10 +46,37 @@ type ListItem = {
   payload: Record<string, unknown>;
 };
 
+type ScheduledGroup = {
+  groupId: string;
+  groupName: string;
+  startAt: string;
+  endAt?: string;
+  overflowStartAt?: string;
+};
+
+type SourceTab = "custom" | "shopee";
+
+const SHOPEE_ACCENT = "#EE4D2D";
+
 export default function PromoterListsPage() {
   const [batches, setBatches] = useState<WhatsAppBatch[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [scheduleResetNotice, setScheduleResetNotice] = useState<string | null>(null);
+  const [noticeDialog, setNoticeDialog] = useState<{
+    open: boolean;
+    title: string;
+    description: string;
+  }>({ open: false, title: "", description: "" });
+  const [quotaDialog, setQuotaDialog] = useState<{
+    open: boolean;
+    mode: "confirm" | "insufficient";
+    title: string;
+    description: string;
+  }>({ open: false, mode: "confirm", title: "", description: "" });
+  const quotaDialogResolver = useRef<((value: boolean) => void) | null>(null);
+
   const whatsapp = useWhatsApp();
   const selectedAccount = useMemo(() => {
     if (!whatsapp.selectedAccount) return null;
@@ -43,23 +88,242 @@ export default function PromoterListsPage() {
   const [title, setTitle] = useState("");
   const [intervalMinutes, setIntervalMinutes] = useState(5);
   const [startAt, setStartAt] = useState("");
+  const [endAt, setEndAt] = useState("");
+  const [overflowStartAt, setOverflowStartAt] = useState("");
   const [items, setItems] = useState<ListItem[]>([]);
-  const [linkInput, setLinkInput] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedItemIndex, setSelectedItemIndex] = useState<number | null>(null);
+
+  const [sourceTab, setSourceTab] = useState<SourceTab>("custom");
+  const [singleLinkInput, setSingleLinkInput] = useState("");
+  const [customLinksInput, setCustomLinksInput] = useState("");
   const [isAdding, setIsAdding] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<ListItem | null>(null);
+  const [addingStatus, setAddingStatus] = useState<string | null>(null);
+
+  const [shopeeQuery, setShopeeQuery] = useState("");
+  const [shopeeLimit, setShopeeLimit] = useState(10);
+  const [shopeePage, setShopeePage] = useState(1);
+  const [shopeeProducts, setShopeeProducts] = useState<PromoterShopeeProduct[]>([]);
+  const [shopeeHasNextPage, setShopeeHasNextPage] = useState(false);
+  const [shopeeSelectedIds, setShopeeSelectedIds] = useState<string[]>([]);
+  const [shopeeSortType, setShopeeSortType] = useState<number | null>(null);
+  const [shopeeIsAMSOffer, setShopeeIsAMSOffer] = useState<boolean | null>(null);
+  const [shopeePreset, setShopeePreset] = useState<string>("");
+  const [hasLoadedShopee, setHasLoadedShopee] = useState(false);
+  const [lastShopeeSearchKey, setLastShopeeSearchKey] = useState("");
+  const [isLoadingShopee, setIsLoadingShopee] = useState(false);
+  const [shopeeError, setShopeeError] = useState<string | null>(null);
+  const shopeeItemsOptions = useMemo(() => {
+    const base = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
+    return base.includes(shopeeLimit) ? base : [...base, shopeeLimit].sort((a, b) => a - b);
+  }, [shopeeLimit]);
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const [showDateModal, setShowDateModal] = useState(false);
-  const [dateField, setDateField] = useState<string>("");
-  const [timeField, setTimeField] = useState<string>("");
+  const [startAtField, setStartAtField] = useState("");
+  const [endAtField, setEndAtField] = useState("");
+
   const [selectedBatch, setSelectedBatch] = useState<WhatsAppBatch | null>(null);
   const [batchDetail, setBatchDetail] = useState<WhatsAppBatch | null>(null);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
+  const startAtInputRef = useRef<HTMLInputElement | null>(null);
+  const endAtInputRef = useRef<HTMLInputElement | null>(null);
+
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [scheduledGroups, setScheduledGroups] = useState<ScheduledGroup[]>([]);
+  const canAddScheduledGroup = Boolean(selectedGroupId && startAt);
+
+  const groups = whatsapp.groups;
+
+  const formatDateTime = (value?: string | null) => {
+    if (!value) return "--";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "--";
+    return date.toLocaleString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    });
+  };
+
+  const isSameMinute = (a: Date, b: Date) => {
+    return (
+      a.getFullYear() === b.getFullYear() &&
+      a.getMonth() === b.getMonth() &&
+      a.getDate() === b.getDate() &&
+      a.getHours() === b.getHours() &&
+      a.getMinutes() === b.getMinutes()
+    );
+  };
+
+  const toInt = (value: unknown) => {
+    if (typeof value === "number") return Math.trunc(value);
+    if (typeof value === "string") return Number.parseInt(value, 10) || 0;
+    return 0;
+  };
+
+  const resolveBatchStatus = (batch?: WhatsAppBatch | null) => {
+    if (!batch) return "";
+    const direct = (batch.status || "").trim();
+    if (direct) return direct;
+    const statusBatch =
+      typeof (batch as unknown as { statusBatch?: string }).statusBatch === "string"
+        ? ((batch as unknown as { statusBatch?: string }).statusBatch || "").trim()
+        : "";
+    if (statusBatch) return statusBatch;
+    const payloadStatus =
+      typeof batch.payload?.status === "string" ? String(batch.payload.status).trim() : "";
+    return payloadStatus;
+  };
+
+  const isBatchFinalized = (status?: string | null) => {
+    const normalized = (status || "").toLowerCase();
+    return normalized === "sent" || normalized === "failed" || normalized === "canceled";
+  };
+
+  const isBatchCanceledOrSent = (status?: string | null) => {
+    const normalized = (status || "").toLowerCase();
+    return normalized === "canceled" || normalized === "cancelado" || normalized === "sent";
+  };
+
+  const formatBatchStatus = (status?: string | null) => {
+    const normalized = (status || "").toLowerCase();
+    if (normalized === "scheduled") return "Agendado";
+    if (normalized === "processing") return "Processando";
+    if (normalized === "sent") return "Enviado";
+    if (normalized === "failed") return "Falhou";
+    if (normalized === "canceled") return "Cancelado";
+    return status || "--";
+  };
+
+  const formatDateTimeLocalInput = (value?: string | null) => {
+    if (!value) return "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    const year = date.getFullYear();
+    const month = `${date.getMonth() + 1}`.padStart(2, "0");
+    const day = `${date.getDate()}`.padStart(2, "0");
+    const hours = `${date.getHours()}`.padStart(2, "0");
+    const minutes = `${date.getMinutes()}`.padStart(2, "0");
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  };
+
+  const buildDefaultOverflowStartForDay = (base: Date) => {
+    return new Date(
+      base.getFullYear(),
+      base.getMonth(),
+      base.getDate(),
+      8,
+      0,
+      0,
+      0
+    );
+  };
+
+  const calculateBatchEndTime = (batch: WhatsAppBatch): Date | null => {
+    const scheduledAtDates =
+      batch.campaigns
+        ?.map((campaign) =>
+          campaign.scheduledAt ? new Date(campaign.scheduledAt) : null
+        )
+        .filter((value): value is Date => Boolean(value && !Number.isNaN(value.getTime()))) || [];
+
+    if (scheduledAtDates.length > 0) {
+      return scheduledAtDates.reduce((latest, current) =>
+        current.getTime() > latest.getTime() ? current : latest
+      );
+    }
+
+    if (!batch.startAt || !batch.intervalMinutes || !batch.itemsCount || batch.itemsCount <= 0) {
+      return null;
+    }
+
+    const start = new Date(batch.startAt);
+    if (Number.isNaN(start.getTime())) return null;
+
+    const end = batch.endAt ? new Date(batch.endAt) : null;
+    const overflow = batch.overflowStartAt
+      ? new Date(batch.overflowStartAt)
+      : batch.overflowDayStarts?.length
+        ? new Date(batch.overflowDayStarts[0] as string)
+        : null;
+    const defaultOverflowStart = buildDefaultOverflowStartForDay(start);
+
+    let overflowWindowStarted = false;
+    let current = new Date(start);
+    const total = Math.max(1, batch.itemsCount);
+    const interval = Math.max(1, batch.intervalMinutes);
+
+    const currentStartSource = () => {
+      if (!overflowWindowStarted) return start;
+      return overflow ?? defaultOverflowStart;
+    };
+
+    const moveToNextWindowStart = (fromDate: Date) => {
+      if (!overflowWindowStarted && overflow) {
+        overflowWindowStarted = true;
+        return new Date(Math.max(overflow.getTime(), fromDate.getTime()));
+      }
+      if (!overflowWindowStarted) {
+        overflowWindowStarted = true;
+        const source = overflow ?? defaultOverflowStart;
+        return new Date(
+          fromDate.getFullYear(),
+          fromDate.getMonth(),
+          fromDate.getDate() + 1,
+          source.getHours(),
+          source.getMinutes(),
+          source.getSeconds(),
+          source.getMilliseconds()
+        );
+      }
+      const source = currentStartSource();
+      return new Date(
+        fromDate.getFullYear(),
+        fromDate.getMonth(),
+        fromDate.getDate() + 1,
+        source.getHours(),
+        source.getMinutes(),
+        source.getSeconds(),
+        source.getMilliseconds()
+      );
+    };
+
+    for (let i = 1; i < total; i++) {
+      const candidate = new Date(current.getTime() + interval * 60 * 1000);
+      if (!end) {
+        current = candidate;
+        continue;
+      }
+
+      const dayEnd = new Date(
+        current.getFullYear(),
+        current.getMonth(),
+        current.getDate(),
+        end.getHours(),
+        end.getMinutes(),
+        end.getSeconds(),
+        end.getMilliseconds()
+      );
+
+      current =
+        candidate.getTime() > dayEnd.getTime()
+          ? moveToNextWindowStart(current)
+          : candidate;
+    }
+
+    return current;
+  };
 
   const load = async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const result = await fetchWhatsappBatches({ page: 1, pageSize: 20 });
+      const result = await fetchWhatsappBatches({ page: 1, pageSize: 50 });
       setBatches(result.items || []);
     } catch (err) {
       setError(
@@ -87,8 +351,6 @@ export default function PromoterListsPage() {
     }
   }, [selectedAccount, whatsapp]);
 
-  const groups = whatsapp.groups;
-
   useEffect(() => {
     const defaultGroup =
       selectedAccount?.defaultGroupId ||
@@ -99,13 +361,532 @@ export default function PromoterListsPage() {
     }
   }, [selectedAccount, groups]);
 
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
-
   const initializeDateFields = () => {
-    const now = new Date();
-    const target = startAt ? new Date(startAt) : new Date(now.getTime() + 5 * 60000);
-    setDateField(target.toISOString().slice(0, 10));
-    setTimeField(target.toTimeString().slice(0, 5));
+    setStartAtField(formatDateTimeLocalInput(startAt));
+    setEndAtField(formatDateTimeLocalInput(endAt));
+  };
+
+  const overflowInfo = useMemo(() => {
+    if (!selectedGroupId || !startAt || items.length === 0) return null;
+
+    const start = new Date(startAt);
+    if (Number.isNaN(start.getTime())) return null;
+    const end = endAt ? new Date(endAt) : null;
+    const overflow = overflowStartAt ? new Date(overflowStartAt) : null;
+    const defaultOverflowStart = buildDefaultOverflowStartForDay(start);
+    let overflowWindowStarted = false;
+    let current = new Date(start);
+    const groupedByDay = new Map<string, { date: Date; count: number; startsAt: Date; endsAt: Date }>();
+
+    const currentStartSource = () => {
+      if (!overflowWindowStarted) return start;
+      return overflow ?? defaultOverflowStart;
+    };
+
+    const moveToNextWindowStart = (fromDate: Date) => {
+      if (!overflowWindowStarted && overflow) {
+        overflowWindowStarted = true;
+        return new Date(Math.max(overflow.getTime(), fromDate.getTime()));
+      }
+      if (!overflowWindowStarted) {
+        overflowWindowStarted = true;
+        const source = overflow ?? defaultOverflowStart;
+        return new Date(
+          fromDate.getFullYear(),
+          fromDate.getMonth(),
+          fromDate.getDate() + 1,
+          source.getHours(),
+          source.getMinutes(),
+          source.getSeconds(),
+          source.getMilliseconds()
+        );
+      }
+      const source = currentStartSource();
+      return new Date(
+        fromDate.getFullYear(),
+        fromDate.getMonth(),
+        fromDate.getDate() + 1,
+        source.getHours(),
+        source.getMinutes(),
+        source.getSeconds(),
+        source.getMilliseconds()
+      );
+    };
+
+    for (let i = 0; i < items.length; i++) {
+      if (end) {
+        const source = currentStartSource();
+        const dayStart = new Date(
+          current.getFullYear(),
+          current.getMonth(),
+          current.getDate(),
+          source.getHours(),
+          source.getMinutes(),
+          source.getSeconds(),
+          source.getMilliseconds()
+        );
+        const dayEnd = new Date(
+          current.getFullYear(),
+          current.getMonth(),
+          current.getDate(),
+          end.getHours(),
+          end.getMinutes(),
+          end.getSeconds(),
+          end.getMilliseconds()
+        );
+        if (current.getTime() < dayStart.getTime()) {
+          current = dayStart;
+        }
+        if (current.getTime() > dayEnd.getTime()) {
+          current = moveToNextWindowStart(dayStart);
+        }
+      }
+
+      const key = `${current.getFullYear()}-${current.getMonth()}-${current.getDate()}`;
+      const dayData = groupedByDay.get(key);
+      if (!dayData) {
+        groupedByDay.set(key, {
+          date: new Date(current),
+          count: 1,
+          startsAt: new Date(current),
+          endsAt: new Date(current),
+        });
+      } else {
+        dayData.count += 1;
+        dayData.endsAt = new Date(current);
+      }
+
+      const candidate = new Date(current.getTime() + intervalMinutes * 60 * 1000);
+      if (!end) {
+        current = candidate;
+      } else {
+        const dayEnd = new Date(
+          current.getFullYear(),
+          current.getMonth(),
+          current.getDate(),
+          end.getHours(),
+          end.getMinutes(),
+          end.getSeconds(),
+          end.getMilliseconds()
+        );
+        current =
+          candidate.getTime() > dayEnd.getTime()
+            ? moveToNextWindowStart(current)
+            : candidate;
+      }
+    }
+
+    const startKey = `${start.getFullYear()}-${start.getMonth()}-${start.getDate()}`;
+    const startDay = groupedByDay.get(startKey);
+    groupedByDay.delete(startKey);
+
+    const days = Array.from(groupedByDay.values()).sort(
+      (a, b) => a.date.getTime() - b.date.getTime()
+    );
+    const overflowTotal = days.reduce((acc, d) => acc + d.count, 0);
+    const todayCount = startDay?.count ?? 0;
+    const todayEndsAt = startDay?.endsAt;
+
+    return { overflowTotal, todayCount, todayEndsAt, days };
+  }, [selectedGroupId, startAt, endAt, overflowStartAt, intervalMinutes, items]);
+
+  const parseLinksInput = (value: string) => {
+    return value
+      .split(/\n|,|;/g)
+      .map((part) => part.trim())
+      .filter(Boolean);
+  };
+
+  const clearSchedulingAfterItemsChange = () => {
+    const hasSchedulingData =
+      Boolean(startAt) ||
+      Boolean(endAt) ||
+      Boolean(overflowStartAt) ||
+      scheduledGroups.length > 0;
+
+    if (!hasSchedulingData) return;
+
+    setSelectedGroupId(null);
+    setStartAt("");
+    setEndAt("");
+    setOverflowStartAt("");
+    setScheduledGroups([]);
+    setScheduleResetNotice(
+      "A configuração de grupo e agendamento foi removida porque a lista de itens foi alterada. Configure novamente antes de criar o envio."
+    );
+    setNoticeDialog({
+      open: true,
+      title: "Agendamento resetado",
+      description:
+        "A lista de itens foi alterada. Reconfigure grupo e agendamento antes de criar o envio.",
+    });
+  };
+
+  const openQuotaDialog = (params: {
+    mode: "confirm" | "insufficient";
+    title: string;
+    description: string;
+  }) => {
+    return new Promise<boolean>((resolve) => {
+      quotaDialogResolver.current = resolve;
+      setQuotaDialog({
+        open: true,
+        mode: params.mode,
+        title: params.title,
+        description: params.description,
+      });
+    });
+  };
+
+  const resolveQuotaDialog = (value: boolean) => {
+    quotaDialogResolver.current?.(value);
+    quotaDialogResolver.current = null;
+    setQuotaDialog((prev) => ({ ...prev, open: false }));
+  };
+
+  const showProblemNotice = (description: string, title = "Atenção") => {
+    setError(description);
+    setNoticeDialog({
+      open: true,
+      title,
+      description,
+    });
+  };
+
+  const confirmCreditsBeforeListSend = async (
+    groupName: string,
+    requestedCampaigns: number
+  ) => {
+    const quota = await checkWhatsappQuota(requestedCampaigns);
+    const dailyLimit =
+      toInt(quota.dailyLimit) > 0 ? toInt(quota.dailyLimit) : 0;
+    const usedToday = toInt(quota.usedToday);
+    const creditsRequired = toInt(
+      quota.creditsRequired ?? quota.extraCampaignsNeeded
+    );
+    const creditsAvailable = toInt(quota.creditsAvailable);
+    const creditsAfterSend = toInt(quota.creditsAfterSend);
+
+    if (!quota.allowed) {
+      await openQuotaDialog({
+        mode: "insufficient",
+        title: "Créditos insuficientes",
+        description:
+          `Seu plano inclui ${dailyLimit} campanhas grátis por dia.\n` +
+          `Você já consumiu ${usedToday} hoje, então o envio via WhatsApp precisa de créditos.\n\n` +
+          `Necessário: ${creditsRequired} crédito(s)\n` +
+          `Disponível: ${creditsAvailable} crédito(s)`,
+      });
+      return false;
+    }
+
+    if (creditsRequired > 0) {
+      return openQuotaDialog({
+        mode: "confirm",
+        title: "Confirmar uso de créditos (WhatsApp)",
+        description:
+          `Seu plano inclui ${dailyLimit} campanhas por dia.\n` +
+          `Você já consumiu ${usedToday} hoje e este envio para "${groupName}" passará a usar créditos.\n\n` +
+          `Este envio consumirá ${creditsRequired} crédito(s).\n` +
+          `Créditos disponíveis: ${creditsAvailable}\n` +
+          `Créditos após envio: ${creditsAfterSend}`,
+      });
+    }
+
+    return true;
+  };
+
+  const addLinksToList = async (links: string[]) => {
+    if (links.length === 0) return;
+    setIsAdding(true);
+    setAddingStatus(`Adicionando ${links.length} item(ns) à lista...`);
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      const addedItems: ListItem[] = [];
+      for (const link of links) {
+        const preview = await promoterPreview(link);
+        const previewPayload = (preview.payload || {}) as Record<string, unknown>;
+        const productTitle =
+          typeof previewPayload.productTitle === "string"
+            ? previewPayload.productTitle
+            : typeof previewPayload.productName === "string"
+              ? previewPayload.productName
+              : "";
+        addedItems.push({
+          link,
+          message: productTitle || preview.message || "",
+          payload: {
+            ...previewPayload,
+            needsAiProcessing: true,
+            sourceType: "custom_link",
+            sourceLink: link,
+          },
+        });
+      }
+
+      let nextSelectedIndex: number | null = null;
+      setItems((prev) => {
+        const next = [...prev, ...addedItems];
+        nextSelectedIndex = next.length > 0 ? next.length - 1 : null;
+        return next;
+      });
+      clearSchedulingAfterItemsChange();
+      if (nextSelectedIndex !== null) {
+        setSelectedItemIndex(nextSelectedIndex);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao adicionar links.");
+    } finally {
+      setIsAdding(false);
+      setAddingStatus(null);
+    }
+  };
+
+  const addShopeeProductsToList = async (products: PromoterShopeeProduct[]) => {
+    if (products.length === 0) return;
+    setIsAdding(true);
+    setAddingStatus(`Adicionando ${products.length} produto(s) da Shopee...`);
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      const addedItems: ListItem[] = products.flatMap((product) => {
+          const link = (product.offerLink || product.productLink || "").trim();
+          if (!link) return [];
+
+          return [{
+            link,
+            // Não processa IA nesta etapa; IA acontece na fila após agendar.
+            message: product.productName || "",
+            payload: {
+              needsAiProcessing: true,
+              productTitle: product.productName,
+              productImageUrl: product.imageUrl,
+              productPrice: product.price,
+              productPriceMin: product.priceMin,
+              productPriceMax: product.priceMax,
+              productSales: product.sales,
+              commissionRate: product.commissionRate,
+              offerLink: product.offerLink,
+              productLink: product.productLink,
+              itemId: product.itemId,
+            },
+          }];
+        });
+
+      if (addedItems.length === 0) {
+        setShopeeError("Nenhum produto válido encontrado para adicionar.");
+        return;
+      }
+
+      let nextSelectedIndex: number | null = null;
+      setItems((prev) => {
+        const next = [...prev, ...addedItems];
+        nextSelectedIndex = next.length > 0 ? next.length - 1 : null;
+        return next;
+      });
+      clearSchedulingAfterItemsChange();
+      if (nextSelectedIndex !== null) {
+        setSelectedItemIndex(nextSelectedIndex);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao adicionar produtos da Shopee.");
+    } finally {
+      setIsAdding(false);
+      setAddingStatus(null);
+    }
+  };
+
+  const handleAddCustomLinks = async () => {
+    const links = parseLinksInput(customLinksInput);
+    if (links.length === 0) {
+      setError("Cole pelo menos um link válido.");
+      return;
+    }
+    await addLinksToList(links);
+    setCustomLinksInput("");
+  };
+
+  const handleAddSingleLink = async () => {
+    const link = singleLinkInput.trim();
+    if (!link) {
+      setError("Informe um link para adicionar.");
+      return;
+    }
+    await addLinksToList([link]);
+    setSingleLinkInput("");
+  };
+
+  const loadShopeeProducts = async (pageToLoad = 1, append = false) => {
+    setIsLoadingShopee(true);
+    setShopeeError(null);
+    try {
+      const maxPagesSafety = 20;
+      const perRequestMax = 50;
+      let currentPage = pageToLoad;
+      let hasNextPage = true;
+      let pagesFetched = 0;
+      let fetchedAny = false;
+
+      const existingListLinks = new Set(
+        items.map((item) => item.link.trim()).filter(Boolean)
+      );
+      const currentResultLinks = append
+        ? new Set(
+            shopeeProducts
+              .map((product) => (product.offerLink || product.productLink || "").trim())
+              .filter(Boolean)
+          )
+        : new Set<string>();
+
+      const seenLinks = new Set(currentResultLinks);
+      const uniqueNewNodes: PromoterShopeeProduct[] = [];
+
+      while (
+        uniqueNewNodes.length < shopeeLimit &&
+        hasNextPage &&
+        pagesFetched < maxPagesSafety
+      ) {
+        const remainingNeeded = shopeeLimit - uniqueNewNodes.length;
+        const requestLimit = Math.min(perRequestMax, Math.max(remainingNeeded, 1));
+
+        const response = await fetchPromoterShopeeProducts({
+          page: currentPage,
+          limit: requestLimit,
+          query: shopeeQuery || undefined,
+          sortType: shopeeSortType ?? undefined,
+          isAMSOffer: shopeeIsAMSOffer ?? undefined,
+        });
+
+        const nodes = response.nodes || [];
+        hasNextPage = Boolean(response.pageInfo?.hasNextPage);
+        fetchedAny = fetchedAny || nodes.length > 0;
+
+        if (nodes.length === 0) {
+          break;
+        }
+
+        for (const node of nodes) {
+          const link = (node.offerLink || node.productLink || "").trim();
+          if (!link) continue;
+          if (existingListLinks.has(link)) continue;
+          if (seenLinks.has(link)) continue;
+
+          seenLinks.add(link);
+          uniqueNewNodes.push(node);
+
+          if (uniqueNewNodes.length >= shopeeLimit) {
+            break;
+          }
+        }
+
+        currentPage += 1;
+        pagesFetched += 1;
+      }
+
+      const lastFetchedPage = pagesFetched > 0 ? currentPage - 1 : pageToLoad;
+      setShopeePage(lastFetchedPage);
+      setShopeeHasNextPage(hasNextPage);
+      setHasLoadedShopee(true);
+      setShopeeProducts((prev) => (append ? [...prev, ...uniqueNewNodes] : uniqueNewNodes));
+      setShopeeSelectedIds((prev) => {
+        const incomingIds = uniqueNewNodes.map((product) => String(product.itemId));
+        const merged = new Set([...prev, ...incomingIds]);
+        return Array.from(merged);
+      });
+
+      if (!fetchedAny || uniqueNewNodes.length === 0) {
+        setShopeeError("Nenhum novo produto encontrado para os filtros aplicados.");
+      }
+    } catch (err) {
+      setShopeeError(
+        err instanceof Error ? err.message : "Erro ao buscar produtos da Shopee."
+      );
+    } finally {
+      setIsLoadingShopee(false);
+    }
+  };
+
+  const handleSearchShopee = async () => {
+    const currentSearchKey = JSON.stringify({
+      query: shopeeQuery.trim(),
+      limit: shopeeLimit,
+      sortType: shopeeSortType,
+      isAMSOffer: shopeeIsAMSOffer,
+    });
+
+    const hasCriteriaChanged = currentSearchKey !== lastShopeeSearchKey;
+    const nextPage = hasCriteriaChanged ? 1 : shopeePage + 1;
+
+    if (hasCriteriaChanged) {
+      setShopeeProducts([]);
+      setShopeeSelectedIds([]);
+      setShopeeHasNextPage(false);
+    }
+
+    setLastShopeeSearchKey(currentSearchKey);
+    await loadShopeeProducts(nextPage, !hasCriteriaChanged);
+  };
+
+  const toggleShopeeSelection = (itemId: string) => {
+    setShopeeSelectedIds((prev) =>
+      prev.includes(itemId) ? prev.filter((id) => id !== itemId) : [...prev, itemId]
+    );
+  };
+
+  const toggleSelectAllShopee = () => {
+    const allIds = shopeeProducts.map((product) => String(product.itemId));
+    const allSelected = allIds.length > 0 && allIds.every((id) => shopeeSelectedIds.includes(id));
+    setShopeeSelectedIds(allSelected ? [] : allIds);
+  };
+
+  const handleAddSelectedShopee = async () => {
+    const selectedProducts = shopeeProducts.filter((product) =>
+      shopeeSelectedIds.includes(String(product.itemId))
+    );
+
+    if (selectedProducts.length === 0) {
+      setShopeeError("Selecione ao menos um produto da Shopee.");
+      return;
+    }
+
+    await addShopeeProductsToList(selectedProducts);
+    const selectedIdsSet = new Set(shopeeSelectedIds);
+    setShopeeProducts((prev) =>
+      prev.filter((product) => !selectedIdsSet.has(String(product.itemId)))
+    );
+    setShopeeSelectedIds([]);
+  };
+
+  const applyShopeePreset = (preset: "top_sales" | "high_commission" | "ams_only") => {
+    setShopeePreset(preset);
+    setShopeeSortType(null);
+    setShopeeIsAMSOffer(null);
+
+    if (preset === "top_sales") {
+      setShopeeSortType(2);
+    } else if (preset === "high_commission") {
+      setShopeeSortType(5);
+    } else if (preset === "ams_only") {
+      setShopeeIsAMSOffer(true);
+    }
+  };
+
+  const clearShopeeFilters = () => {
+    setShopeePreset("");
+    setShopeeSortType(null);
+    setShopeeIsAMSOffer(null);
+    setShopeeQuery("");
+    setShopeePage(1);
+    setShopeeLimit(10);
+    setShopeeProducts([]);
+    setShopeeSelectedIds([]);
+    setShopeeHasNextPage(false);
+    setShopeeError(null);
+    setHasLoadedShopee(false);
+    setLastShopeeSearchKey("");
   };
 
   const handleSelectBatch = async (batch: WhatsAppBatch) => {
@@ -126,76 +907,316 @@ export default function PromoterListsPage() {
     }
   };
 
-  const handleAddItem = async () => {
-    if (!linkInput.trim()) return;
+  const handleDeleteBatch = async (batchId: string) => {
+    const confirmed = window.confirm(
+      "Deseja apagar esta lista? Os envios pendentes serão cancelados."
+    );
+    if (!confirmed) return;
+
     try {
-      setIsAdding(true);
-      const preview = await promoterPreview(linkInput.trim());
-      const newItem: ListItem = {
-        link: linkInput.trim(),
-        message: preview.message || "",
-        payload: preview.payload || {},
-      };
-      setItems((prev) => [...prev, newItem]);
-      setSelectedItem(newItem);
-      setLinkInput("");
+      await deleteWhatsappBatch(batchId, true);
+      setBatches((prev) => prev.filter((batch) => batch.documentId !== batchId));
+      if (selectedBatch?.documentId === batchId) {
+        setSelectedBatch(null);
+        setBatchDetail(null);
+      }
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Erro ao gerar mensagem do item."
+      showProblemNotice(
+        err instanceof Error ? err.message : "Erro ao apagar lista."
       );
-    } finally {
-      setIsAdding(false);
     }
   };
 
-  const handleCreateList = async () => {
-    if (!selectedAccount || !selectedGroupId || items.length === 0) {
-      setError("Preencha todos os campos obrigatórios e adicione pelo menos um link.");
-      return;
+  const handleCancelBatch = async (batchId: string) => {
+    const confirmed = window.confirm(
+      "Deseja cancelar os envios pendentes desta lista?"
+    );
+    if (!confirmed) return;
+
+    try {
+      await deleteWhatsappBatch(batchId, false);
+      setBatches((prev) =>
+        prev.map((batch) =>
+          batch.documentId === batchId
+            ? { ...batch, status: "canceled" }
+            : batch
+        )
+      );
+      if (selectedBatch?.documentId === batchId) {
+        setSelectedBatch((prev) => (prev ? { ...prev, status: "canceled" } : prev));
+        setBatchDetail((prev) => (prev ? { ...prev, status: "canceled" } : prev));
+      }
+    } catch (err) {
+      showProblemNotice(
+        err instanceof Error ? err.message : "Erro ao cancelar lista."
+      );
+    }
+  };
+
+  const removeItemAtIndex = (index: number) => {
+    setItems((prev) => prev.filter((_, idx) => idx !== index));
+    setSelectedItemIndex((current) => {
+      if (current === null) return null;
+      if (current === index) return null;
+      if (current > index) return current - 1;
+      return current;
+    });
+    clearSchedulingAfterItemsChange();
+  };
+
+  const hasBatchStartConflict = (
+    scheduledStartAt: string,
+    sourceBatches: WhatsAppBatch[],
+    groupId?: string
+  ) => {
+    const target = new Date(scheduledStartAt);
+    if (Number.isNaN(target.getTime())) return false;
+
+    return sourceBatches.some((batch) => {
+      if (!batch.startAt) return false;
+      if (isBatchCanceledOrSent(resolveBatchStatus(batch))) return false;
+      if (groupId && batch.groupId !== groupId) return false;
+
+      const existing = new Date(batch.startAt);
+      if (Number.isNaN(existing.getTime())) return false;
+
+      return isSameMinute(target, existing);
+    });
+  };
+
+  const validateGroupAgainstExistingBatches = async (
+    groupId: string,
+    startDate: Date
+  ) => {
+    const now = new Date();
+    const groupBatches = batches.filter(
+      (batch) =>
+        batch.groupId === groupId &&
+        !isBatchCanceledOrSent(resolveBatchStatus(batch)) &&
+        Boolean(batch.startAt)
+    );
+
+    if (groupBatches.length === 0) return null;
+
+    const endTimes = await Promise.all(
+      groupBatches.map(async (batch) => {
+        let batchForCalculation = batch;
+        if (!batch.campaigns || batch.campaigns.length === 0) {
+          try {
+            const detailed = await fetchWhatsappBatchDetail(batch.documentId);
+            if (detailed) batchForCalculation = detailed;
+          } catch {
+            // Mantém dados atuais caso detalhe falhe
+          }
+        }
+        return calculateBatchEndTime(batchForCalculation);
+      })
+    );
+
+    const validEndTimes = endTimes
+      .filter((value): value is Date => Boolean(value))
+      .sort((a, b) => b.getTime() - a.getTime());
+
+    if (validEndTimes.length === 0) return null;
+
+    const minAllowedTime = new Date(validEndTimes[0].getTime() + 5 * 60 * 1000);
+    const effectiveMinTime =
+      minAllowedTime.getTime() > now.getTime() ? minAllowedTime : now;
+
+    if (startDate.getTime() < effectiveMinTime.getTime()) {
+      return `A data e hora devem ser após ou igual a ${formatDateTime(
+        effectiveMinTime.toISOString()
+      )} (5 minutos após o término do último envio).`;
     }
 
-    if (!title.trim()) {
-      setError("Informe o título da lista.");
+    return null;
+  };
+
+  const handleAddScheduledGroup = async () => {
+    if (!selectedGroupId) {
+      showProblemNotice("Selecione um grupo para adicionar.");
       return;
     }
 
     if (!startAt) {
-      setError("Defina data e hora para iniciar o envio.");
+      showProblemNotice("Defina a data e hora de início.");
       return;
     }
-    const group = groups.find((g) => g.id === selectedGroupId);
 
-    if (startAt) {
-      const parsed = new Date(startAt);
-      if (Number.isNaN(parsed.getTime()) || parsed.getTime() < Date.now()) {
-        setError("Escolha uma data e hora no futuro.");
+    const startDate = new Date(startAt);
+    if (Number.isNaN(startDate.getTime()) || startDate.getTime() < Date.now()) {
+      showProblemNotice("Escolha uma data e hora no futuro.");
+      return;
+    }
+
+    if (endAt) {
+      const endDate = new Date(endAt);
+      if (Number.isNaN(endDate.getTime()) || endDate.getTime() < startDate.getTime()) {
+        showProblemNotice("A data final deve ser maior ou igual ao início.");
         return;
       }
     }
 
-    setIsSubmitting(true);
+    if (overflowStartAt) {
+      const overflowDate = new Date(overflowStartAt);
+      if (
+        Number.isNaN(overflowDate.getTime()) ||
+        overflowDate.getTime() < startDate.getTime()
+      ) {
+        showProblemNotice("O início dos próximos dias deve ser maior ou igual ao início.");
+        return;
+      }
+    }
+
+    if (scheduledGroups.some((group) => group.groupId === selectedGroupId)) {
+      showProblemNotice("Este grupo já foi adicionado à lista.");
+      return;
+    }
+
+    if (
+      scheduledGroups.some((group) => {
+        const existingStart = new Date(group.startAt);
+        return !Number.isNaN(existingStart.getTime()) && isSameMinute(existingStart, startDate);
+      })
+    ) {
+      showProblemNotice("Este horário conflita com outro grupo agendado. Escolha outro horário.");
+      return;
+    }
+
+    const groupTimeValidationError = await validateGroupAgainstExistingBatches(
+      selectedGroupId,
+      startDate
+    );
+    if (groupTimeValidationError) {
+      showProblemNotice(groupTimeValidationError);
+      return;
+    }
+
+    if (hasBatchStartConflict(startAt, batches, selectedGroupId)) {
+      const group = groups.find((g) => g.id === selectedGroupId);
+      showProblemNotice(
+        `O horário inicial desse grupo já está sendo usado em outra lista (${group?.name || selectedGroupId}).`
+      );
+      return;
+    }
+
+    const selectedGroup = groups.find((group) => group.id === selectedGroupId);
+    const nextGroup: ScheduledGroup = {
+      groupId: selectedGroupId,
+      groupName: selectedGroup?.name || selectedGroupId,
+      startAt,
+      endAt: endAt || undefined,
+      overflowStartAt: overflowStartAt || undefined,
+    };
+
+    setScheduledGroups((prev) => [...prev, nextGroup]);
+    setSelectedGroupId(null);
+    setStartAt("");
+    setEndAt("");
+    setOverflowStartAt("");
     setError(null);
+    setScheduleResetNotice(null);
+  };
+
+  const removeScheduledGroup = (index: number) => {
+    setScheduledGroups((prev) => prev.filter((_, idx) => idx !== index));
+  };
+
+  const closeNativeDateTimePicker = () => {
+    if (typeof document === "undefined") return;
+    const active = document.activeElement;
+    if (active instanceof HTMLElement) {
+      active.blur();
+    }
+  };
+
+  const openNativeDateTimePicker = (input: HTMLInputElement | null) => {
+    if (!input) return;
+    input.focus();
     try {
-      await scheduleWhatsappList({
-        title: title.trim() || undefined,
-        groupId: selectedGroupId,
-        groupName: group?.name || selectedGroupId,
-        sessionName: selectedAccount.sessionName,
-        intervalMinutes: intervalMinutes || undefined,
-        startAt: startAt || undefined,
-        items: items.map((item) => ({
-          link: item.link,
-          message: item.message,
-          payload: item.payload,
-        })),
+      const candidate = input as HTMLInputElement & { showPicker?: () => void };
+      if (typeof candidate.showPicker === "function") {
+        candidate.showPicker();
+      }
+    } catch {
+      // Fallback em navegadores sem suporte ao showPicker.
+    }
+  };
+
+  const handleCreateList = async () => {
+    if (!selectedAccount || items.length === 0 || scheduledGroups.length === 0) {
+      showProblemNotice("Adicione ao menos um grupo agendado e pelo menos um item na lista.");
+      return;
+    }
+
+    if (!title.trim()) {
+      showProblemNotice("Informe o título da lista.");
+      return;
+    }
+
+    setIsSubmitting(true);
+      setError(null);
+      setSuccessMessage(null);
+      setScheduleResetNotice(null);
+    try {
+      const latestBatchesResponse = await fetchWhatsappBatches({
+        page: 1,
+        pageSize: 200,
       });
+      const latestBatches = latestBatchesResponse.items || [];
+      setBatches(latestBatches);
+
+      for (const group of scheduledGroups) {
+        if (hasBatchStartConflict(group.startAt, latestBatches)) {
+          throw new Error(
+            `O horário de início do grupo WhatsApp "${group.groupName}" já está sendo usado por outra lista. Escolha outro horário de início.`
+          );
+        }
+
+        const canProceed = await confirmCreditsBeforeListSend(
+          group.groupName,
+          items.length
+        );
+        if (!canProceed) {
+          throw new Error("Envio interrompido por limite/créditos.");
+        }
+
+        await scheduleWhatsappList({
+          title: title.trim() || undefined,
+          groupId: group.groupId,
+          groupName: group.groupName,
+          sessionName: selectedAccount.sessionName,
+          intervalMinutes: intervalMinutes || undefined,
+          startAt: group.startAt || undefined,
+          endAt: group.endAt || undefined,
+          overflowStartAt: group.overflowStartAt || undefined,
+          items: items.map((item) => ({
+            link: item.link,
+            message: item.message,
+            payload: item.payload,
+          })),
+        });
+      }
       setItems([]);
+      setSelectedItemIndex(null);
+      setScheduledGroups([]);
       setTitle("");
       setIntervalMinutes(5);
       setStartAt("");
+      setEndAt("");
+      setOverflowStartAt("");
+      setCustomLinksInput("");
+      setSingleLinkInput("");
+      setShopeeSelectedIds([]);
       await load();
+      setSuccessMessage("Lista criada e agendada com sucesso.");
+      setNoticeDialog({
+        open: true,
+        title: "Lista criada",
+        description: "Lista criada e agendada com sucesso.",
+      });
     } catch (err) {
-      setError(
+      showProblemNotice(
         err instanceof Error ? err.message : "Erro ao criar lista automática."
       );
     } finally {
@@ -205,166 +1226,1008 @@ export default function PromoterListsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link
-              href="/master/promoter"
-              className="text-[#7d570e] hover:text-[#6b4a0c] transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </Link>
-            <div>
-              <h1 className="text-2xl font-bold text-white">
-                Listas automáticas
-              </h1>
-              <p className="text-gray-300">
-                Acompanhe filas de disparo criadas no aplicativo.
-              </p>
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Button asChild variant="ghost" size="icon">
+                <Link href="/master/promoter">
+                  <ArrowLeft className="w-5 h-5" />
+                </Link>
+              </Button>
+              <div>
+                <CardTitle className="text-2xl">Listas automáticas</CardTitle>
+                <CardDescription>
+                  Configure, revise e agende disparos com menos passos.
+                </CardDescription>
+              </div>
             </div>
+            <Button onClick={() => void load()} variant="outline">
+              <RefreshCcw className="w-4 h-4 mr-2" />
+              Atualizar
+            </Button>
           </div>
-          <button
-            onClick={load}
-            className="flex items-center gap-2 px-3 py-2 rounded-md border border-gray-700 text-gray-200 hover:border-[#7d570e]"
-          >
-            <RefreshCcw className="w-4 h-4" />
-            Atualizar
-          </button>
+        </CardHeader>
+      </Card>
+
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+      {successMessage && (
+        <Alert className="border-emerald-700 bg-emerald-900/20 text-emerald-200">
+          <AlertDescription>{successMessage}</AlertDescription>
+        </Alert>
+      )}
+      {scheduleResetNotice && (
+        <Alert className="border-amber-700 bg-amber-900/30 text-amber-200">
+          <AlertDescription>{scheduleResetNotice}</AlertDescription>
+        </Alert>
+      )}
+      {isAdding && addingStatus && (
+        <Alert>
+          <AlertDescription className="flex items-center gap-2">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            {addingStatus}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
+        <div className="xl:col-span-7 space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <ListPlus className="w-4 h-4 text-[#7d570e]" />
+                1. Origem dos produtos
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Tabs value={sourceTab} onValueChange={(value) => setSourceTab(value as SourceTab)}>
+                <TabsList className="grid grid-cols-2 w-full">
+                  <TabsTrigger
+                    value="custom"
+                    className="border border-blue-500/40 bg-blue-950/20 text-blue-200 data-[state=active]:border-blue-400 data-[state=active]:bg-blue-700 data-[state=active]:text-white"
+                  >
+                    Links Personalizados
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="shopee"
+                    className="border border-[#EE4D2D]/40 bg-[#EE4D2D]/20 text-[#ff9e8e] data-[state=active]:border-[#EE4D2D] data-[state=active]:bg-[#EE4D2D] data-[state=active]:text-white"
+                  >
+                    Carregar da Shopee
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="custom" className="space-y-3 mt-3">
+                  <label className="text-sm text-muted-foreground flex items-center gap-2">
+                    <Link2 className="w-4 h-4" />
+                    Adicionar por link
+                  </label>
+                  <div className="grid grid-cols-1 md:grid-cols-[1fr,auto] gap-2">
+                    <Input
+                      value={singleLinkInput}
+                      onChange={(e) => setSingleLinkInput(e.target.value)}
+                      placeholder="https://shopee.com.br/... ou https://amazon.com.br/..."
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          void handleAddSingleLink();
+                        }
+                      }}
+                    />
+                  <Button
+                    onClick={() => void handleAddSingleLink()}
+                    disabled={!singleLinkInput.trim() || isAdding}
+                  >
+                    {isAdding ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Processando...
+                      </>
+                    ) : (
+                      "Adicionar link"
+                    )}
+                  </Button>
+                  </div>
+                  <div className="text-xs text-muted-foreground">Ou cole vários links abaixo (um por linha):</div>
+                  <Textarea
+                    value={customLinksInput}
+                    onChange={(e) => setCustomLinksInput(e.target.value)}
+                    placeholder="https://shopee.com.br/...\nhttps://amazon.com.br/..."
+                    className="min-h-32"
+                  />
+                  <Button
+                    onClick={() => void handleAddCustomLinks()}
+                    disabled={!customLinksInput.trim() || isAdding}
+                    className="w-full bg-blue-700 hover:bg-blue-800 text-white"
+                  >
+                    {isAdding ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Processando links...
+                      </>
+                    ) : (
+                      "Adicionar links à fila"
+                    )}
+                  </Button>
+                </TabsContent>
+
+                <TabsContent value="shopee" className="space-y-3 mt-3">
+                  <div className="space-y-2 rounded-md border border-border/70 bg-muted/20 p-3">
+                    <div className="text-sm font-medium">Quantidade de produtos</div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {shopeeItemsOptions.map((qty) => {
+                        const selected = shopeeLimit === qty;
+                        return (
+                          <Button
+                            key={qty}
+                            type="button"
+                            size="sm"
+                            variant={selected ? "default" : "outline"}
+                            onClick={() => setShopeeLimit(qty)}
+                            className={selected ? "text-white" : ""}
+                            style={selected ? { backgroundColor: SHOPEE_ACCENT } : undefined}
+                          >
+                            {qty}
+                          </Button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 rounded-md border border-border/70 bg-muted/20 p-3">
+                    <div className="text-sm font-medium">Filtros rápidos</div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        type="button"
+                        variant={shopeePreset === "top_sales" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => applyShopeePreset("top_sales")}
+                        className={shopeePreset === "top_sales" ? "text-white" : ""}
+                        style={
+                          shopeePreset === "top_sales"
+                            ? { backgroundColor: SHOPEE_ACCENT }
+                            : undefined
+                        }
+                      >
+                        Mais vendidos
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={shopeePreset === "high_commission" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => applyShopeePreset("high_commission")}
+                        className={shopeePreset === "high_commission" ? "text-white" : ""}
+                        style={
+                          shopeePreset === "high_commission"
+                            ? { backgroundColor: SHOPEE_ACCENT }
+                            : undefined
+                        }
+                      >
+                        Maior comissão
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={shopeePreset === "ams_only" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => applyShopeePreset("ams_only")}
+                        className={shopeePreset === "ams_only" ? "text-white" : ""}
+                        style={
+                          shopeePreset === "ams_only"
+                            ? { backgroundColor: SHOPEE_ACCENT }
+                            : undefined
+                        }
+                      >
+                        Comissão extra
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={clearShopeeFilters}
+                      >
+                        Limpar filtros
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-[1fr,auto] gap-2">
+                    <div className="relative">
+                      <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                      <Input
+                        value={shopeeQuery}
+                        onChange={(e) => setShopeeQuery(e.target.value)}
+                        placeholder="Buscar produto na Shopee"
+                        className="pl-9"
+                      />
+                    </div>
+                    <Button
+                      onClick={() => void handleSearchShopee()}
+                      disabled={isLoadingShopee || isAdding}
+                      className="text-white"
+                      style={{ backgroundColor: SHOPEE_ACCENT }}
+                    >
+                      {isLoadingShopee ? "Carregando..." : "Carregar da Shopee"}
+                    </Button>
+                  </div>
+
+                  {shopeeError && (
+                    <Alert variant="destructive">
+                      <AlertDescription>{shopeeError}</AlertDescription>
+                    </Alert>
+                  )}
+
+                  <div className="border rounded-md bg-muted/20">
+                    <div className="flex items-center justify-between px-3 py-2 border-b">
+                      <div className="text-sm text-muted-foreground">
+                        Produtos carregados: {shopeeProducts.length} • Selecionados: {shopeeSelectedIds.length}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          onClick={toggleSelectAllShopee}
+                          disabled={shopeeProducts.length === 0}
+                          variant="outline"
+                          size="sm"
+                        >
+                          {shopeeProducts.length > 0 &&
+                          shopeeProducts.every((p) => shopeeSelectedIds.includes(String(p.itemId)))
+                            ? "Desmarcar todos"
+                            : "Selecionar todos"}
+                        </Button>
+                        <Button
+                          onClick={() => void handleAddSelectedShopee()}
+                          disabled={shopeeSelectedIds.length === 0 || isAdding}
+                          variant={shopeeSelectedIds.length > 0 ? "default" : "outline"}
+                          size="sm"
+                          className={shopeeSelectedIds.length > 0 ? "bg-emerald-600 hover:bg-emerald-700 text-white" : ""}
+                        >
+                          {isAdding ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Adicionando...
+                            </>
+                          ) : (
+                            `Adicionar selecionados (${shopeeSelectedIds.length})`
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                    <ScrollArea className="h-72">
+                      <div className="divide-y">
+                        {shopeeProducts.length === 0 ? (
+                          <div className="p-4 text-sm text-gray-500">
+                            {hasLoadedShopee
+                              ? "Nenhum produto encontrado para os filtros aplicados."
+                              : "Defina os filtros e clique em Carregar da Shopee para buscar produtos."}
+                          </div>
+                        ) : (
+                          shopeeProducts.map((product) => {
+                            const id = String(product.itemId);
+                            const selected = shopeeSelectedIds.includes(id);
+                            const titleText = product.productName || "Produto sem nome";
+                            const link = product.offerLink || product.productLink;
+                            return (
+                              <div key={id} className="p-3 flex gap-3 items-start">
+                                <input
+                                  type="checkbox"
+                                  checked={selected}
+                                  onChange={() => toggleShopeeSelection(id)}
+                                  className="mt-1"
+                                />
+                                {product.imageUrl ? (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img src={product.imageUrl} alt={titleText} className="w-12 h-12 rounded-md object-cover" />
+                                ) : (
+                                  <div className="w-12 h-12 rounded-md bg-gray-800" />
+                                )}
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-sm truncate">{titleText}</div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {product.priceMin || product.price || "--"}
+                                    {product.sales ? ` • ${product.sales} vendas` : ""}
+                                  </div>
+                                </div>
+                                <Button
+                                  onClick={() => {
+                                    if (!link) return;
+                                    void addShopeeProductsToList([product]);
+                                    setShopeeProducts((prev) =>
+                                      prev.filter((p) => String(p.itemId) !== id)
+                                    );
+                                    setShopeeSelectedIds((prev) =>
+                                      prev.filter((selectedId) => selectedId !== id)
+                                    );
+                                  }}
+                                  disabled={!link || isAdding}
+                                  variant="outline"
+                                  size="sm"
+                                >
+                                  Adicionar
+                                </Button>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </ScrollArea>
+                    <div className="flex items-center justify-between px-3 py-2 border-t">
+                      <span className="text-xs text-muted-foreground">Página {shopeePage}</span>
+                      <Button
+                        onClick={() => void loadShopeeProducts(shopeePage + 1, true)}
+                        disabled={!shopeeHasNextPage || isLoadingShopee}
+                        variant="outline"
+                        size="sm"
+                      >
+                        Carregar mais
+                      </Button>
+                    </div>
+                  </div>
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base">2. Itens da lista</CardTitle>
+                <Badge variant="secondary">{items.length}</Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex justify-end">
+                <Button
+                  onClick={() => {
+                    setItems([]);
+                    setSelectedItemIndex(null);
+                    clearSchedulingAfterItemsChange();
+                  }}
+                  disabled={items.length === 0}
+                  variant="outline"
+                  size="sm"
+                  className="text-destructive"
+                >
+                  <Trash2 className="w-3.5 h-3.5 mr-1" />
+                  Limpar
+                </Button>
+              </div>
+
+              {items.length === 0 ? (
+                <div className="text-sm text-muted-foreground border border-dashed rounded-md p-4">
+                  Nenhum item adicionado ainda.
+                </div>
+              ) : (
+                <ScrollArea className="h-[520px]">
+                  <div className="space-y-2 pr-1">
+                    {items.map((item, idx) => {
+                      const thumb =
+                        typeof item.payload?.productImageUrl === "string"
+                          ? (item.payload.productImageUrl as string)
+                          : null;
+                      const isSelected = selectedItemIndex === idx;
+                      const needsAiProcessing = item.payload?.needsAiProcessing === true;
+
+                      return (
+                        <div
+                          key={`${item.link}-${idx}`}
+                          role="button"
+                          tabIndex={0}
+                          className={`w-full text-left border rounded-md p-3 bg-muted/20 transition-colors cursor-pointer ${
+                            isSelected
+                              ? "border-[#7d570e]"
+                              : "border-border hover:border-primary"
+                          }`}
+                          onClick={() => setSelectedItemIndex(idx)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              setSelectedItemIndex(idx);
+                            }
+                          }}
+                        >
+                          <div className="flex gap-3 items-start">
+                            {thumb ? (
+                              <div className="relative w-12 h-12 flex-shrink-0">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={thumb} alt="Produto" className="w-12 h-12 rounded-md object-cover" />
+                              </div>
+                            ) : (
+                              <div className="w-12 h-12 rounded-md bg-gray-800 flex items-center justify-center text-gray-500 text-xs">
+                                IMG
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm truncate">{item.link}</div>
+                              <div className="text-xs text-muted-foreground mt-1 line-clamp-2">{item.message}</div>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="shrink-0"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                removeItemAtIndex(idx);
+                              }}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+
+                          {isSelected && (
+                            <div className="mt-3 pt-3 border-t border-border">
+                              <div className="text-sm text-muted-foreground space-y-2">
+                                <div className="font-medium text-foreground">Mensagem do item</div>
+                                {needsAiProcessing ? (
+                                  <>
+                                    <div>
+                                      A mensagem deste produto ainda será processada automaticamente na fila após criar/agendar a lista.
+                                    </div>
+                                    <Button
+                                      onClick={() => setSelectedItemIndex(null)}
+                                      size="sm"
+                                      variant="outline"
+                                    >
+                                      Fechar
+                                    </Button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Textarea
+                                      value={item.message}
+                                      onChange={(e) => {
+                                        const nextMessage = e.target.value;
+                                        setItems((prev) =>
+                                          prev.map((entry, entryIdx) =>
+                                            entryIdx === idx
+                                              ? { ...entry, message: nextMessage }
+                                              : entry
+                                          )
+                                        );
+                                      }}
+                                      className="min-h-24"
+                                      placeholder="Edite a mensagem do item"
+                                    />
+                                    <div className="flex items-center gap-2">
+                                      <Button
+                                        onClick={() => setSelectedItemIndex(null)}
+                                        size="sm"
+                                        variant="outline"
+                                      >
+                                        Fechar
+                                      </Button>
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </ScrollArea>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">3. Configuração e agendamento</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Título da lista"
+              />
+
+              <div className="space-y-1.5">
+                <div className="text-xs text-muted-foreground">Grupo</div>
+                <Select
+                  value={selectedGroupId ?? ""}
+                  onValueChange={(value) => setSelectedGroupId(value)}
+                  disabled={whatsapp.isGroupsLoading || !groups.length}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder={whatsapp.isGroupsLoading ? "Carregando grupos..." : "Grupo de envio"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {groups.map((group: WhatsAppGroup) => (
+                      <SelectItem key={group.id} value={group.id}>
+                        {group.name || group.id}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="text-xs text-muted-foreground">Intervalo entre envios</div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {[2, 5, 10, 30, 60].map((val) => {
+                    const selected = intervalMinutes === val;
+                    return (
+                      <Button
+                        key={val}
+                        type="button"
+                        size="sm"
+                        variant={selected ? "default" : "outline"}
+                        onClick={() => setIntervalMinutes(val)}
+                        className={selected ? "bg-[#7d570e] hover:bg-[#946a13] text-white" : "text-foreground"}
+                      >
+                        {val === 60 ? "1h" : `${val}m`}
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground whitespace-nowrap">Janela:</span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1 justify-start"
+                  onClick={() => {
+                    initializeDateFields();
+                    setShowDateModal(true);
+                  }}
+                >
+                  <Calendar className="w-4 h-4 mr-2" />
+                  {startAt
+                    ? `${formatDateTime(startAt)}${endAt ? ` até ${formatDateTime(endAt)}` : ""}`
+                    : "Definir data e hora"}
+                </Button>
+              </div>
+
+              {startAt && (
+                <Alert className="border-emerald-700 bg-emerald-900/20 text-emerald-200">
+                  <AlertDescription>
+                    {overflowInfo?.todayCount
+                      ? `Hoje: ${overflowInfo.todayCount} campanha(s) iniciando em ${formatDateTime(startAt)}${overflowInfo.todayEndsAt ? ` e terminando em ${formatDateTime(overflowInfo.todayEndsAt.toISOString())}` : ""}.`
+                      : `Início programado para ${formatDateTime(startAt)}.`}
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {overflowInfo && overflowInfo.days.length > 0 && (
+                <Alert className="border-amber-700 bg-amber-900/30 text-amber-200">
+                  <AlertDescription className="space-y-1">
+                    <div>{overflowInfo.overflowTotal} campanha(s) serão enviadas nos próximos dias:</div>
+                    {overflowInfo.days.map((day) => (
+                      <div key={day.date.toISOString()}>
+                        {day.count} campanha(s) • início {formatDateTime(day.startsAt.toISOString())} • término {formatDateTime(day.endsAt.toISOString())}
+                      </div>
+                    ))}
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              <Button
+                onClick={() => void handleAddScheduledGroup()}
+                disabled={!canAddScheduledGroup}
+                variant={canAddScheduledGroup ? "default" : "outline"}
+                className={`w-full ${
+                  canAddScheduledGroup
+                    ? "bg-emerald-600 hover:bg-emerald-500 text-white"
+                    : ""
+                }`}
+              >
+                <ListPlus className="w-4 h-4 mr-2" />
+                Adicionar grupo na fila
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">4. Grupos agendados</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="space-y-2">
+                <div className="text-sm font-medium">
+                  Grupos agendados ({scheduledGroups.length})
+                </div>
+                {scheduledGroups.length === 0 ? (
+                  <div className="text-sm text-muted-foreground border border-dashed rounded-md p-3">
+                    Nenhum grupo adicionado ainda.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {scheduledGroups.map((group, index) => (
+                      <div
+                        key={`${group.groupId}-${group.startAt}-${index}`}
+                        className="rounded-md border p-3 bg-muted/20"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="text-sm">
+                            <div className="font-medium">{group.groupName}</div>
+                            <div className="text-muted-foreground">
+                              Início: {formatDateTime(group.startAt)}
+                            </div>
+                            {group.endAt && (
+                              <div className="text-muted-foreground">
+                                Fim diário: {formatDateTime(group.endAt)}
+                              </div>
+                            )}
+                            {group.overflowStartAt && (
+                              <div className="text-muted-foreground">
+                                Próximos dias: {formatDateTime(group.overflowStartAt)}
+                              </div>
+                            )}
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => removeScheduledGroup(index)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <Button
+                onClick={() => void handleCreateList()}
+                disabled={isSubmitting || !selectedAccount || scheduledGroups.length === 0 || items.length === 0}
+                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Criando lista...
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4 mr-2" />
+                    Criar e agendar lista
+                  </>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="xl:col-span-5 space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <ShoppingBag className="w-4 h-4" />
+                Listas criadas recentemente
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Carregando listas...
+                </div>
+              ) : batches.length === 0 ? (
+                <div className="text-center text-muted-foreground">Nenhuma lista encontrada.</div>
+              ) : (
+                <div className="space-y-3">
+                  {batches.map((batch) => (
+                    <div
+                      key={batch.documentId}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => void handleSelectBatch(batch)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          void handleSelectBatch(batch);
+                        }
+                      }}
+                      className="w-full text-left border rounded-lg p-4 bg-muted/20 hover:border-primary transition-colors cursor-pointer"
+                    >
+                      {(() => {
+                        const batchStatus = resolveBatchStatus(batch);
+                        const isFinalized = isBatchFinalized(batchStatus);
+
+                        return (
+                      <div className="flex items-center justify-between gap-4">
+                        <div>
+                          <div className="font-semibold">
+                            {batch.title || "Lista de disparo"}
+                          </div>
+                          <div className="text-sm text-muted-foreground">Grupo: {batch.groupName || batch.groupId}</div>
+                          <div className="text-xs text-muted-foreground">
+                            Status:{" "}
+                            <span
+                              className={
+                                isFinalized
+                                  ? "text-muted-foreground"
+                                  : "text-emerald-400"
+                              }
+                            >
+                              {formatBatchStatus(batchStatus)}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <div className="text-xs text-muted-foreground text-right">
+                            Início: {formatDateTime(batch.startAt)}
+                          </div>
+                          {!isFinalized && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              title="Cancelar agendamento"
+                              aria-label="Cancelar agendamento"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void handleCancelBatch(batch.documentId);
+                              }}
+                            >
+                              <Ban className="w-4 h-4 text-amber-400" />
+                            </Button>
+                          )}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive hover:text-destructive"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void handleDeleteBatch(batch.documentId);
+                            }}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                        );
+                      })()}
+                      <div className="text-xs text-muted-foreground mt-2">
+                        Intervalo: {batch.intervalMinutes ? `${batch.intervalMinutes} min` : "--"} • Itens: {batch.itemsCount ?? "--"} • Fim: {formatDateTime(batch.endAt)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </div>
 
-      <div className="bg-black border border-gray-800 rounded-lg p-6 space-y-4">
-        <div className="flex items-center gap-2 text-gray-300">
-          <ListPlus className="w-4 h-4 text-[#7d570e]" />
-          <span>Criar nova lista</span>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="lg:col-span-2 space-y-3">
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Título da lista (opcional)"
-              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md text-white"
-            />
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <label className="text-sm text-gray-400 block mb-1">
-                  Intervalo (min)
-                </label>
-                <select
-                  value={intervalMinutes}
-                  onChange={(e) => setIntervalMinutes(Number(e.target.value))}
-                  className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md text-white"
-                >
-                  {[2, 5, 10, 30, 60].map((val) => (
-                    <option key={val} value={val}>
-                      {val === 60 ? "60 (1h)" : val}
-                    </option>
-                  ))}
-                </select>
-              </div>
-          <div className="sm:col-span-2">
-            <label className="text-sm text-gray-400 block mb-1">
-              Início (opcional)
-            </label>
-            <button
-              onClick={() => {
-                initializeDateFields();
-                setShowDateModal(true);
-              }}
-              className="w-full flex items-center gap-2 px-3 py-2 bg-gray-900 border border-gray-700 rounded-md text-white text-left hover:border-[#7d570e]"
-            >
-              <Calendar className="w-4 h-4 text-gray-400" />
-              {startAt
-                ? new Date(startAt).toLocaleString()
-                : "Definir data e hora"}
-            </button>
-            <p className="text-xs text-gray-500 mt-1">
-              Definição obrigatória: use uma data futura.
-            </p>
-          </div>
-        </div>
-
-            <div className="space-y-2">
-              <label className="text-sm text-gray-400 block mb-1">
-                Grupo de envio
-              </label>
-              {whatsapp.isGroupsLoading ? (
-                <div className="flex items-center gap-2 text-gray-300">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Carregando grupos...
-                </div>
-              ) : groups.length ? (
-                <select
-                  value={selectedGroupId ?? ""}
-                  onChange={(e) => setSelectedGroupId(e.target.value)}
-                  className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-white"
-                >
-                  {groups.map((group: WhatsAppGroup) => (
-                    <option key={group.id} value={group.id}>
-                      {group.name || group.id}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <div className="text-gray-400">
-                  Nenhum grupo disponível. Configure em Perfil &gt; WhatsApp.
-                </div>
-              )}
-            </div>
-          </div>
+      <Dialog open={showDateModal} onOpenChange={setShowDateModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Definir data e hora</DialogTitle>
+            <DialogDescription>
+              Configure início e, se necessário, uma hora final diária.
+            </DialogDescription>
+          </DialogHeader>
 
           <div className="space-y-3">
-            <div className="text-sm text-gray-300 font-semibold">
-              Itens da lista
-            </div>
             <div className="space-y-2">
-              <input
-                type="url"
-                value={linkInput}
-                onChange={(e) => setLinkInput(e.target.value)}
-                placeholder="Link da Shopee"
-                className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md text-white"
-              />
-              <button
-                onClick={handleAddItem}
-                disabled={!linkInput.trim() || isAdding}
-                className="w-full px-3 py-2 rounded-md bg-[#7d570e] text-white hover:bg-[#6b4a0c] disabled:opacity-50"
-              >
-                {isAdding ? "Processando..." : "Adicionar link"}
-              </button>
-            </div>
-            {items.length === 0 ? (
-              <div className="text-sm text-gray-400">
-                Nenhum item adicionado ainda.
+              <span className="text-sm text-muted-foreground">Início da lista</span>
+              <div className="relative">
+                <Input
+                  ref={startAtInputRef}
+                  type="datetime-local"
+                  value={startAtField}
+                  onChange={(e) => setStartAtField(e.target.value)}
+                  onFocus={(e) => openNativeDateTimePicker(e.currentTarget)}
+                  onClick={(e) => openNativeDateTimePicker(e.currentTarget)}
+                  className="promoter-datetime-input pr-12"
+                  style={{ colorScheme: "dark" }}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 text-white hover:text-white"
+                  onClick={() => openNativeDateTimePicker(startAtInputRef.current)}
+                >
+                  <Calendar className="w-4 h-4" />
+                </Button>
               </div>
-            ) : (
-              <div className="space-y-2 max-h-60 overflow-y-auto">
-                {items.map((item, idx) => {
-                  const thumb =
-                    typeof item.payload?.productImageUrl === "string"
-                      ? (item.payload.productImageUrl as string)
-                      : null;
-                  return (
-                    <button
-                      key={`${item.link}-${idx}`}
-                      className={`w-full text-left border rounded-md p-3 bg-gray-900 flex gap-3 items-start ${
-                        selectedItem === item
-                          ? "border-[#7d570e]"
-                          : "border-gray-800 hover:border-[#7d570e]"
-                      }`}
-                      onClick={() => setSelectedItem(item)}
-                    >
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm text-muted-foreground">Fim diário (opcional)</span>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={closeNativeDateTimePicker}
+                  >
+                    Fechar seletor
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setEndAtField("");
+                    }}
+                  >
+                    Limpar
+                  </Button>
+                </div>
+              </div>
+              <div className="relative">
+                <Input
+                  ref={endAtInputRef}
+                  type="datetime-local"
+                  value={endAtField}
+                  onChange={(e) => setEndAtField(e.target.value)}
+                  onFocus={(e) => openNativeDateTimePicker(e.currentTarget)}
+                  onClick={(e) => openNativeDateTimePicker(e.currentTarget)}
+                  className="promoter-datetime-input pr-12"
+                  style={{ colorScheme: "dark" }}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 text-white hover:text-white"
+                  onClick={() => openNativeDateTimePicker(endAtInputRef.current)}
+                >
+                  <Calendar className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDateModal(false)}>
+              Cancelar
+            </Button>
+            <Button
+              className="bg-emerald-600 hover:bg-emerald-500 text-white"
+              onClick={() => {
+                if (!startAtField) {
+                  showProblemNotice("Informe data e hora para agendar.");
+                  return;
+                }
+                const combinedStart = new Date(startAtField);
+                if (Number.isNaN(combinedStart.getTime()) || combinedStart.getTime() < Date.now()) {
+                  showProblemNotice("Escolha uma data e hora no futuro.");
+                  return;
+                }
+
+                let combinedEndIso = "";
+                if (endAtField) {
+                  const combinedEnd = new Date(endAtField);
+                  if (Number.isNaN(combinedEnd.getTime())) {
+                    showProblemNotice("Escolha uma data final válida.");
+                    return;
+                  }
+                  if (combinedEnd.getTime() < combinedStart.getTime()) {
+                    showProblemNotice("A data final deve ser maior ou igual ao início.");
+                    return;
+                  }
+                  combinedEndIso = combinedEnd.toISOString();
+                }
+
+                let combinedOverflowIso = "";
+                if (combinedEndIso) {
+                  const autoOverflow = new Date(combinedStart);
+                  autoOverflow.setDate(autoOverflow.getDate() + 1);
+                  autoOverflow.setHours(8, 0, 0, 0);
+                  combinedOverflowIso = autoOverflow.toISOString();
+                }
+
+                setStartAt(combinedStart.toISOString());
+                setEndAt(combinedEndIso);
+                setOverflowStartAt(combinedOverflowIso);
+                setError(null);
+                setShowDateModal(false);
+              }}
+            >
+              Aplicar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={noticeDialog.open}
+        onOpenChange={(open) =>
+          setNoticeDialog((prev) => ({ ...prev, open }))
+        }
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{noticeDialog.title}</DialogTitle>
+            <DialogDescription className="whitespace-pre-line">
+              {noticeDialog.description}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              onClick={() =>
+                setNoticeDialog((prev) => ({ ...prev, open: false }))
+              }
+            >
+              Entendi
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={quotaDialog.open}
+        onOpenChange={(open) => {
+          if (!open && quotaDialog.open) {
+            resolveQuotaDialog(false);
+          } else {
+            setQuotaDialog((prev) => ({ ...prev, open }));
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{quotaDialog.title}</DialogTitle>
+            <DialogDescription className="whitespace-pre-line">
+              {quotaDialog.description}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => resolveQuotaDialog(false)}>
+              {quotaDialog.mode === "confirm" ? "Cancelar" : "Fechar"}
+            </Button>
+            {quotaDialog.mode === "insufficient" && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  window.open("https://masterafiliados.com.br/contato", "_blank", "noopener,noreferrer");
+                }}
+              >
+                Entrar em contato
+              </Button>
+            )}
+            {quotaDialog.mode === "confirm" && (
+              <Button
+                className="bg-emerald-600 hover:bg-emerald-500 text-white"
+                onClick={() => resolveQuotaDialog(true)}
+              >
+                Confirmar
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(selectedBatch)} onOpenChange={(open) => !open && setSelectedBatch(null)}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {selectedBatch?.title || "Lista de disparo"}
+            </DialogTitle>
+            <DialogDescription>
+              Grupo: {selectedBatch?.groupName || selectedBatch?.groupId} • Status: {formatBatchStatus(resolveBatchStatus(selectedBatch))}
+            </DialogDescription>
+          </DialogHeader>
+
+          {isDetailLoading ? (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Carregando itens...
+            </div>
+          ) : batchDetail?.campaigns && batchDetail.campaigns.length > 0 ? (
+            <div className="space-y-3">
+              {batchDetail.campaigns.map((campaign: WhatsAppBatchCampaign) => {
+                const thumb =
+                  campaign.payload && typeof campaign.payload === "object"
+                    ? (campaign.payload["productImageUrl"] as string | undefined)
+                    : undefined;
+                return (
+                  <div key={campaign.documentId} className="border rounded-md p-3 bg-muted/20">
+                    <div className="flex items-start gap-3">
                       {thumb ? (
                         <div className="relative w-12 h-12 flex-shrink-0">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={thumb}
-                            alt="Produto"
-                            className="w-12 h-12 rounded-md object-cover"
-                          />
+                          <img src={thumb} alt="Produto" className="w-12 h-12 rounded-md object-cover" />
                         </div>
                       ) : (
                         <div className="w-12 h-12 rounded-md bg-gray-800 flex items-center justify-center text-gray-500 text-xs">
@@ -372,295 +2235,46 @@ export default function PromoterListsPage() {
                         </div>
                       )}
                       <div className="flex-1 min-w-0">
-                        <div className="text-white text-sm truncate">
-                          {item.link}
+                        <div className="flex items-center justify-between">
+                          <div className="text-sm font-semibold">
+                            {campaign.groupName || campaign.groupId}
+                          </div>
+                          <div className="text-xs text-muted-foreground">{campaign.statusCampaign}</div>
                         </div>
-                        <div className="text-xs text-gray-500 mt-1 line-clamp-2">
-                          {item.message}
+                        <div className="mt-1 text-sm whitespace-pre-wrap">
+                          {campaign.message || ""}
                         </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-            <button
-              onClick={handleCreateList}
-              disabled={
-                isSubmitting ||
-                !selectedAccount ||
-                !selectedGroupId ||
-                items.length === 0
-              }
-              className="w-full px-3 py-2 rounded-md bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-50"
-            >
-              {isSubmitting ? (
-                <span className="inline-flex items-center gap-2">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Criando lista...
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-2">
-                  <Send className="w-4 h-4" />
-                  Criar e agendar lista
-                </span>
-              )}
-            </button>
-          </div>
-
-          {/* Item preview */}
-          <div className="lg:col-span-3">
-            {selectedItem ? (
-              <div className="border border-gray-800 rounded-md p-4 bg-gray-900 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="text-white font-semibold">Prévia do item</div>
-                  <button
-                    onClick={() => setSelectedItem(null)}
-                    className="p-1 rounded-md text-gray-400 hover:text-white"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-                <div className="text-sm text-gray-300 break-words">
-                  <span className="font-semibold text-gray-200">Link: </span>
-                  {selectedItem.link}
-                </div>
-                <div className="text-sm text-gray-300 whitespace-pre-wrap">
-                  <span className="font-semibold text-gray-200">Mensagem:</span>
-                  <div className="mt-1">{selectedItem.message}</div>
-                </div>
-              </div>
-            ) : (
-              <div className="text-sm text-gray-400 border border-dashed border-gray-800 rounded-md p-4 bg-gray-900/60">
-                Clique em um item para ver a mensagem que será enviada.
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-black border border-gray-800 rounded-lg p-6">
-        {isLoading ? (
-          <div className="flex items-center gap-2 text-gray-300">
-            <Loader2 className="w-4 h-4 animate-spin" />
-            Carregando listas...
-          </div>
-        ) : error ? (
-          <div className="text-sm text-red-300 border border-red-800 bg-red-900/30 rounded-md p-3">
-            {error}
-          </div>
-        ) : batches.length === 0 ? (
-          <div className="text-center text-gray-400">
-            Nenhuma lista encontrada.
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {batches.map((batch) => (
-              <button
-                key={batch.documentId}
-                onClick={() => handleSelectBatch(batch)}
-                className="w-full text-left border border-gray-800 rounded-lg p-4 bg-gray-900 hover:border-[#7d570e] transition-colors"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-white font-semibold">
-                      {batch.title || "Lista de disparo"}
-                    </div>
-                    <div className="text-sm text-gray-400">
-                      Grupo: {batch.groupName || batch.groupId}
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      Status: {batch.status}
-                    </div>
-                  </div>
-                  <div className="text-xs text-gray-400 text-right">
-                    Início:{" "}
-                    {batch.startAt
-                      ? new Date(batch.startAt).toLocaleString()
-                      : "--"}
-                  </div>
-                </div>
-                <div className="text-xs text-gray-500 mt-2">
-                  Intervalo:{" "}
-                  {batch.intervalMinutes ? `${batch.intervalMinutes} min` : "--"} •{" "}
-                  Itens: {batch.itemsCount ?? "--"}
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {selectedBatch && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
-          <div className="bg-black border border-gray-800 rounded-lg p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-xl font-semibold text-white">
-                  {selectedBatch.title || "Lista de disparo"}
-                </div>
-                <div className="text-sm text-gray-400">
-                  Grupo: {selectedBatch.groupName || selectedBatch.groupId} • Status: {selectedBatch.status}
-                </div>
-                <div className="text-xs text-gray-500">
-                  Início:{" "}
-                  {selectedBatch.startAt
-                    ? new Date(selectedBatch.startAt).toLocaleString()
-                    : "--"}
-                </div>
-              </div>
-              <button
-                onClick={() => {
-                  setSelectedBatch(null);
-                  setBatchDetail(null);
-                }}
-                className="p-2 rounded-md text-gray-400 hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {isDetailLoading ? (
-              <div className="flex items-center gap-2 text-gray-300">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Carregando itens...
-              </div>
-            ) : batchDetail?.campaigns && batchDetail.campaigns.length > 0 ? (
-              <div className="space-y-3">
-                {batchDetail.campaigns.map((campaign: WhatsAppBatchCampaign) => {
-                  const thumb =
-                    campaign.payload && typeof campaign.payload === "object"
-                      ? (campaign.payload["productImageUrl"] as string | undefined)
-                      : undefined;
-                  return (
-                    <div
-                      key={campaign.documentId}
-                      className="border border-gray-800 rounded-md p-3 bg-gray-900"
-                    >
-                      <div className="flex items-start gap-3">
-                        {thumb ? (
-                          <div className="relative w-12 h-12 flex-shrink-0">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={thumb}
-                              alt="Produto"
-                              className="w-12 h-12 rounded-md object-cover"
-                            />
-                          </div>
-                        ) : (
-                          <div className="w-12 h-12 rounded-md bg-gray-800 flex items-center justify-center text-gray-500 text-xs">
-                            IMG
-                          </div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between">
-                            <div className="text-sm text-gray-300 font-semibold">
-                              {campaign.groupName || campaign.groupId}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              {campaign.statusCampaign}
-                            </div>
-                          </div>
-                          <div className="mt-1 text-sm text-gray-200 whitespace-pre-wrap">
-                            {campaign.message || ""}
-                          </div>
-                          <div className="text-xs text-gray-500 mt-1">
-                            Agendado:{" "}
-                            {campaign.scheduledAt
-                              ? new Date(campaign.scheduledAt).toLocaleString()
-                              : "--"}
-                          </div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          Agendado: {formatDateTime(campaign.scheduledAt)}
                         </div>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="text-gray-400">Nenhum item encontrado.</div>
-            )}
-          </div>
-        </div>
-      )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-muted-foreground">Nenhum item encontrado.</div>
+          )}
 
-      {/* Date modal */}
-      {showDateModal && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
-          <div className="bg-black border border-gray-800 rounded-lg p-6 w-full max-w-md space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-white font-semibold">
-                <Calendar className="w-4 h-4" />
-                Definir data e hora
-              </div>
-              <button
-                onClick={() => setShowDateModal(false)}
-                className="p-2 rounded-md text-gray-400 hover:text-white"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="space-y-3">
-              <div>
-                <label className="text-sm text-gray-400 block mb-1">
-                  Data
-                </label>
-                <input
-                  type="date"
-                  value={dateField}
-                  onChange={(e) => setDateField(e.target.value)}
-                  className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md text-white"
-                />
-              </div>
-              <div>
-                <label className="text-sm text-gray-400 block mb-1">
-                  Hora
-                </label>
-                <input
-                  type="time"
-                  value={timeField}
-                  onChange={(e) => setTimeField(e.target.value)}
-                  className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md text-white"
-                />
-              </div>
-            </div>
-            <div className="flex gap-2 justify-end">
-              <button
-                onClick={() => setShowDateModal(false)}
-                className="px-4 py-2 rounded-md border border-gray-700 text-gray-200 hover:border-gray-500"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={() => {
-                  if (!dateField || !timeField) {
-                    setError("Informe data e hora para agendar.");
-                    return;
-                  }
-                  const combined = new Date(`${dateField}T${timeField}:00`);
-                  if (Number.isNaN(combined.getTime()) || combined.getTime() < Date.now()) {
-                    setError("Escolha uma data e hora no futuro.");
-                    return;
-                  }
-                  setStartAt(combined.toISOString());
-                  setShowDateModal(false);
-                }}
-                className="px-4 py-2 rounded-md bg-emerald-600 text-white hover:bg-emerald-500"
-              >
-                Aplicar
-              </button>
-            </div>
-            {error && (
-              <div className="text-sm text-red-300 border border-red-800 bg-red-900/30 rounded-md p-2">
-                {error}
-              </div>
-            )}
-            <div className="text-xs text-gray-500 flex items-center gap-2">
-              <Info className="w-4 h-4" />
-              Se não definir, usará o horário atual para enviar.
-            </div>
-          </div>
-        </div>
-      )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setSelectedBatch(null);
+              setBatchDetail(null);
+            }}>
+              <X className="w-4 h-4 mr-2" />
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <style jsx global>{`
+        .promoter-datetime-input::-webkit-calendar-picker-indicator {
+          opacity: 0;
+          pointer-events: none;
+        }
+      `}</style>
     </div>
   );
 }

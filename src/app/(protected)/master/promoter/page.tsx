@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -25,7 +25,23 @@ import {
 import type { PromoterHistoryItem, PromoterPreview } from "@/interfaces/promoter";
 import { useWhatsApp } from "@/hooks/use-whatsapp";
 import PromoterSendModal from "@/components/whatsapp/PromoterSendModal";
-import { fetchUserSubscriptions, hasSubscription, isSubscriptionPremium } from "@/services/user-subscription.service";
+import {
+  fetchUserSubscriptions,
+  hasSubscription,
+  isSubscriptionPremium,
+} from "@/services/user-subscription.service";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 type TabKey = "create" | "links" | "campaigns";
 
@@ -40,18 +56,20 @@ export default function PromoterPage() {
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<PromoterHistoryItem[]>([]);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
-  const [historyPage, setHistoryPage] = useState(1);
   const [historyHasMore, setHistoryHasMore] = useState(true);
   const [showSendModal, setShowSendModal] = useState(false);
   const [allowAccess, setAllowAccess] = useState<boolean | null>(null);
   const [sendSuccess, setSendSuccess] = useState<string | null>(null);
+  const historyPageRef = useRef(1);
 
   const defaultImage =
-    preview?.payload?.productImageUrl && typeof preview.payload.productImageUrl === "string"
+    preview?.payload?.productImageUrl &&
+    typeof preview.payload.productImageUrl === "string"
       ? (preview.payload.productImageUrl as string)
       : null;
   const productTitle =
-    preview?.payload?.productTitle && typeof preview.payload.productTitle === "string"
+    preview?.payload?.productTitle &&
+    typeof preview.payload.productTitle === "string"
       ? (preview.payload.productTitle as string)
       : "Promoção Shopee";
 
@@ -61,7 +79,8 @@ export default function PromoterPage() {
         const response = await fetchUserSubscriptions();
         const subs = response.data || [];
         const allowed =
-          hasSubscription(subs, "MASTER_PROMOTER") || isSubscriptionPremium(subs);
+          hasSubscription(subs, "MASTER_PROMOTER") ||
+          isSubscriptionPremium(subs);
         setAllowAccess(allowed);
       } catch {
         setAllowAccess(false);
@@ -70,36 +89,45 @@ export default function PromoterPage() {
     void checkSubscription();
   }, []);
 
-  const loadHistory = useCallback(async (reset = false) => {
-    setIsHistoryLoading(true);
-    setError(null);
-    const nextPage = reset ? 1 : historyPage;
-    try {
-      const result = await fetchPromoterHistory({
-        page: nextPage,
-        pageSize: 10,
-      });
-      if (reset) {
-        setHistory(result.items);
-      } else {
-        setHistory((prev) => [...prev, ...result.items]);
+  const loadHistory = useCallback(
+    async (reset = false) => {
+      setIsHistoryLoading(true);
+      setError(null);
+      const nextPage = reset ? 1 : historyPageRef.current;
+      try {
+        const result = await fetchPromoterHistory({
+          page: nextPage,
+          pageSize: 10,
+        });
+        if (reset) {
+          setHistory(result.items);
+        } else {
+          setHistory((prev) => [...prev, ...result.items]);
+        }
+        setHistoryHasMore(
+          !!result.meta &&
+            (result.meta.page ?? 1) < (result.meta.pageCount ?? 1)
+        );
+        historyPageRef.current = nextPage + 1;
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : "Erro ao carregar histórico."
+        );
+      } finally {
+        setIsHistoryLoading(false);
       }
-      setHistoryHasMore(
-        !!result.meta && (result.meta.page ?? 1) < (result.meta.pageCount ?? 1)
-      );
-      setHistoryPage(nextPage + 1);
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Erro ao carregar histórico."
-      );
-    } finally {
-      setIsHistoryLoading(false);
-    }
-  }, [historyPage]);
+    },
+    []
+  );
 
   useEffect(() => {
     void loadHistory(true);
+  }, [loadHistory]);
+
+  useEffect(() => {
     if (activeTab === "links") {
+      historyPageRef.current = 1;
+      setHistoryHasMore(true);
       void loadHistory(true);
     }
   }, [activeTab, loadHistory]);
@@ -125,7 +153,10 @@ export default function PromoterPage() {
     }
     setIsLoadingPreview(true);
     try {
-      const data = await promoterPreview(linkInput.trim(), force ? "" : undefined);
+      const data = await promoterPreview(
+        linkInput.trim(),
+        force ? "" : undefined
+      );
       setPreview({
         message: data.message || "",
         payload: data.payload || {},
@@ -133,7 +164,9 @@ export default function PromoterPage() {
       setShowSendModal(true);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Erro ao gerar mensagem de divulgação."
+        err instanceof Error
+          ? err.message
+          : "Erro ao gerar mensagem de divulgação."
       );
     } finally {
       setIsLoadingPreview(false);
@@ -151,387 +184,45 @@ export default function PromoterPage() {
     }
   };
 
-  const renderHeader = () => (
-    <div className="bg-black shadow rounded-lg p-6 border border-gray-800 mb-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => router.back()}
-            className="text-[#7d570e] hover:text-[#6b4a0c] transition-colors"
-            aria-label="Voltar"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div>
-            <h1 className="text-2xl font-bold text-white">Divulgador Master</h1>
-            <p className="text-gray-300">
-              Gere mensagens de promoção e dispare para seus grupos.
-            </p>
-          </div>
-        </div>
-        <Link
-          href="/profile/whatsapp"
-          className="text-sm px-4 py-2 rounded-md border border-gray-700 text-gray-200 hover:border-[#7d570e] hover:text-white transition-colors"
-        >
-          Configurar WhatsApp
-        </Link>
-      </div>
-    </div>
-  );
-
-  const renderTabs = () => (
-    <div className="flex gap-2 mb-4">
-      {[
-        { key: "create", label: "Criar envio", icon: MessageCircle },
-        { key: "links", label: "Histórico de links", icon: Copy },
-        { key: "campaigns", label: "Listas / Disparos", icon: Clock },
-      ].map((tab) => {
-        const Icon = tab.icon;
-        return (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key as TabKey)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md border ${
-              activeTab === tab.key
-                ? "border-[#7d570e] text-white"
-                : "border-gray-700 text-gray-300 hover:border-[#7d570e]"
-            }`}
-          >
-            <Icon className="w-4 h-4" />
-            {tab.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-
-  const renderCreateTab = () => (
-    <div className="bg-black border border-gray-800 rounded-lg p-6">
-      {sendSuccess && (
-        <div className="mb-4 p-3 rounded-md border border-emerald-700 bg-emerald-900/40 text-emerald-200">
-          {sendSuccess}
-        </div>
-      )}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-4">
-          <div className="flex items-start gap-3">
-            <div className="w-12 h-12 rounded-lg bg-[#7d570e] flex items-center justify-center">
-              <Bolt className="w-5 h-5 text-white" />
-            </div>
-            <div className="flex-1">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-semibold text-white">
-                    Gerar divulgação automática
-                  </h2>
-                  <p className="text-gray-300 text-sm">
-                    Cole o link da Shopee e criaremos a mensagem e a prévia.
-                  </p>
-                </div>
-                <Link
-                  href="/master/promoter/lists"
-                  className="inline-flex items-center gap-2 px-3 py-2 text-sm rounded-md border border-gray-700 text-gray-200 hover:border-[#7d570e]"
-                >
-                  <ListChecks className="w-4 h-4" />
-                  Listas automáticas
-                </Link>
-              </div>
-              <div className="mt-4 space-y-3">
-                <label className="text-sm text-gray-300">Link do produto</label>
-                <input
-                  type="url"
-                  value={linkInput}
-                  onChange={(e) => setLinkInput(e.target.value)}
-                  placeholder="https://shopee.com.br/..."
-                  className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md text-white focus:border-[#7d570e]"
-                />
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handlePreview()}
-                    disabled={!linkInput.trim() || isLoadingPreview}
-                    className="px-4 py-2 rounded-md bg-[#7d570e] text-white hover:bg-[#6b4a0c] disabled:opacity-50"
-                  >
-                    {isLoadingPreview ? "Processando..." : "Gerar divulgação"}
-                  </button>
-                  <button
-                    onClick={() => handlePreview(true)}
-                    disabled={!linkInput.trim() || isLoadingPreview}
-                    className="px-4 py-2 rounded-md border border-gray-700 text-gray-200 hover:border-[#7d570e] disabled:opacity-50"
-                  >
-                    Reprocessar
-                  </button>
-                </div>
-                {error && (
-                  <div className="text-sm text-red-300 border border-red-800 bg-red-900/30 rounded-md p-3">
-                    {error}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {isLoadingPreview && (
-            <div className="flex items-center gap-2 text-gray-300">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Gerando mensagem...
-            </div>
-          )}
-
-          {preview && (
-            <div className="border border-gray-800 rounded-lg p-4 bg-gray-900 space-y-4">
-              <div className="flex gap-3 items-start">
-                {defaultImage ? (
-                  <div className="relative w-16 h-16">
-                    <Image
-                      src={defaultImage}
-                      alt={productTitle}
-                      fill
-                      className="object-cover rounded-md"
-                      unoptimized
-                    />
-                  </div>
-                ) : (
-                  <div className="w-16 h-16 rounded-md bg-gray-800 flex items-center justify-center text-gray-500">
-                    <MessageCircle className="w-6 h-6" />
-                  </div>
-                )}
-                <div className="flex-1">
-                  <div className="text-white font-semibold mb-1">
-                    {productTitle}
-                  </div>
-                  <textarea
-                    value={preview.message}
-                    onChange={(e) =>
-                      setPreview({ ...preview, message: e.target.value })
-                    }
-                    rows={6}
-                    className="w-full bg-gray-950 border border-gray-800 rounded-md px-3 py-2 text-white resize-none"
-                  />
-                </div>
-              </div>
-              <div className="flex flex-col sm:flex-row gap-2">
-                <button
-                  onClick={() => setShowSendModal(true)}
-                  disabled={!preview || !linkInput.trim()}
-                  className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-50"
-                >
-                  <Send className="w-4 h-4" />
-                  Enviar pelo WhatsApp
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 space-y-3">
-          <div className="flex items-center gap-2 text-white font-semibold">
-            <Copy className="w-4 h-4" />
-            Histórico de links
-          </div>
-          {isHistoryLoading && history.length === 0 ? (
-            <div className="flex items-center gap-2 text-gray-300">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Carregando histórico...
-            </div>
-          ) : history.length === 0 ? (
-            <div className="text-gray-400">Nenhum registro encontrado.</div>
-          ) : (
-            <div className="space-y-2 max-h-[520px] overflow-y-auto">
-              {history.map((item) => (
-                <div
-                  key={item.documentId}
-                  className="border border-gray-800 rounded-md p-3 bg-gray-950"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm text-gray-400">Link</div>
-                      <div className="text-white truncate">
-                        {item.link}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {item.createdAt
-                          ? new Date(item.createdAt).toLocaleString()
-                          : ""}
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => handleDeleteHistory(item)}
-                      className="p-2 rounded-md border border-red-800 text-red-300 hover:bg-red-900/40"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <div className="mt-2 text-gray-200 text-sm whitespace-pre-wrap line-clamp-3">
-                    {item.message || ""}
-                  </div>
-                  <div className="mt-2 flex gap-2">
-                    <button
-                      onClick={() => {
-                        setLinkInput(item.link);
-                        setPreview({
-                          message: item.message || "",
-                          payload: item.payload || {},
-                        });
-                        setActiveTab("create");
-                        setSendSuccess(null);
-                      }}
-                      className="px-3 py-1.5 text-xs rounded-md border border-gray-700 text-gray-200 hover:border-[#7d570e]"
-                    >
-                      Reabrir
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          {historyHasMore && (
-            <button
-              onClick={() => loadHistory()}
-              disabled={isHistoryLoading}
-              className="w-full px-3 py-2 rounded-md border border-gray-700 text-gray-200 hover:border-[#7d570e] disabled:opacity-50"
-            >
-              {isHistoryLoading ? "Carregando..." : "Carregar mais"}
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderHistoryTab = () => (
-    <div className="bg-black border border-gray-800 rounded-lg p-6">
-      {isHistoryLoading && history.length === 0 ? (
-        <div className="flex items-center justify-center py-10 text-gray-300">
-          <Loader2 className="w-5 h-5 animate-spin mr-2" />
-          Carregando histórico...
-        </div>
-      ) : history.length === 0 ? (
-        <div className="text-center text-gray-400 py-10">
-          Nenhum registro encontrado.
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {history.map((item) => (
-            <div
-              key={item.documentId}
-              className="border border-gray-800 rounded-lg p-4 bg-gray-900"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-sm text-gray-400">Link</div>
-                  <div className="text-white truncate max-w-md">{item.link}</div>
-                  <div className="text-xs text-gray-500">
-                    {item.createdAt
-                      ? new Date(item.createdAt).toLocaleString()
-                      : ""}
-                  </div>
-                </div>
-                <button
-                  onClick={() => handleDeleteHistory(item)}
-                  className="p-2 rounded-md border border-red-800 text-red-300 hover:bg-red-900/40"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-              <div className="mt-3 text-gray-200 whitespace-pre-wrap">
-                {item.message || ""}
-              </div>
-              <div className="mt-3 flex gap-2">
-                <button
-                  onClick={() => {
-                    setLinkInput(item.link);
-                    setPreview({
-                      message: item.message || "",
-                      payload: item.payload || {},
-                    });
-                    setActiveTab("create");
-                  }}
-                  className="px-3 py-2 text-sm rounded-md border border-gray-700 text-gray-200 hover:border-[#7d570e]"
-                >
-                  Reabrir
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-      {historyHasMore && (
-        <div className="flex justify-center mt-4">
-          <button
-            onClick={() => loadHistory()}
-            disabled={isHistoryLoading}
-            className="px-4 py-2 rounded-md border border-gray-700 text-gray-200 hover:border-[#7d570e] disabled:opacity-50"
-          >
-            {isHistoryLoading ? "Carregando..." : "Carregar mais"}
-          </button>
-        </div>
-      )}
-    </div>
-  );
-
-  const renderCampaignsTab = () => (
-    <div className="bg-black border border-gray-800 rounded-lg p-6 space-y-4">
-      <div className="flex items-center gap-2 text-gray-300">
-        <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-        Acompanhe seus disparos e listas agendadas.
-      </div>
-      <div className="p-4 rounded-lg border border-gray-800 bg-gray-900">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-white font-semibold">Listas automáticas</div>
-            <p className="text-gray-400 text-sm">
-              Monte filas de links e dispare com intervalos definidos.
-            </p>
-          </div>
-          <Link
-            href="/master/promoter/lists"
-            className="px-3 py-2 text-sm rounded-md border border-gray-700 text-gray-200 hover:border-[#7d570e]"
-          >
-            Abrir listas
-          </Link>
-        </div>
-      </div>
-      <div className="p-4 rounded-lg border border-gray-800 bg-gray-900">
-        <div className="text-gray-400">
-          Consulte o histórico completo de disparos na aba de histórico do WhatsApp.
-        </div>
-        <Link
-          href="/profile/whatsapp"
-          className="inline-flex mt-3 text-sm px-3 py-2 rounded-md border border-gray-700 text-gray-200 hover:border-[#7d570e]"
-        >
-          Ver histórico de disparos
-        </Link>
-      </div>
-    </div>
-  );
+  const tabItems: { key: TabKey; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+    { key: "create", label: "Criar envio", icon: MessageCircle },
+    { key: "links", label: "Histórico", icon: Copy },
+    { key: "campaigns", label: "Listas / Disparos", icon: Clock },
+  ];
 
   if (allowAccess === false) {
     return (
       <div className="space-y-6">
-        {renderHeader()}
-        <div className="bg-black border border-gray-800 rounded-lg p-8 text-center">
-          <div className="text-[#7d570e] font-semibold text-lg mb-2">
-            Recurso exclusivo para Divulgador Master ou Premium
-          </div>
-          <p className="text-gray-300 mb-4">
-            Ative sua assinatura para gerar e enviar links automaticamente pelo WhatsApp.
-          </p>
-          <a
-            href="https://masterafiliados.com.br"
-            target="_blank"
-            rel="noreferrer"
-            className="px-4 py-2 rounded-md bg-[#7d570e] text-white hover:bg-[#6b4a0c]"
-          >
-            Conhecer planos
-          </a>
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Divulgador Master</CardTitle>
+            <CardDescription>
+              Recurso exclusivo para Divulgador Master ou Premium.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-4">
+              Ative sua assinatura para gerar e enviar links automaticamente pelo
+              WhatsApp.
+            </p>
+            <Button asChild>
+              <a
+                href="https://masterafiliados.com.br"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Conhecer planos
+              </a>
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   if (allowAccess === null) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-gray-300">
+      <div className="min-h-screen flex items-center justify-center text-muted-foreground">
         <Loader2 className="w-6 h-6 animate-spin mr-2" />
         Verificando acesso...
       </div>
@@ -540,11 +231,341 @@ export default function PromoterPage() {
 
   return (
     <div className="space-y-6">
-      {renderHeader()}
-      {renderTabs()}
-      {activeTab === "create" && renderCreateTab()}
-      {activeTab === "links" && renderHistoryTab()}
-      {activeTab === "campaigns" && renderCampaignsTab()}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <Button variant="ghost" size="icon" onClick={() => router.back()}>
+                <ArrowLeft className="w-5 h-5" />
+              </Button>
+              <div>
+                <CardTitle className="text-2xl">Divulgador Master</CardTitle>
+                <CardDescription>
+                  Gere mensagens de promoção e dispare para seus grupos.
+                </CardDescription>
+              </div>
+            </div>
+            <Button asChild variant="outline">
+              <Link href="/profile/whatsapp">Configurar WhatsApp</Link>
+            </Button>
+          </div>
+        </CardHeader>
+      </Card>
+
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {sendSuccess && (
+        <Alert>
+          <AlertDescription>{sendSuccess}</AlertDescription>
+        </Alert>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        <Card className="lg:col-span-3 h-fit">
+          <CardHeader>
+            <CardTitle className="text-base">Menu</CardTitle>
+            <CardDescription>Navegação do Divulgador Master</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {tabItems.map((tab) => {
+              const Icon = tab.icon;
+              const active = activeTab === tab.key;
+              return (
+                <Button
+                  key={tab.key}
+                  variant={active ? "default" : "ghost"}
+                  className="w-full justify-start"
+                  onClick={() => setActiveTab(tab.key)}
+                >
+                  <Icon className="w-4 h-4 mr-2" />
+                  {tab.label}
+                </Button>
+              );
+            })}
+          </CardContent>
+        </Card>
+
+        <div className="lg:col-span-9 space-y-4">
+          {activeTab === "create" && (
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+              <Card className="xl:col-span-2">
+                <CardHeader>
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <CardTitle className="flex items-center gap-2">
+                        <Bolt className="w-4 h-4" />
+                        Gerar divulgação automática
+                      </CardTitle>
+                      <CardDescription>
+                        Cole o link da Shopee e criaremos a mensagem e a prévia.
+                      </CardDescription>
+                    </div>
+                    <Button asChild variant="outline">
+                      <Link href="/master/promoter/lists">
+                        <ListChecks className="w-4 h-4 mr-2" />
+                        Listas automáticas
+                      </Link>
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <Input
+                    type="url"
+                    value={linkInput}
+                    onChange={(e) => setLinkInput(e.target.value)}
+                    placeholder="https://shopee.com.br/..."
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() => void handlePreview()}
+                      disabled={!linkInput.trim() || isLoadingPreview}
+                    >
+                      {isLoadingPreview ? "Processando..." : "Gerar divulgação"}
+                    </Button>
+                    <Button
+                      onClick={() => void handlePreview(true)}
+                      disabled={!linkInput.trim() || isLoadingPreview}
+                      variant="outline"
+                    >
+                      Reprocessar
+                    </Button>
+                  </div>
+
+                  {isLoadingPreview && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Gerando mensagem...
+                    </div>
+                  )}
+
+                  {preview && (
+                    <div className="border rounded-lg p-4 space-y-3 bg-muted/20">
+                      <div className="flex gap-3 items-start">
+                        {defaultImage ? (
+                          <div className="relative w-16 h-16">
+                            <Image
+                              src={defaultImage}
+                              alt={productTitle}
+                              fill
+                              className="object-cover rounded-md"
+                              unoptimized
+                            />
+                          </div>
+                        ) : (
+                          <div className="w-16 h-16 rounded-md bg-muted flex items-center justify-center text-muted-foreground">
+                            <MessageCircle className="w-6 h-6" />
+                          </div>
+                        )}
+                        <div className="flex-1">
+                          <div className="font-semibold mb-1">{productTitle}</div>
+                          <Textarea
+                            value={preview.message}
+                            onChange={(e) =>
+                              setPreview({ ...preview, message: e.target.value })
+                            }
+                            rows={7}
+                          />
+                        </div>
+                      </div>
+                      <Button
+                        onClick={() => setShowSendModal(true)}
+                        disabled={!preview || !linkInput.trim()}
+                      >
+                        <Send className="w-4 h-4 mr-2" />
+                        Enviar pelo WhatsApp
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Histórico de links</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {isHistoryLoading && history.length === 0 ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Carregando histórico...
+                    </div>
+                  ) : history.length === 0 ? (
+                    <div className="text-sm text-muted-foreground">
+                      Nenhum registro encontrado.
+                    </div>
+                  ) : (
+                    <ScrollArea className="h-[520px] pr-2">
+                      <div className="space-y-2">
+                        {history.map((item) => (
+                          <div key={item.documentId} className="border rounded-md p-3 bg-muted/20">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex-1 min-w-0">
+                                <div className="text-xs text-muted-foreground">Link</div>
+                                <div className="truncate">{item.link}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  {item.createdAt
+                                    ? new Date(item.createdAt).toLocaleString()
+                                    : ""}
+                                </div>
+                              </div>
+                              <Button
+                                onClick={() => void handleDeleteHistory(item)}
+                                size="icon"
+                                variant="ghost"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                            <div className="mt-2 text-sm whitespace-pre-wrap line-clamp-3">
+                              {item.message || ""}
+                            </div>
+                            <Button
+                              onClick={() => {
+                                setLinkInput(item.link);
+                                setPreview({
+                                  message: item.message || "",
+                                  payload: item.payload || {},
+                                });
+                                setActiveTab("create");
+                                setSendSuccess(null);
+                              }}
+                              variant="outline"
+                              size="sm"
+                              className="mt-2"
+                            >
+                              Reabrir
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  )}
+                  {historyHasMore && (
+                    <Button
+                      onClick={() => void loadHistory()}
+                      disabled={isHistoryLoading}
+                      variant="outline"
+                      className="w-full mt-3"
+                    >
+                      {isHistoryLoading ? "Carregando..." : "Carregar mais"}
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {activeTab === "links" && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Histórico de links</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {isHistoryLoading && history.length === 0 ? (
+                  <div className="flex items-center justify-center py-10 text-muted-foreground">
+                    <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                    Carregando histórico...
+                  </div>
+                ) : history.length === 0 ? (
+                  <div className="text-center text-muted-foreground py-10">
+                    Nenhum registro encontrado.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {history.map((item) => (
+                      <div key={item.documentId} className="border rounded-lg p-4 bg-muted/20">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="text-xs text-muted-foreground">Link</div>
+                            <div className="truncate max-w-md">{item.link}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {item.createdAt
+                                ? new Date(item.createdAt).toLocaleString()
+                                : ""}
+                            </div>
+                          </div>
+                          <Button
+                            onClick={() => void handleDeleteHistory(item)}
+                            size="icon"
+                            variant="ghost"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                        <div className="mt-3 whitespace-pre-wrap">{item.message || ""}</div>
+                        <Button
+                          onClick={() => {
+                            setLinkInput(item.link);
+                            setPreview({
+                              message: item.message || "",
+                              payload: item.payload || {},
+                            });
+                            setActiveTab("create");
+                          }}
+                          variant="outline"
+                          className="mt-3"
+                        >
+                          Reabrir
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {historyHasMore && (
+                  <div className="flex justify-center mt-4">
+                    <Button
+                      onClick={() => void loadHistory()}
+                      disabled={isHistoryLoading}
+                      variant="outline"
+                    >
+                      {isHistoryLoading ? "Carregando..." : "Carregar mais"}
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {activeTab === "campaigns" && (
+            <div className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <CheckCircle2 className="w-4 h-4" />
+                    Acompanhe seus disparos e listas agendadas
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Button
+                    asChild
+                    className="bg-white text-black hover:bg-gray-200 border border-white"
+                  >
+                    <Link href="/master/promoter/lists">Criar ou gerenciar listas</Link>
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Histórico completo</CardTitle>
+                  <CardDescription>
+                    Consulte o histórico completo de disparos na integração do WhatsApp.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button asChild variant="outline">
+                    <Link href="/profile/whatsapp">Ver histórico de disparos</Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </div>
+      </div>
 
       {showSendModal && preview && (
         <PromoterSendModal
@@ -564,7 +585,7 @@ export default function PromoterPage() {
             setPreview(null);
             setSendSuccess("Mensagem enviada e salva no histórico.");
             setHistory([]);
-            setHistoryPage(1);
+            historyPageRef.current = 1;
             setHistoryHasMore(true);
             await loadHistory(true);
           }}

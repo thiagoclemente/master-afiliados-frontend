@@ -3,31 +3,59 @@
 import { useEffect, useState, Suspense, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
-import { fetchVideos, fetchVideoCategories, type Video } from "@/services/video.service";
+import {
+  fetchVideos,
+  fetchVideoCategories,
+  fetchProtectedVideoDownloadUrl,
+  type Video,
+} from "@/services/video.service";
 import { fetchPacks } from "@/services/pack.service";
+import {
+  fetchUserSubscriptions,
+  isSubscriptionPremium,
+} from "@/services/user-subscription.service";
 import type { Pack } from "@/interfaces/pack";
 import Image from "next/image";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useAnalytics } from "@/hooks/use-analytics";
-import { 
-  ArrowLeft, 
-  Loader2, 
-  Search, 
-  Video as VideoIcon, 
-  Play, 
-  Download, 
-  Link, 
-  Copy, 
-  Check, 
-  X, 
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  ArrowLeft,
+  Loader2,
+  Search,
+  Video as VideoIcon,
+  Play,
+  Download,
+  Link,
+  Copy,
+  Check,
+  X,
   Filter,
-  ExternalLink
+  ExternalLink,
 } from "lucide-react";
 import VideoPlayer from "./components/VideoPlayer";
 
 function VideosPageContent() {
   const [videos, setVideos] = useState<Video[]>([]);
-  const [categories, setCategories] = useState<{id: number; attributes?: {name: string}; name?: string}[]>([]);
+  const [categories, setCategories] = useState<{ id: number; attributes?: { name: string }; name?: string }[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<number>(0);
   const [sortBy, setSortBy] = useState<"newest" | "oldest" | "name">("newest");
   const [currentPage, setCurrentPage] = useState(1);
@@ -42,6 +70,7 @@ function VideosPageContent() {
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [downloadingVideoId, setDownloadingVideoId] = useState<number | null>(null);
   const [downloadProgress, setDownloadProgress] = useState(0);
+  const [downloadNotice, setDownloadNotice] = useState<string | null>(null);
   const [packInfo, setPackInfo] = useState<Pack | null>(null);
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
   const [totalVideos, setTotalVideos] = useState<number>(0);
@@ -65,14 +94,12 @@ function VideosPageContent() {
 
   const loadPackInfo = useCallback(async () => {
     if (!packId) return;
-    
+
     try {
-      // Buscar o pack específico usando o packId da URL
-      const response = await fetchPacks(1, 1000); // Buscar todos os packs
+      const response = await fetchPacks(1, 1000);
       const pack = response.data.find((p: Pack) => p.documentId === packId);
       if (pack) {
         setPackInfo(pack);
-        // Track pack access
         trackPackAccess(pack.name, pack.documentId);
       }
     } catch (err) {
@@ -81,58 +108,55 @@ function VideosPageContent() {
     }
   }, [packId, trackPackAccess, trackError]);
 
-
-
-  const loadVideos = useCallback(async (page: number, resetList: boolean = true) => {
-    try {
-      if (resetList) {
-        setIsLoading(true);
-        setVideos([]);
-      } else {
-        setIsLoadingMore(true);
-      }
-
-      const response = await fetchVideos(
-        page,
-        pageSize,
-        debouncedSearch,
-        undefined,
-        packId || undefined,
-        selectedCategory > 0 ? selectedCategory : undefined,
-        sortBy
-      );
-      
-      if (resetList) {
-        setVideos(response.data);
-        setTotalVideos(response.meta.pagination.total);
-      } else {
-        setVideos(prev => [...prev, ...response.data]);
-      }
-      
-      setTotalPages(response.meta.pagination.pageCount);
-      setError(null);
-    } catch (err) {
-      if (err instanceof Error) {
-        if (
-          err.message === "Authentication failed" ||
-          err.message === "Authentication required"
-        ) {
-          logout();
-          router.push("/login");
-          return;
+  const loadVideos = useCallback(
+    async (page: number, resetList: boolean = true) => {
+      try {
+        if (resetList) {
+          setIsLoading(true);
+          setVideos([]);
+        } else {
+          setIsLoadingMore(true);
         }
-        setError(err.message);
-      } else {
-        setError("Erro ao carregar os vídeos");
-      }
-      console.error(err);
-    } finally {
-      setIsLoading(false);
-      setIsLoadingMore(false);
-    }
-  }, [debouncedSearch, packId, selectedCategory, sortBy, pageSize, logout, router]);
 
-  // Verificar acesso ao pacote antes de carregar dados
+        const response = await fetchVideos(
+          page,
+          pageSize,
+          debouncedSearch,
+          undefined,
+          packId || undefined,
+          selectedCategory > 0 ? selectedCategory : undefined,
+          sortBy
+        );
+
+        if (resetList) {
+          setVideos(response.data);
+          setTotalVideos(response.meta.pagination.total);
+        } else {
+          setVideos((prev) => [...prev, ...response.data]);
+        }
+
+        setTotalPages(response.meta.pagination.pageCount);
+        setError(null);
+      } catch (err) {
+        if (err instanceof Error) {
+          if (err.message === "Authentication failed" || err.message === "Authentication required") {
+            logout();
+            router.push("/login");
+            return;
+          }
+          setError(err.message);
+        } else {
+          setError("Erro ao carregar os vídeos");
+        }
+        console.error(err);
+      } finally {
+        setIsLoading(false);
+        setIsLoadingMore(false);
+      }
+    },
+    [debouncedSearch, packId, selectedCategory, sortBy, pageSize, logout, router]
+  );
+
   useEffect(() => {
     const checkAccess = async () => {
       if (!packId) {
@@ -141,18 +165,24 @@ function VideosPageContent() {
       }
 
       try {
-        // Verificar se o usuário tem acesso ao pacote específico
+        const subscriptionsResponse = await fetchUserSubscriptions();
+        const hasPremium = isSubscriptionPremium(subscriptionsResponse.data || []);
+
+        if (hasPremium) {
+          setHasAccess(true);
+          loadCategories();
+          loadPackInfo();
+          return;
+        }
+
         const { fetchUserPacks } = await import("@/services/user-pack.service");
         const response = await fetchUserPacks();
         const userPacks = response.data;
-        
-        const hasAccessToPack = userPacks.some(userPack => 
-          userPack.pack.documentId === packId
-        );
-        
+
+        const hasAccessToPack = userPacks.some((userPack) => userPack.pack.documentId === packId);
+
         setHasAccess(hasAccessToPack);
-        
-        // Só carregar dados se tiver acesso
+
         if (hasAccessToPack) {
           loadCategories();
           loadPackInfo();
@@ -166,14 +196,12 @@ function VideosPageContent() {
     checkAccess();
   }, [packId, loadCategories, loadPackInfo]);
 
-  // Load videos when filters change
   useEffect(() => {
     if (!hasAccess) return;
-    
+
     const timeoutId = setTimeout(() => {
       setCurrentPage(1);
       if (packId) {
-        // Só executa a busca se tiver 3 ou mais caracteres ou se for uma busca vazia (limpar filtros)
         if (debouncedSearch.length === 0 || debouncedSearch.length >= 3) {
           loadVideos(1, true);
         }
@@ -183,19 +211,17 @@ function VideosPageContent() {
     return () => clearTimeout(timeoutId);
   }, [debouncedSearch, packId, selectedCategory, sortBy, hasAccess, loadVideos]);
 
-  // Load videos when page changes
   useEffect(() => {
     if (!hasAccess) return;
-    
+
     if (packId && currentPage > 1) {
       loadVideos(currentPage, false);
     }
   }, [currentPage, packId, hasAccess, loadVideos]);
 
-  // Load videos on mount
   useEffect(() => {
     if (!hasAccess) return;
-    
+
     if (packId) {
       loadVideos(1, true);
     }
@@ -203,18 +229,17 @@ function VideosPageContent() {
 
   const loadMoreVideos = async () => {
     if (currentPage < totalPages && !isLoadingMore) {
-      setCurrentPage(prev => prev + 1);
+      setCurrentPage((prev) => prev + 1);
     }
   };
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setSearchTerm(value);
-    
-    // Track search after debounce
+
     if (value.trim()) {
       setTimeout(() => {
-        trackSearch(value, 'videos');
+        trackSearch(value, "videos");
       }, 500);
     }
   };
@@ -225,7 +250,6 @@ function VideosPageContent() {
 
   const handleVideoClick = (index: number) => {
     setSelectedVideoIndex(index);
-    // Track video play
     if (videos[index]) {
       trackVideoPlay(videos[index].title, videos[index].id.toString());
     }
@@ -249,98 +273,89 @@ function VideosPageContent() {
 
   const handleLoadMoreInPlayer = async () => {
     if (currentPage < totalPages && !isLoadingMore) {
-      setCurrentPage(prev => prev + 1);
+      setCurrentPage((prev) => prev + 1);
     }
   };
 
   const handleDownload = async (video: Video) => {
-    if (video.video?.url) {
-      try {
-        setDownloadingVideoId(video.id);
-        setDownloadProgress(0);
-        
-        // Fetch the video as blob to force download with progress
-        const response = await fetch(video.video.url);
-        
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+    try {
+      setDownloadNotice(null);
+      setDownloadingVideoId(video.id);
+      setDownloadProgress(0);
+
+      const protectedDownloadUrl = await fetchProtectedVideoDownloadUrl(video.documentId);
+      const response = await fetch(protectedDownloadUrl);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const contentLength = response.headers.get("content-length");
+      const total = contentLength ? parseInt(contentLength, 10) : 0;
+
+      if (!response.body) {
+        throw new Error("No response body");
+      }
+
+      const reader = response.body.getReader();
+      const chunks: BlobPart[] = [];
+      let receivedLength = 0;
+
+      while (true) {
+        const { done, value } = await reader.read();
+
+        if (done) break;
+
+        chunks.push(value);
+        receivedLength += value.length;
+
+        if (total > 0) {
+          const progress = (receivedLength / total) * 100;
+          setDownloadProgress(Math.round(progress));
         }
-        
-        const contentLength = response.headers.get('content-length');
-        const total = contentLength ? parseInt(contentLength, 10) : 0;
-        
-        if (!response.body) {
-          throw new Error('No response body');
-        }
-        
-        const reader = response.body.getReader();
-        const chunks: BlobPart[] = [];
-        let receivedLength = 0;
-        
-        while (true) {
-          const { done, value } = await reader.read();
-          
-          if (done) break;
-          
-          chunks.push(value);
-          receivedLength += value.length;
-          
-          if (total > 0) {
-            const progress = (receivedLength / total) * 100;
-            setDownloadProgress(Math.round(progress));
-          }
-        }
-        
-        // Combine chunks into blob
-        const blob = new Blob(chunks, { type: 'video/mp4' });
-        
-        // Create download link
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        
-        // Clean title for filename (remove special characters)
-        const cleanTitle = (video.title || 'video')
-          .replace(/[^a-zA-Z0-9\s-]/g, '') // Remove special characters
-          .replace(/\s+/g, '_') // Replace spaces with underscores
-          .trim();
-        
-        link.download = `${cleanTitle}.mp4`;
-        link.style.display = 'none';
-        
-        // Trigger download
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        // Clean up
-        window.URL.revokeObjectURL(url);
-        
-        // Track video download
-        trackVideoDownload(video.title, video.id.toString());
-        
-        // Reset progress
-        setDownloadProgress(100);
-        setTimeout(() => {
-          setDownloadingVideoId(null);
-          setDownloadProgress(0);
-        }, 1000);
-        
-      } catch (error) {
-        console.error('Erro ao baixar vídeo:', error);
-        trackError('Erro ao baixar vídeo', 'video_download_error');
+      }
+
+      const blob = new Blob(chunks, { type: "video/mp4" });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+
+      const cleanTitle = (video.title || "video")
+        .replace(/[^a-zA-Z0-9\s-]/g, "")
+        .replace(/\s+/g, "_")
+        .trim();
+
+      link.download = `${cleanTitle}.mp4`;
+      link.style.display = "none";
+
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      window.URL.revokeObjectURL(url);
+      trackVideoDownload(video.title, video.id.toString());
+
+      setDownloadProgress(100);
+      setTimeout(() => {
         setDownloadingVideoId(null);
         setDownloadProgress(0);
-        
-        // Fallback to direct link if fetch fails
-        const link = document.createElement('a');
-        link.href = video.video.url;
-        link.download = `${video.title || 'video'}.mp4`;
-        link.target = '_blank';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+      }, 1000);
+    } catch (downloadError) {
+      const message =
+        downloadError instanceof Error
+          ? downloadError.message
+          : "Não foi possível baixar o vídeo no momento.";
+      const isLimitRule =
+        /limite diário de downloads/i.test(message) ||
+        /limite de downloads/i.test(message);
+
+      if (!isLimitRule) {
+        console.error("Erro ao baixar vídeo:", downloadError);
+        trackError("Erro ao baixar vídeo", "video_download_error");
       }
+      setDownloadingVideoId(null);
+      setDownloadProgress(0);
+      setDownloadNotice(message);
     }
   };
 
@@ -350,7 +365,7 @@ function VideosPageContent() {
       setCopiedIndex(index);
       setTimeout(() => setCopiedIndex(null), 2000);
     } catch (err) {
-      console.error('Erro ao copiar link:', err);
+      console.error("Erro ao copiar link:", err);
     }
   };
 
@@ -369,173 +384,137 @@ function VideosPageContent() {
 
   if (error) {
     return (
-      <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
-        <div className="text-center">
-          <div className="text-red-300 mb-4">{error}</div>
-          <button
-            onClick={() => window.location.reload()}
-            className="px-4 py-2 bg-[#7d570e] text-white rounded-md hover:bg-[#6b4a0c] transition-colors"
-          >
+      <Alert variant="destructive" className="border-destructive/60 bg-destructive/10">
+        <AlertTitle>Erro ao carregar vídeos</AlertTitle>
+        <AlertDescription className="space-y-3">
+          <p>{error}</p>
+          <Button variant="outline" onClick={() => window.location.reload()}>
             Tentar novamente
-          </button>
-        </div>
-      </div>
+          </Button>
+        </AlertDescription>
+      </Alert>
     );
   }
 
-  // Loading state
   if (hasAccess === null) {
     return (
-      <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
-        <div className="text-center py-12">
-          <Loader2 className="w-8 h-8 text-[#7d570e] animate-spin mx-auto mb-4" />
-          <p className="text-gray-300">Verificando acesso ao pacote...</p>
-        </div>
-      </div>
+      <Card>
+        <CardContent className="py-14 text-center">
+          <Loader2 className="mx-auto mb-3 h-8 w-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">Verificando acesso ao pacote...</p>
+        </CardContent>
+      </Card>
     );
   }
 
-  // Sem packId
   if (!packId) {
     return (
-      <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
-        <div className="text-center py-12">
-          <div className="w-16 h-16 bg-gray-900 rounded-full flex items-center justify-center mx-auto mb-4">
-            <VideoIcon className="w-8 h-8 text-gray-400" />
+      <Card>
+        <CardContent className="py-14 text-center space-y-4">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+            <VideoIcon className="h-8 w-8 text-muted-foreground" />
           </div>
-          <div className="text-gray-400 mb-4">
-            Selecione um pacote para ver os vídeos
-          </div>
-          <button
-            onClick={handleBack}
-            className="text-[#7d570e] hover:text-[#6b4a0c] transition-colors"
-          >
+          <p className="text-muted-foreground">Selecione um pacote para ver os vídeos.</p>
+          <Button variant="outline" onClick={handleBack}>
             Voltar para pacotes
-          </button>
-        </div>
-      </div>
+          </Button>
+        </CardContent>
+      </Card>
     );
   }
 
-  // Sem acesso ao pacote
   if (hasAccess === false) {
     return (
-      <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
-        <div className="text-center py-12">
-          <div className="w-16 h-16 bg-gray-900 rounded-full flex items-center justify-center mx-auto mb-4">
-            <VideoIcon className="w-8 h-8 text-gray-400" />
+      <Card>
+        <CardContent className="py-14 text-center space-y-4">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+            <VideoIcon className="h-8 w-8 text-muted-foreground" />
           </div>
-          <div className="text-white text-lg font-semibold mb-2">
-            Acesso Negado
-          </div>
-          <div className="text-gray-400 mb-4 max-w-md mx-auto">
+          <h2 className="text-xl font-semibold">Acesso Negado</h2>
+          <p className="mx-auto max-w-md text-muted-foreground">
             Você não tem acesso a este pacote de vídeos.
-          </div>
-          <button
-            onClick={handleBack}
-            className="px-6 py-3 bg-[#7d570e] text-white rounded-lg hover:bg-[#6b4a0c] transition-colors font-medium"
-          >
-            Voltar para pacotes
-          </button>
-        </div>
-      </div>
+          </p>
+          <Button onClick={handleBack}>Voltar para pacotes</Button>
+        </CardContent>
+      </Card>
     );
   }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
-          <div className="flex items-center mb-4 sm:mb-0">
-            <button
-              onClick={handleBack}
-              className="flex items-center text-[#7d570e] hover:text-[#6b4a0c] mr-4 transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5 mr-2" />
-              Voltar para pacotes
-            </button>
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-[#7d570e] rounded-lg flex items-center justify-center">
-                <VideoIcon className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-white">Vídeos</h1>
-                <p className="text-gray-300">Explore os vídeos do pacote</p>
+      <Card>
+        <CardHeader className="space-y-5">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <Button variant="ghost" onClick={handleBack} className="inline-flex items-center gap-2">
+                <ArrowLeft className="h-4 w-4" />
+                Voltar para pacotes
+              </Button>
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                  <VideoIcon className="h-5 w-5" />
+                </div>
+                <div>
+                  <CardTitle>Vídeos</CardTitle>
+                  <CardDescription>Explore os vídeos do pacote</CardDescription>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Pack Info */}
-        {packInfo && (
-          <div className="mb-6 p-4 bg-gradient-to-r from-gray-900 to-gray-800 rounded-lg border border-gray-700 shadow-lg">
-            <div className="flex items-center space-x-4">
-              {packInfo.image?.url ? (
-                <div className="flex-shrink-0">
+          {packInfo && (
+            <Card className="border-border/70 bg-muted/20">
+              <CardContent className="flex items-center gap-4">
+                {packInfo.image?.url ? (
                   <Image
                     src={packInfo.image.url}
                     alt={packInfo.name}
                     width={80}
                     height={80}
-                    className="rounded-lg object-cover shadow-md"
+                    className="rounded-lg object-cover"
                   />
-                </div>
-              ) : (
-                <div className="flex-shrink-0 w-20 h-20 bg-[#7d570e] rounded-lg flex items-center justify-center shadow-md">
-                  <VideoIcon className="w-8 h-8 text-white" />
-                </div>
-              )}
-              <div className="flex-1">
-                <h2 className="text-xl font-bold text-white mb-1">{packInfo.name}</h2>
-                {packInfo.description && (
-                  <p className="text-gray-300 text-sm mb-2 line-clamp-2">{packInfo.description}</p>
+                ) : (
+                  <div className="flex h-20 w-20 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                    <VideoIcon className="h-8 w-8" />
+                  </div>
                 )}
-                <div className="flex items-center space-x-4">
-                  
+                <div className="min-w-0 flex-1">
+                  <h2 className="truncate text-xl font-semibold">{packInfo.name}</h2>
+                  {packInfo.description && (
+                    <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{packInfo.description}</p>
+                  )}
                 </div>
-              </div>
-            </div>
-          </div>
-        )}
+              </CardContent>
+            </Card>
+          )}
 
-        {/* Filters */}
-        <div className="flex flex-col sm:flex-row gap-4">
-          {/* Search */}
-          <div className="flex-1">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Buscar vídeos..."
-                value={searchTerm}
-                onChange={handleSearch}
-                className="w-full pl-10 pr-4 py-2 bg-gray-900 border border-gray-600 rounded-md focus:ring-2 focus:ring-[#7d570e] focus:border-[#7d570e] text-white placeholder-gray-400"
-              />
-            </div>
-            
-            {/* Total de registros encontrados */}
-            {!isLoading && ((searchTerm.length >= 3) || selectedCategory > 0) && (
-              <div className="mt-2 text-sm text-gray-400">
-                <span className="text-[#7d570e] font-medium">
-                  {videos.length}
-                </span>
-                {videos.length === 1 ? ' vídeo encontrado' : ' vídeos encontrados'}
-                <span className="text-gray-500 ml-1">
-                  de {totalVideos} total
-                </span>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_220px_220px]">
+            <div>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  type="text"
+                  placeholder="Buscar vídeos..."
+                  value={searchTerm}
+                  onChange={handleSearch}
+                  className="h-10 pl-9"
+                />
               </div>
-            )}
-          </div>
+              {!isLoading && (searchTerm.length >= 3 || selectedCategory > 0) && (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  <span className="font-semibold text-primary">{videos.length}</span>{" "}
+                  {videos.length === 1 ? "vídeo encontrado" : "vídeos encontrados"}
+                  <span className="ml-1 text-muted-foreground/80">de {totalVideos} total</span>
+                </p>
+              )}
+            </div>
 
-          {/* Category filter */}
-          <div className="sm:w-48">
             <div className="relative">
-              <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Filter className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <select
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(Number(e.target.value))}
-                className="w-full pl-10 pr-8 py-2 bg-gray-900 border border-gray-600 rounded-md focus:ring-2 focus:ring-[#7d570e] focus:border-[#7d570e] appearance-none text-white"
+                className="h-10 w-full rounded-md border border-input bg-transparent pl-9 pr-8 text-sm outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
               >
                 <option value={0}>Todas as categorias</option>
                 {categories.map((category) => (
@@ -545,16 +524,13 @@ function VideosPageContent() {
                 ))}
               </select>
             </div>
-          </div>
 
-          {/* Sort */}
-          <div className="sm:w-48">
             <div className="relative">
-              <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Filter className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as "newest" | "oldest" | "name")}
-                className="w-full pl-10 pr-8 py-2 bg-gray-900 border border-gray-600 rounded-md focus:ring-2 focus:ring-[#7d570e] focus:border-[#7d570e] appearance-none text-white"
+                className="h-10 w-full rounded-md border border-input bg-transparent pl-9 pr-8 text-sm outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
               >
                 <option value="newest">Mais recentes</option>
                 <option value="oldest">Mais antigos</option>
@@ -562,143 +538,137 @@ function VideosPageContent() {
               </select>
             </div>
           </div>
-        </div>
-      </div>
+        </CardHeader>
+      </Card>
 
-      {/* Videos Grid */}
-      <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
+      <Card>
+        <CardContent>
+          {downloadNotice && (
+            <Alert variant="destructive" className="mb-4 border-destructive/60 bg-destructive/10">
+              <AlertTitle>Download bloqueado</AlertTitle>
+              <AlertDescription>{downloadNotice}</AlertDescription>
+            </Alert>
+          )}
 
-        {isLoading ? (
-          <div className="flex justify-center items-center py-12">
-            <Loader2 className="w-8 h-8 animate-spin text-[#7d570e]" />
-          </div>
-        ) : videos.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="w-16 h-16 bg-gray-900 rounded-full flex items-center justify-center mx-auto mb-4">
-              <VideoIcon className="w-8 h-8 text-gray-400" />
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
-            <p className="text-gray-400 mb-4">
-              {(searchTerm.length >= 3) || selectedCategory ? "Nenhum vídeo encontrado" : "Nenhum vídeo disponível"}
-            </p>
-            {((searchTerm.length >= 3) || selectedCategory) && (
-              <button
-                onClick={() => {
-                  setSearchTerm("");
-                  setSelectedCategory(0);
-                }}
-                className="text-[#7d570e] hover:text-[#6b4a0c] transition-colors"
-              >
-                Limpar filtros
-              </button>
-            )}
-          </div>
-        ) : (
-          <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {videos.map((video, index) => (
-                <div
-                  key={video.documentId}
-                  className="group bg-black border border-gray-800 rounded-lg overflow-hidden hover:shadow-lg hover:border-[#7d570e] transition-all duration-200 cursor-pointer"
-                  onClick={() => handleVideoClick(index)}
+          ) : videos.length === 0 ? (
+            <div className="space-y-4 py-12 text-center">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+                <VideoIcon className="h-8 w-8 text-muted-foreground" />
+              </div>
+              <p className="text-muted-foreground">
+                {searchTerm.length >= 3 || selectedCategory ? "Nenhum vídeo encontrado" : "Nenhum vídeo disponível"}
+              </p>
+              {(searchTerm.length >= 3 || selectedCategory > 0) && (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setSearchTerm("");
+                    setSelectedCategory(0);
+                  }}
                 >
-                  <div className="relative aspect-[9/16] overflow-hidden">
-                    {video.coverImage?.formats?.medium?.url ? (
-                      <Image
-                        src={video.coverImage.formats.medium.url}
-                        alt={`Capa do vídeo ${video.title}`}
-                        fill
-                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, (max-width: 1280px) 33vw, 25vw"
-                        className="object-cover group-hover:scale-105 transition-transform duration-200"
-                      />
-                    ) : (
-                      <div className="w-full h-full bg-gradient-to-br from-gray-600 to-gray-700 flex items-center justify-center">
-                        <VideoIcon className="w-12 h-12 text-gray-400" />
-                      </div>
-                    )}
-                    
-                    {/* Play Overlay */}
-                    <div className="absolute inset-0 bg-black/60 group-hover:bg-black/10 transition-all duration-200 flex items-center justify-center">
-                      <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                        <Play className="w-12 h-12 text-white" />
-                      </div>
-                    </div>
+                  Limpar filtros
+                </Button>
+              )}
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {videos.map((video, index) => (
+                  <Card
+                    key={video.documentId}
+                    className="group cursor-pointer overflow-hidden border-border/70 transition-colors hover:border-primary/60"
+                    onClick={() => handleVideoClick(index)}
+                  >
+                    <div className="relative aspect-[9/16] overflow-hidden border-b border-border/70 bg-muted/20">
+                      {video.coverImage?.formats?.medium?.url ? (
+                        <Image
+                          src={video.coverImage.formats.medium.url}
+                          alt={`Capa do vídeo ${video.title}`}
+                          fill
+                          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, (max-width: 1280px) 33vw, 25vw"
+                          className="object-cover transition-transform duration-200 group-hover:scale-105"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-muted to-muted/50">
+                          <VideoIcon className="h-12 w-12 text-muted-foreground" />
+                        </div>
+                      )}
 
-                    {/* Action Buttons */}
-                    <div className="absolute top-2 right-2 flex flex-col space-y-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                      {/* Download Button */}
-                      {video.video?.url && (
-                        <button
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/50 transition-all duration-200 group-hover:bg-black/20">
+                        <Play className="h-12 w-12 text-white opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+                      </div>
+
+                      <div className="pointer-events-none absolute inset-0 z-[1] flex items-center justify-center">
+                        <span className="select-none text-white/20 text-lg sm:text-xl font-semibold tracking-wide">
+                          Master Afiliados
+                        </span>
+                      </div>
+
+                      <div className="absolute right-2 top-2 flex flex-col gap-1 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                        <Button
+                          size="icon-sm"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleDownload(video);
                           }}
                           disabled={downloadingVideoId === video.id}
-                          className="p-2 bg-[#7d570e] rounded-full text-white hover:bg-[#6b4a0c] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="bg-primary text-primary-foreground hover:bg-primary/90"
                         >
                           {downloadingVideoId === video.id ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <Loader2 className="h-4 w-4 animate-spin" />
                           ) : (
-                            <Download className="w-4 h-4" />
+                            <Download className="h-4 w-4" />
                           )}
-                        </button>
-                      )}
+                        </Button>
 
-                      {/* Links Button */}
-                      {getProductLinks(video).length > 0 && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleShowLinks(video);
-                          }}
-                          className="p-2 bg-[#7d570e] rounded-full text-white hover:bg-[#6b4a0c] transition-all"
-                        >
-                          <Link className="w-4 h-4" />
-                        </button>
-                      )}
+                        {getProductLinks(video).length > 0 && (
+                          <Button
+                            size="icon-sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleShowLinks(video);
+                            }}
+                            className="bg-primary text-primary-foreground hover:bg-primary/90"
+                          >
+                            <Link className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  
-                  <div className="p-4">
-                    <h3 className="font-semibold text-white mb-2 line-clamp-2 group-hover:text-[#7d570e] transition-colors">
-                      {video.title || 'Sem título'}
-                    </h3>
-                    
-                    {video.category?.name && (
-                      <p className="text-sm text-gray-400 mb-3">
-                        {video.category.name}
-                      </p>
-                    )}
-                    
 
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Load More Button */}
-            {currentPage < totalPages && (
-              <div className="flex justify-center mt-8">
-                <button
-                  onClick={loadMoreVideos}
-                  disabled={isLoadingMore}
-                  className="flex items-center space-x-2 px-6 py-3 bg-[#7d570e] text-white rounded-lg hover:bg-[#6b4a0c] disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
-                >
-                  {isLoadingMore ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      <span>Carregando...</span>
-                    </>
-                  ) : (
-                    <span>Carregar Mais</span>
-                  )}
-                </button>
+                    <CardContent className="space-y-2">
+                      <h3 className="line-clamp-2 font-semibold transition-colors group-hover:text-primary">
+                        {video.title || "Sem título"}
+                      </h3>
+                      {video.category?.name && <Badge variant="outline">{video.category.name}</Badge>}
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
-            )}
-          </>
-        )}
-      </div>
 
-      {/* Video Player Overlay */}
+              {currentPage < totalPages && (
+                <div className="mt-8 flex justify-center">
+                  <Button onClick={loadMoreVideos} disabled={isLoadingMore} className="min-w-40">
+                    {isLoadingMore ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Carregando...
+                      </>
+                    ) : (
+                      "Carregar Mais"
+                    )}
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+
       {selectedVideoIndex !== null && (
         <VideoPlayer
           videos={videos}
@@ -711,87 +681,84 @@ function VideosPageContent() {
         />
       )}
 
-      {/* Links Popup */}
       {showLinksPopup && selectedVideoForLinks && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-          <div className="bg-black border border-gray-800 rounded-lg max-w-md w-full p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold text-white">Links do Produto</h3>
-              <button
-                onClick={() => setShowLinksPopup(false)}
-                className="p-2 text-[#7d570e] hover:text-[#6b4a0c] transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <div className="mb-4">
-              <h4 className="text-white font-medium mb-2">{selectedVideoForLinks.title}</h4>
-            </div>
-
-            <div className="space-y-3">
-              {getProductLinks(selectedVideoForLinks).map((link, index) => (
-                <div key={index} className="flex items-center justify-between p-3 bg-gray-900 rounded-lg border border-gray-800">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white text-sm truncate">{link}</p>
-                  </div>
-                  <div className="flex items-center space-x-2 ml-3">
-                    <button
-                      onClick={() => window.open(link, '_blank')}
-                      className="p-2 bg-blue-600 rounded-lg text-white hover:bg-blue-700 transition-colors flex-shrink-0"
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <div className="flex items-center justify-between gap-3">
+                <CardTitle>Links do Produto</CardTitle>
+                <Button variant="ghost" size="icon" onClick={() => setShowLinksPopup(false)}>
+                  <X className="h-5 w-5" />
+                </Button>
+              </div>
+              <CardDescription>{selectedVideoForLinks.title}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {getProductLinks(selectedVideoForLinks).map((itemLink, index) => (
+                <div key={index} className="flex items-center justify-between gap-2 rounded-lg border border-border/70 bg-muted/20 p-3">
+                  <p className="min-w-0 flex-1 truncate text-sm">{itemLink}</p>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="icon-sm"
+                      className="bg-blue-600 text-white hover:bg-blue-700"
+                      onClick={() => window.open(itemLink, "_blank")}
                       title="Abrir link"
                     >
-                      <ExternalLink className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleCopyLink(link, index)}
-                      className="p-2 bg-[#7d570e] rounded-lg text-white hover:bg-[#6b4a0c] transition-colors flex-shrink-0"
+                      <ExternalLink className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="icon-sm"
+                      onClick={() => handleCopyLink(itemLink, index)}
                       title="Copiar link"
                     >
-                      {copiedIndex === index ? (
-                        <Check className="w-4 h-4" />
-                      ) : (
-                        <Copy className="w-4 h-4" />
-                      )}
-                    </button>
+                      {copiedIndex === index ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    </Button>
                   </div>
                 </div>
               ))}
-            </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {downloadingVideoId && (
+        <div className="fixed bottom-4 right-4 z-50 min-w-64 rounded-lg border border-border/70 bg-card/95 p-4 shadow-lg">
+          <div className="mb-2 flex items-center justify-between text-sm">
+            <span>Baixando vídeo...</span>
+            <span>{downloadProgress}%</span>
+          </div>
+          <div className="h-2 w-full rounded-full bg-muted">
+            <div className="h-2 rounded-full bg-primary transition-all duration-300" style={{ width: `${downloadProgress}%` }} />
           </div>
         </div>
       )}
 
-      {/* Download Progress Overlay */}
-      {downloadingVideoId && (
-        <div className="fixed bottom-4 right-4 bg-black bg-opacity-90 rounded-lg p-4 z-50 min-w-64">
-          <div className="flex items-center justify-between text-white text-sm mb-2">
-            <span>Baixando vídeo...</span>
-            <span>{downloadProgress}%</span>
-          </div>
-          <div className="w-full bg-gray-600 rounded-full h-2">
-            <div 
-              className="bg-[#7d570e] h-2 rounded-full transition-all duration-300"
-              style={{ width: `${downloadProgress}%` }}
-            ></div>
-          </div>
-        </div>
-      )}
+      <Dialog open={Boolean(downloadNotice)} onOpenChange={(open) => !open && setDownloadNotice(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Download bloqueado</DialogTitle>
+            <DialogDescription>{downloadNotice}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => setDownloadNotice(null)}>Entendi</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
 export default function VideosPage() {
   return (
-    <Suspense fallback={
-      <div className="space-y-6">
-        <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
-          <div className="flex justify-center items-center py-12">
-            <Loader2 className="w-8 h-8 animate-spin text-[#7d570e]" />
-          </div>
-        </div>
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <Card>
+          <CardContent className="py-14 text-center">
+            <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
+          </CardContent>
+        </Card>
+      }
+    >
       <VideosPageContent />
     </Suspense>
   );

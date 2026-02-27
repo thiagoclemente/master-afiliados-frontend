@@ -5,9 +5,23 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
 import { fetchCombos } from "@/services/combo.service";
 import { fetchUserPacksRelease } from "@/services/user-pack-release.service";
+import {
+  fetchUserSubscriptions,
+  isSubscriptionPremium,
+} from "@/services/user-subscription.service";
 import type { Combo } from "@/interfaces/combo";
 import type { Pack } from "@/interfaces/pack";
 import type { UserPackRelease } from "@/interfaces/user-pack-release";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import Image from "next/image";
 import { ArrowLeft, Video as VideoIcon, Loader2, AlertCircle } from "lucide-react";
 
@@ -19,6 +33,7 @@ function CombosPageContent() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [userPacksRelease, setUserPacksRelease] = useState<UserPackRelease[]>([]);
+  const [hasPremiumAccess, setHasPremiumAccess] = useState(false);
   const [showPackRequiredMessage, setShowPackRequiredMessage] = useState(false);
   const router = useRouter();
   const { logout } = useAuth();
@@ -43,6 +58,15 @@ function CombosPageContent() {
       setUserPacksRelease(response.data);
     } catch (err) {
       console.error("Error loading user packs release:", err);
+    }
+  }, []);
+
+  const loadPremiumAccess = useCallback(async () => {
+    try {
+      const response = await fetchUserSubscriptions();
+      setHasPremiumAccess(isSubscriptionPremium(response.data || []));
+    } catch {
+      setHasPremiumAccess(false);
     }
   }, []);
 
@@ -90,7 +114,8 @@ function CombosPageContent() {
   useEffect(() => {
     loadCombos(1, true);
     loadUserPacksRelease();
-  }, [loadCombos, loadUserPacksRelease]);
+    loadPremiumAccess();
+  }, [loadCombos, loadPremiumAccess, loadUserPacksRelease]);
 
   // Load more combos when page changes
   useEffect(() => {
@@ -110,6 +135,10 @@ function CombosPageContent() {
   };
 
   const isPackInReleasePeriod = (pack: Pack) => {
+    if (hasPremiumAccess) {
+      return false;
+    }
+
     // Verifica se o pack está em período de release (igual ao app Flutter)
     return userPacksRelease.some(release => release.pack.documentId === pack.documentId);
   };
@@ -131,17 +160,14 @@ function CombosPageContent() {
 
   if (error) {
     return (
-      <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
-        <div className="text-center">
-          <div className="text-red-300 mb-4">{error}</div>
-          <button
-            onClick={() => window.location.reload()}
-            className="px-4 py-2 bg-[#7d570e] text-white rounded-md hover:bg-[#6b4a0c] transition-colors"
-          >
+      <Card>
+        <CardContent className="text-center space-y-4">
+          <p className="text-destructive">{error}</p>
+          <Button onClick={() => window.location.reload()}>
             Tentar novamente
-          </button>
-        </div>
-      </div>
+          </Button>
+        </CardContent>
+      </Card>
     );
   }
 
@@ -149,136 +175,129 @@ function CombosPageContent() {
     <div className="space-y-6">
       {/* Pack Required Message */}
       {showPackRequiredMessage && (
-        <div className="bg-orange-900/30 border border-orange-700 rounded-lg p-6">
-          <div className="flex items-start space-x-3">
-            <AlertCircle className="w-6 h-6 text-orange-400 mt-0.5 flex-shrink-0" />
-            <div className="flex-1">
-              <h3 className="text-lg font-semibold text-orange-200 mb-2">
-                Pacote Necessário
-              </h3>
-              <p className="text-orange-100 mb-4">
-                Para acessar a <strong>Biblioteca de Artes</strong> e <strong>Biblioteca de Stickers</strong>, 
-                você precisa adquirir um pacote de vídeos. Escolha um dos pacotes abaixo para começar!
-              </p>
-              <button
-                onClick={() => setShowPackRequiredMessage(false)}
-                className="text-orange-300 hover:text-orange-200 text-sm font-medium transition-colors"
-              >
-                Entendi, fechar mensagem
-              </button>
-            </div>
-          </div>
-        </div>
+        <Alert className="border-amber-700/60 bg-amber-950/40 text-amber-100 [&>svg]:text-amber-300">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Pacote Necessário</AlertTitle>
+          <AlertDescription className="space-y-3">
+            <p>
+              Para acessar a <strong>Biblioteca de Artes</strong> e{" "}
+              <strong>Biblioteca de Stickers</strong>, você precisa adquirir um
+              pacote de vídeos ou ter assinatura <strong>Master Premium</strong>.
+            </p>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="px-0 text-amber-200 hover:text-amber-100 hover:bg-transparent"
+              onClick={() => setShowPackRequiredMessage(false)}
+            >
+              Entendi, fechar mensagem
+            </Button>
+          </AlertDescription>
+        </Alert>
       )}
 
       {/* Header */}
-      <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center mb-4 sm:mb-0">
-            <button
-              onClick={handleBack}
-              className="flex items-center text-[#7d570e] hover:text-[#6b4a0c] mr-4 transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5 mr-2" />
+      <Card>
+        <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="sm" onClick={handleBack}>
+              <ArrowLeft className="w-4 h-4" />
               Voltar
-            </button>
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-[#7d570e] rounded-lg flex items-center justify-center">
-                <VideoIcon className="w-6 h-6 text-white" />
+            </Button>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-primary/20 border border-primary/40 flex items-center justify-center">
+                <VideoIcon className="w-5 h-5 text-primary" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-white">Pacotes de Vídeos</h1>
-                <p className="text-gray-300">Explore os combos de vídeos disponíveis</p>
+                <h1 className="text-2xl font-semibold">Pacotes de Vídeos</h1>
+                <p className="text-sm text-muted-foreground">
+                  Explore os combos de vídeos disponíveis
+                </p>
               </div>
             </div>
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Combos List */}
       {isLoading ? (
-        <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
-          <div className="text-center py-12">
-            <Loader2 className="w-8 h-8 text-[#7d570e] animate-spin mx-auto mb-4" />
-            <p className="text-gray-300">Carregando combos...</p>
-          </div>
-        </div>
+        <Card>
+          <CardContent className="py-16 text-center">
+            <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto mb-4" />
+            <p className="text-muted-foreground">Carregando combos...</p>
+          </CardContent>
+        </Card>
       ) : combos.length === 0 ? (
-        <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
-          <div className="text-center py-12">
-            <div className="w-16 h-16 bg-gray-900 rounded-full flex items-center justify-center mx-auto mb-4">
-              <VideoIcon className="w-8 h-8 text-gray-400" />
+        <Card>
+          <CardContent className="py-16 text-center">
+            <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
+              <VideoIcon className="w-8 h-8 text-muted-foreground" />
             </div>
-            <div className="text-gray-400 mb-4">
-              Nenhum combo disponível
-            </div>
-          </div>
-        </div>
+            <p className="text-muted-foreground">Nenhum combo disponível</p>
+          </CardContent>
+        </Card>
       ) : (
         <>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
             {combos.map((combo) => (
-              <div
-                key={combo.id}
-                className="bg-black shadow rounded-lg border border-gray-800 overflow-hidden"
-              >
+              <Card key={combo.id} className="py-0 gap-0 overflow-hidden">
                 {/* Combo Title */}
                 {combo.showTitle && (
-                  <div className="p-6 border-b border-gray-800">
-                    <h2 className="text-xl font-bold text-white text-center">
-                      {combo.name}
-                    </h2>
-                  </div>
+                  <CardHeader className="border-b pt-6 pb-5">
+                    <CardTitle className="text-xl text-center">{combo.name}</CardTitle>
+                  </CardHeader>
                 )}
 
                 {/* Packs Grid */}
-                <div className="p-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                         {combo.packs.map((pack: Pack) => (
-                      <div
+                <CardContent className="p-6">
+                  <div
+                    className={`grid gap-6 ${
+                      combo.packs.length <= 1 ? "grid-cols-1" : "grid-cols-2"
+                    }`}
+                  >
+                    {combo.packs.map((pack: Pack) => (
+                      <Card
                         key={pack.id}
-                        className="bg-gray-900 rounded-lg border border-gray-700 overflow-hidden hover:border-[#7d570e] transition-colors"
+                        className="py-0 gap-0 overflow-hidden hover:border-primary/50 transition-colors"
                       >
                         {/* Pack Image */}
-                        <div className="relative h-48">
+                        <div className="relative h-48 bg-muted/30">
                           {pack.image?.url ? (
                             <Image
                               src={pack.image.url}
                               alt={pack.name}
                               fill
-                              className="object-cover"
+                              className="object-contain p-2"
                             />
                           ) : (
-                            <div className="w-full h-full bg-[#7d570e] flex items-center justify-center">
-                              <VideoIcon className="w-12 h-12 text-white" />
+                            <div className="w-full h-full bg-primary/20 flex items-center justify-center">
+                              <VideoIcon className="w-12 h-12 text-primary" />
                             </div>
                           )}
-                          {/* Gradient Overlay */}
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
                           
                           {/* Pack Type Badge */}
                           {pack.initialPackage && (
                             <div className="absolute top-3 left-3">
-                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-600 text-white">
+                              <Badge className="bg-blue-600 text-white hover:bg-blue-600">
                                 Inicial
-                              </span>
+                              </Badge>
                             </div>
                           )}
                         </div>
 
                         {/* Pack Info */}
-                        <div className="p-4">
-                          <h3 className="text-lg font-semibold text-white mb-2">
-                            {pack.name}
-                          </h3>
-                          <p className="text-gray-300 text-sm mb-4 line-clamp-2">
-                            {pack.description}
-                          </p>
+                        <CardContent className="p-4 space-y-4">
+                          <div className="space-y-2">
+                            <CardTitle className="text-lg">{pack.name}</CardTitle>
+                            <CardDescription className="line-clamp-2">
+                              {pack.description}
+                            </CardDescription>
+                          </div>
                           
                           {/* Release Period Message or Access Button */}
                           {isPackInReleasePeriod(pack) ? (
-                            <div className="mb-4 p-3 bg-blue-900 border border-blue-700 rounded-lg">
-                              <div className="flex items-center text-blue-300 text-sm">
+                            <div className="p-3 bg-blue-950/50 border border-blue-700/60 rounded-lg">
+                              <div className="flex items-center text-blue-200 text-sm">
                                 <span className="mr-2">⏰</span>
                                 <span>
                                   Disponível até {getPackReleaseDate(pack.documentId) ? 
@@ -289,32 +308,32 @@ function CombosPageContent() {
                               </div>
                             </div>
                           ) : (
-                            <button
+                            <Button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 router.push(`/videos?pack=${pack.documentId}`);
                               }}
-                              className="w-full bg-[#7d570e] text-white py-2 px-4 rounded-lg hover:bg-[#6b4a0c] transition-colors font-medium"
+                              className="w-full"
                             >
                               Acessar Vídeos
-                            </button>
+                            </Button>
                           )}
-                        </div>
-                      </div>
+                        </CardContent>
+                      </Card>
                     ))}
                   </div>
-                </div>
-              </div>
+                </CardContent>
+              </Card>
             ))}
           </div>
 
           {/* Load More Button */}
           {currentPage < totalPages && (
             <div className="flex justify-center mt-8">
-              <button
+              <Button
                 onClick={loadMoreCombos}
                 disabled={isLoadingMore}
-                className="flex items-center space-x-2 px-6 py-3 bg-[#7d570e] text-white rounded-lg hover:bg-[#6b4a0c] disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+                size="lg"
               >
                 {isLoadingMore ? (
                   <>
@@ -324,7 +343,7 @@ function CombosPageContent() {
                 ) : (
                   <span>Carregar Mais</span>
                 )}
-              </button>
+              </Button>
             </div>
           )}
         </>
@@ -336,16 +355,14 @@ function CombosPageContent() {
 export default function CombosPage() {
   return (
     <Suspense fallback={
-      <div className="space-y-6">
-        <div className="bg-black shadow rounded-lg p-6 border border-gray-800">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#7d570e] mx-auto"></div>
-            <p className="mt-4 text-gray-300">Carregando...</p>
-          </div>
-        </div>
-      </div>
+      <Card>
+        <CardContent className="py-16 text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
+          <p className="mt-4 text-muted-foreground">Carregando...</p>
+        </CardContent>
+      </Card>
     }>
       <CombosPageContent />
     </Suspense>
   );
-} 
+}

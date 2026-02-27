@@ -12,56 +12,39 @@ import {
   XCircle,
   CheckCircle2,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useWhatsApp } from "@/hooks/use-whatsapp";
 import type { WhatsAppAccount, WhatsAppGroup } from "@/interfaces/whatsapp";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 
 function StatusBadge({ status }: { status: string }) {
-  const map: Record<
-    string,
-    { label: string; color: string; text: string }
-  > = {
-    connected: {
-      label: "Conectado",
-      color: "bg-emerald-500/10 border-emerald-500/50",
-      text: "text-emerald-400",
-    },
-    pending: {
-      label: "Aguardando",
-      color: "bg-amber-500/10 border-amber-500/40",
-      text: "text-amber-300",
-    },
-    processing: {
-      label: "Processando",
-      color: "bg-amber-500/10 border-amber-500/40",
-      text: "text-amber-300",
-    },
-    failed: {
-      label: "Erro",
-      color: "bg-red-500/10 border-red-500/40",
-      text: "text-red-300",
-    },
-    error: {
-      label: "Erro",
-      color: "bg-red-500/10 border-red-500/40",
-      text: "text-red-300",
-    },
+  const map: Record<string, { label: string; className: string }> = {
+    connected: { label: "Conectado", className: "border-emerald-500/60 text-emerald-300" },
+    pending: { label: "Aguardando", className: "border-amber-500/60 text-amber-300" },
+    processing: { label: "Processando", className: "border-amber-500/60 text-amber-300" },
+    failed: { label: "Erro", className: "border-rose-500/60 text-rose-300" },
+    error: { label: "Erro", className: "border-rose-500/60 text-rose-300" },
   };
 
-  const fallback = {
-    label: status,
-    color: "bg-gray-700/70 border-gray-600",
-    text: "text-gray-200",
+  const styles = map[status] ?? {
+    label: status || "Desconhecido",
+    className: "border-muted text-muted-foreground",
   };
-
-  const styles = map[status] ?? fallback;
 
   return (
-    <span
-      className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${styles.color} ${styles.text}`}
-    >
-      <span className="h-2 w-2 rounded-full bg-current mr-2" />
+    <Badge variant="outline" className={styles.className}>
       {styles.label}
-    </span>
+    </Badge>
   );
 }
 
@@ -78,8 +61,8 @@ function GroupList({
 }) {
   if (isLoading) {
     return (
-      <div className="flex items-center gap-2 text-gray-300">
-        <Loader2 className="w-4 h-4 animate-spin" />
+      <div className="flex items-center gap-2 text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" />
         Carregando grupos...
       </div>
     );
@@ -87,9 +70,9 @@ function GroupList({
 
   if (!groups.length) {
     return (
-      <div className="text-gray-400">
+      <p className="text-sm text-muted-foreground">
         Nenhum grupo encontrado. Sincronize para trazer a lista mais recente.
-      </div>
+      </p>
     );
   }
 
@@ -98,29 +81,22 @@ function GroupList({
       {groups.map((group) => {
         const isDefault = group.id === defaultGroupId;
         return (
-          <div
-            key={group.id}
-            className={`border rounded-lg px-4 py-3 bg-gray-900/60 flex items-center justify-between ${
-              isDefault ? "border-emerald-600" : "border-gray-800"
-            }`}
-          >
-            <div>
-              <div className="text-white font-semibold">
-                {group.name || group.id}
+          <Card key={group.id} className={isDefault ? "border-emerald-500/60" : ""}>
+            <CardContent className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate font-medium">{group.name || group.id}</p>
+                <p className="truncate text-xs text-muted-foreground">{group.id}</p>
               </div>
-              <div className="text-xs text-gray-400">{group.id}</div>
-            </div>
-            <button
-              onClick={() => onSelectDefault(group)}
-              className={`text-sm px-3 py-2 rounded-md border ${
-                isDefault
-                  ? "bg-emerald-600 text-white border-emerald-500"
-                  : "text-gray-200 border-gray-700 hover:border-emerald-500 hover:text-white"
-              }`}
-            >
-              {isDefault ? "Padrão" : "Definir padrão"}
-            </button>
-          </div>
+              <Button
+                onClick={() => onSelectDefault(group)}
+                size="sm"
+                variant={isDefault ? "default" : "outline"}
+                className={isDefault ? "bg-emerald-600 text-white hover:bg-emerald-500" : ""}
+              >
+                {isDefault ? "Padrão" : "Definir padrão"}
+              </Button>
+            </CardContent>
+          </Card>
         );
       })}
     </div>
@@ -129,6 +105,7 @@ function GroupList({
 
 export default function IntegrationPage() {
   const whatsapp = useWhatsApp();
+  const router = useRouter();
   const [sessionName, setSessionName] = useState("");
 
   useEffect(() => {
@@ -173,16 +150,16 @@ export default function IntegrationPage() {
 
     return (
       <div className="mt-4">
-        <div className="text-sm text-gray-300 mb-2">
+        <p className="mb-2 text-sm text-muted-foreground">
           Escaneie o QR Code no WhatsApp Web para finalizar a conexão.
-        </div>
-        <div className="bg-white p-4 rounded-lg inline-block">
+        </p>
+        <div className="inline-block rounded-lg bg-white p-4">
           <Image
             src={src}
             alt="QR Code do WhatsApp"
             width={192}
             height={192}
-            className="w-48 h-48 object-contain"
+            className="h-48 w-48 object-contain"
             unoptimized
           />
         </div>
@@ -193,218 +170,189 @@ export default function IntegrationPage() {
   const renderAccountCard = (account: WhatsAppAccount) => {
     const isSelected = account.sessionName === selectedAccount?.sessionName;
     return (
-      <div
-        key={account.sessionName}
-        className={`p-4 rounded-lg border transition-colors ${
-          isSelected ? "border-emerald-600" : "border-gray-800"
-        } bg-gray-900/60`}
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-emerald-600/20 flex items-center justify-center text-emerald-300">
-              <Smartphone className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="text-white font-semibold">
-                {account.title?.trim() || account.sessionName}
+      <Card key={account.sessionName} className={isSelected ? "border-emerald-500/60" : ""}>
+        <CardContent className="space-y-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-300">
+                <Smartphone className="h-5 w-5" />
               </div>
-              <div className="text-xs text-gray-400">
-                {account.phoneNumber || "Sessão"} • {account.sessionName}
-              </div>
-              <div className="mt-1">
-                <StatusBadge status={account.statusConnection} />
+              <div className="min-w-0">
+                <p className="truncate font-semibold">{account.title?.trim() || account.sessionName}</p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {account.phoneNumber || "Sessão"} • {account.sessionName}
+                </p>
+                <div className="mt-1">
+                  <StatusBadge status={account.statusConnection} />
+                </div>
               </div>
             </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                onClick={() => handleSelectAccount(account)}
+                size="sm"
+                variant={isSelected ? "default" : "outline"}
+                className={isSelected ? "bg-emerald-600 text-white hover:bg-emerald-500" : ""}
+              >
+                {isSelected ? "Selecionada" : "Selecionar"}
+              </Button>
+              <Button
+                onClick={whatsapp.disconnect}
+                size="sm"
+                variant="outline"
+                className="border-rose-500/60 text-rose-300 hover:bg-rose-500/10"
+              >
+                Desconectar
+              </Button>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => handleSelectAccount(account)}
-              className={`px-3 py-2 text-sm rounded-md border ${
-                isSelected
-                  ? "border-emerald-500 text-emerald-200 bg-emerald-500/10"
-                  : "border-gray-700 text-gray-200 hover:border-emerald-500"
-              }`}
-            >
-              {isSelected ? "Selecionada" : "Selecionar"}
-            </button>
-            <button
-              onClick={whatsapp.disconnect}
-              className="px-3 py-2 text-sm rounded-md border border-red-700 text-red-200 hover:bg-red-900/30"
-            >
-              Desconectar
-            </button>
-          </div>
-        </div>
-        {isSelected && renderQrCode(account)}
-      </div>
+          {isSelected && renderQrCode(account)}
+        </CardContent>
+      </Card>
     );
   };
 
-  const renderHeader = () => (
-    <div className="bg-black shadow rounded-lg p-6 border border-gray-800 mb-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => history.back()}
-            className="text-[#7d570e] hover:text-[#6b4a0c] transition-colors"
-            aria-label="Voltar"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div>
-            <h1 className="text-2xl font-bold text-white">Integração WhatsApp</h1>
-            <p className="text-gray-300">
-              Conecte suas sessões e escolha grupos para disparos.
-            </p>
-          </div>
-        </div>
-        
-      </div>
-    </div>
-  );
-
-  const renderAccessError = () => (
-    <div className="bg-black border border-red-700/60 rounded-lg p-6 text-center">
-      <div className="flex items-center justify-center gap-2 text-red-300 mb-2">
-        <XCircle className="w-6 h-6" />
-        <span>Integração restrita</span>
-      </div>
-      <p className="text-gray-300 mb-4">
-        Disponível apenas para assinantes Master Premium ou Divulgador Master.
-      </p>
-      <a
-        href="https://masterafiliados.com.br"
-        target="_blank"
-        rel="noreferrer"
-        className="inline-flex items-center px-4 py-2 bg-[#7d570e] text-white rounded-md hover:bg-[#6b4a0c] transition-colors"
-      >
-        Conhecer planos
-      </a>
-    </div>
-  );
-
   return (
     <div className="space-y-6">
-      {renderHeader()}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" onClick={() => router.back()}>
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div>
+              <CardTitle>Integração WhatsApp</CardTitle>
+              <CardDescription>Conecte sessões e escolha grupos para disparos.</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+      </Card>
 
       {whatsapp.error && (
-        <div className="bg-black border border-red-800 rounded-lg p-4 text-red-300">
-          {whatsapp.error}
-        </div>
+        <Alert variant="destructive" className="border-destructive/60 bg-destructive/10">
+          <AlertTitle>Erro na integração</AlertTitle>
+          <AlertDescription className="text-destructive/90">{whatsapp.error}</AlertDescription>
+        </Alert>
       )}
 
       {whatsapp.hasAccess === false ? (
-        renderAccessError()
+        <Alert className="border-rose-500/50 bg-rose-500/10">
+          <XCircle className="h-4 w-4 text-rose-300" />
+          <AlertTitle className="text-rose-200">Integração restrita</AlertTitle>
+          <AlertDescription className="space-y-3 text-rose-100">
+            <p>Disponível apenas para assinantes Master Premium ou Divulgador Master.</p>
+            <Button asChild className="w-fit">
+              <a href="https://masterafiliados.com.br" target="_blank" rel="noreferrer">
+                Conhecer planos
+              </a>
+            </Button>
+          </AlertDescription>
+        </Alert>
       ) : (
-        <>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 space-y-4">
-              <div className="bg-black border border-gray-800 rounded-lg p-5">
-                <div className="flex items-center gap-3 mb-4">
-                  <Plus className="w-5 h-5 text-[#7d570e]" />
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <div className="space-y-6 lg:col-span-2">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Plus className="h-4 w-4 text-primary" />
+                  Conectar nova sessão
+                </CardTitle>
+                <CardDescription>
+                  Dê um nome para identificar sua conta (ex: Vendas, Suporte).
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-3 sm:flex-row">
+                <Input
+                  value={sessionName}
+                  onChange={(e) => setSessionName(e.target.value)}
+                  placeholder="Nome da sessão"
+                  className="h-10"
+                />
+                <Button
+                  onClick={handleConnect}
+                  disabled={!sessionName.trim() || whatsapp.isLoading}
+                >
+                  {whatsapp.isLoading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Conectando...
+                    </>
+                  ) : (
+                    "Criar sessão"
+                  )}
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between gap-3">
                   <div>
-                    <div className="text-white font-semibold">
-                      Conectar nova sessão
-                    </div>
-                    <p className="text-gray-400 text-sm">
-                      Dê um nome para identificar sua conta (ex: Vendas, Suporte).
-                    </p>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <Wifi className="h-4 w-4 text-primary" />
+                      Sessões
+                    </CardTitle>
+                    <CardDescription>
+                      Selecione a conta para gerenciar grupos e disparos.
+                    </CardDescription>
                   </div>
-                </div>
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <input
-                    value={sessionName}
-                    onChange={(e) => setSessionName(e.target.value)}
-                    placeholder="Nome da sessão"
-                    className="flex-1 px-3 py-2 rounded-md bg-gray-900 border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-[#7d570e]"
-                  />
-                  <button
-                    onClick={handleConnect}
-                    disabled={!sessionName.trim() || whatsapp.isLoading}
-                    className="px-4 py-2 bg-[#7d570e] text-white rounded-md hover:bg-[#6b4a0c] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {whatsapp.isLoading ? (
-                      <span className="flex items-center gap-2">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Conectando...
-                      </span>
-                    ) : (
-                      "Criar sessão"
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              <div className="bg-black border border-gray-800 rounded-lg p-5 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Wifi className="w-5 h-5 text-[#7d570e]" />
-                    <div>
-                      <div className="text-white font-semibold">Sessões</div>
-                      <p className="text-gray-400 text-sm">
-                        Selecione a conta para gerenciar grupos e disparos.
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => whatsapp.loadConnections()}
-                    className="flex items-center gap-2 px-3 py-2 text-sm rounded-md border border-gray-700 text-gray-200 hover:border-[#7d570e]"
-                  >
-                    <RefreshCcw className="w-4 h-4" />
+                  <Button variant="outline" size="sm" onClick={() => whatsapp.loadConnections()}>
+                    <RefreshCcw className="h-4 w-4" />
                     Atualizar
-                  </button>
+                  </Button>
                 </div>
-
+              </CardHeader>
+              <CardContent className="space-y-3">
                 {whatsapp.isLoading && (
-                  <div className="flex items-center gap-2 text-gray-300">
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
                     Carregando sessões...
                   </div>
                 )}
 
                 {!whatsapp.isLoading && whatsapp.accounts.length === 0 && (
-                  <div className="text-gray-400">
+                  <p className="text-sm text-muted-foreground">
                     Nenhuma sessão criada. Conecte uma nova sessão para começar.
-                  </div>
+                  </p>
                 )}
 
                 <div className="space-y-3">
                   {whatsapp.accounts.map((account) => renderAccountCard(account))}
                 </div>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
+          </div>
 
-            <div className="bg-black border border-gray-800 rounded-lg p-5 space-y-4">
-              <div className="flex items-center justify-between">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between gap-3">
                 <div>
-                  <div className="text-white font-semibold">Grupos</div>
-                  <p className="text-gray-400 text-sm">
-                    Sincronize e defina o grupo padrão para disparos.
-                  </p>
+                  <CardTitle className="text-base">Grupos</CardTitle>
+                  <CardDescription>Sincronize e defina o grupo padrão para disparos.</CardDescription>
                 </div>
-                <button
+                <Button
                   onClick={handleRefreshGroups}
                   disabled={!selectedAccount || whatsapp.isGroupsLoading}
-                  className="flex items-center gap-2 px-3 py-2 text-sm rounded-md border border-gray-700 text-gray-200 hover:border-[#7d570e] disabled:opacity-50 disabled:cursor-not-allowed"
+                  variant="outline"
+                  size="sm"
                 >
-                  <RefreshCcw className="w-4 h-4" />
+                  <RefreshCcw className="h-4 w-4" />
                   Atualizar
-                </button>
+                </Button>
               </div>
-
+            </CardHeader>
+            <CardContent className="space-y-4">
               {selectedAccount ? (
                 <>
-                  <div className="flex items-center gap-2 text-sm text-gray-300">
+                  <div className="flex items-center gap-2 text-sm">
                     {selectedAccount.defaultGroupName ? (
                       <>
-                        <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                        <span>
-                          Grupo padrão: {selectedAccount.defaultGroupName}
-                        </span>
+                        <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                        <span>Grupo padrão: {selectedAccount.defaultGroupName}</span>
                       </>
                     ) : (
                       <>
-                        <XCircle className="w-4 h-4 text-amber-400" />
+                        <XCircle className="h-4 w-4 text-amber-400" />
                         <span>Nenhum grupo padrão selecionado</span>
                       </>
                     )}
@@ -417,31 +365,23 @@ export default function IntegrationPage() {
                     isLoading={whatsapp.isGroupsLoading}
                   />
 
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={handleSync}
-                      disabled={whatsapp.isLoading}
-                      className="flex-1 px-3 py-2 rounded-md border border-gray-700 text-gray-200 hover:border-[#7d570e] disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {whatsapp.isLoading ? (
-                        <span className="flex items-center gap-2 justify-center">
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          Sincronizando...
-                        </span>
-                      ) : (
-                        "Sincronizar status"
-                      )}
-                    </button>
-                  </div>
+                  <Button onClick={handleSync} disabled={whatsapp.isLoading} variant="outline" className="w-full">
+                    {whatsapp.isLoading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Sincronizando...
+                      </>
+                    ) : (
+                      "Sincronizar status"
+                    )}
+                  </Button>
                 </>
               ) : (
-                <div className="text-gray-400">
-                  Selecione uma sessão para visualizar grupos.
-                </div>
+                <p className="text-sm text-muted-foreground">Selecione uma sessão para visualizar grupos.</p>
               )}
-            </div>
-          </div>
-        </>
+            </CardContent>
+          </Card>
+        </div>
       )}
     </div>
   );
