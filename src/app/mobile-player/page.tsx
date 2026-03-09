@@ -6,7 +6,6 @@ export const dynamic = "force-dynamic";
 type SearchParams = {
   videoDocumentId?: string | string[];
   premium?: string | string[];
-  source?: string | string[];
 };
 
 function firstValue(value?: string | string[]): string {
@@ -31,7 +30,6 @@ export default async function MobilePlayerPage({
   const params = await searchParams;
   const videoDocumentId = firstValue(params.videoDocumentId).trim();
   const premium = firstValue(params.premium).trim() == "1";
-  const source = firstValue(params.source).trim();
   const authHeader = (await headers()).get("authorization") ?? "";
   const strapiBaseUrl = process.env.NEXT_PUBLIC_STRAPI_URL ?? "";
 
@@ -61,9 +59,6 @@ export default async function MobilePlayerPage({
 
   const endpoint = premium ? "premium-videos" : "videos";
   const playbackUrl = `${strapiBaseUrl}/api/${endpoint}/playback/${videoDocumentId}`;
-  const sourceUrl = source
-    ? resolveAbsoluteUrl(strapiBaseUrl, source)
-    : undefined;
 
   try {
     const response = await fetch(playbackUrl, {
@@ -76,9 +71,6 @@ export default async function MobilePlayerPage({
     });
 
     if (!response.ok) {
-      if (sourceUrl) {
-        return <MobilePlayerClient playbackUrl={sourceUrl} />;
-      }
       return (
         <MobilePlayerClient
           errorMessage={`Erro ao carregar vídeo (${response.status}).`}
@@ -90,9 +82,6 @@ export default async function MobilePlayerPage({
     const url = (data.url ?? "").trim();
 
     if (!url) {
-      if (sourceUrl) {
-        return <MobilePlayerClient playbackUrl={sourceUrl} />;
-      }
       return (
         <MobilePlayerClient
           errorMessage="URL de reprodução não encontrada."
@@ -104,9 +93,6 @@ export default async function MobilePlayerPage({
       <MobilePlayerClient playbackUrl={resolveAbsoluteUrl(strapiBaseUrl, url)} />
     );
   } catch {
-    if (sourceUrl) {
-      return <MobilePlayerClient playbackUrl={sourceUrl} />;
-    }
     return (
       <MobilePlayerClient
         errorMessage="Erro de conexão ao resolver o vídeo."
