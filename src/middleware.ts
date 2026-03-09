@@ -3,19 +3,16 @@ import type { NextRequest } from "next/server";
 
 export function middleware(request: NextRequest) {
   const userCookie = request.cookies.get("user");
-  const authorization = request.headers.get("authorization") ?? "";
-  const hasBearerToken = authorization.startsWith("Bearer ");
   const isAuthPage = request.nextUrl.pathname === "/login";
   const isForgotPasswordPage = request.nextUrl.pathname === "/forgot-password";
   const isResetPasswordPage = request.nextUrl.pathname === "/reset-password";
   const isVideosPage = request.nextUrl.pathname === "/videos";
-  const isMobilePlayerPage = request.nextUrl.pathname === "/mobile-player";
   const isPublicPath = request.nextUrl.pathname === "/" || isAuthPage || isForgotPasswordPage || isResetPasswordPage;
 
 
 
   // If the user is not logged in and trying to access a protected route
-  if (!userCookie && !isPublicPath && !(isMobilePlayerPage && hasBearerToken)) {
+  if (!userCookie && !isPublicPath) {
     const url = new URL("/login", request.url);
     url.searchParams.set("from", request.nextUrl.pathname);
     return NextResponse.redirect(url);
