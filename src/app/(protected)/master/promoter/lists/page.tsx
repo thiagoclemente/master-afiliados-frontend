@@ -24,7 +24,12 @@ import {
   promoterPreview,
   fetchWhatsappBatchDetail,
   fetchPromoterShopeeProducts,
+  fetchPromoterListDrafts,
+  createPromoterListDraft,
+  updatePromoterListDraft,
+  deletePromoterListDraft,
   type PromoterShopeeProduct,
+  type PromoterListDraft,
 } from "@/services/promoter.service";
 import type { WhatsAppBatch, WhatsAppBatchCampaign } from "@/interfaces/promoter";
 import { useWhatsApp } from "@/hooks/use-whatsapp";
@@ -39,6 +44,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import {
+  buildListItemFromExtensionPayload,
+  getExtensionPayloadCardData,
+  tryParseExtensionPayload,
+} from "@/lib/promoter-extension-payload";
 
 type ListItem = {
   link: string;
@@ -131,7 +141,13 @@ export default function PromoterListsPage() {
 
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [scheduledGroups, setScheduledGroups] = useState<ScheduledGroup[]>([]);
+  const [savedDrafts, setSavedDrafts] = useState<PromoterListDraft[]>([]);
+  const [activeDraftDocumentId, setActiveDraftDocumentId] = useState<string>("");
+  const [isLoadingDrafts, setIsLoadingDrafts] = useState(true);
   const canAddScheduledGroup = Boolean(selectedGroupId && startAt);
+  const hasLoadedDraftRef = useRef(false);
+  const isHydratingDraftRef = useRef(false);
+  const draftSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const groups = whatsapp.groups;
 
@@ -336,8 +352,112 @@ export default function PromoterListsPage() {
     }
   };
 
+  const buildEmptyDraftPayload = (): PromoterListDraft => ({
+    title: "",
+    listStatus: "draft",
+    sourceTab: "custom",
+    sessionName: null,
+    groupId: null,
+    intervalMinutes: 5,
+    startAt: null,
+    endAt: null,
+    overflowStartAt: null,
+    items: [],
+    scheduledGroups: [],
+    metadata: {},
+  });
+
+  const applyDraft = (draft: PromoterListDraft | null) => {
+    isHydratingDraftRef.current = true;
+    setTitle(draft?.title || "");
+    setIntervalMinutes(
+      typeof draft?.intervalMinutes === "number" && Number.isFinite(draft.intervalMinutes)
+        ? draft.intervalMinutes
+        : 5
+    );
+    setStartAt(draft?.startAt || "");
+    setEndAt(draft?.endAt || "");
+    setOverflowStartAt(draft?.overflowStartAt || "");
+    setItems(Array.isArray(draft?.items) ? (draft?.items as ListItem[]) : []);
+    setScheduledGroups(Array.isArray(draft?.scheduledGroups) ? (draft?.scheduledGroups as ScheduledGroup[]) : []);
+    setSourceTab(draft?.sourceTab === "shopee" ? "shopee" : "custom");
+    setSelectedGroupId(draft?.groupId || null);
+
+    const metadata =
+      draft?.metadata && typeof draft.metadata === "object" ? draft.metadata : {};
+    setSingleLinkInput(typeof metadata.singleLinkInput === "string" ? metadata.singleLinkInput : "");
+    setCustomLinksInput(typeof metadata.customLinksInput === "string" ? metadata.customLinksInput : "");
+    setShopeeQuery(typeof metadata.shopeeQuery === "string" ? metadata.shopeeQuery : "");
+    setShopeeLimit(
+      typeof metadata.shopeeLimit === "number" && Number.isFinite(metadata.shopeeLimit)
+        ? metadata.shopeeLimit
+        : 10
+    );
+    setShopeeSortType(
+      typeof metadata.shopeeSortType === "number" && Number.isFinite(metadata.shopeeSortType)
+        ? metadata.shopeeSortType
+        : null
+    );
+    setShopeeIsAMSOffer(
+      typeof metadata.shopeeIsAMSOffer === "boolean" ? metadata.shopeeIsAMSOffer : null
+    );
+    setShopeePreset(typeof metadata.shopeePreset === "string" ? metadata.shopeePreset : "");
+    setSelectedItemIndex(null);
+    setTimeout(() => {
+      isHydratingDraftRef.current = false;
+    }, 0);
+  };
+
   useEffect(() => {
     void load();
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const ensureInitialDraft = async () => {
+      setIsLoadingDrafts(true);
+      try {
+        const drafts = await fetchPromoterListDrafts();
+        if (!isMounted) return;
+
+        if (drafts.length === 0) {
+          const created = await createPromoterListDraft(buildEmptyDraftPayload());
+          if (!isMounted) return;
+          const nextDrafts = created ? [created] : [];
+          setSavedDrafts(nextDrafts);
+          setActiveDraftDocumentId(created?.documentId || "");
+          applyDraft(created || null);
+        } else {
+          const sorted = [...drafts].sort((a, b) => {
+            const aDate = a.updatedAt || a.createdAt || "";
+            const bDate = b.updatedAt || b.createdAt || "";
+            return bDate.localeCompare(aDate);
+          });
+          const active = sorted[0] || null;
+          setSavedDrafts(sorted);
+          setActiveDraftDocumentId(active?.documentId || "");
+          applyDraft(active);
+        }
+      } catch (err) {
+        if (isMounted) {
+          setError(
+            err instanceof Error ? err.message : "Erro ao carregar rascunhos salvos da lista."
+          );
+        }
+      } finally {
+        if (isMounted) {
+          hasLoadedDraftRef.current = true;
+          setIsLoadingDrafts(false);
+        }
+      }
+    };
+
+    void ensureInitialDraft();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -352,6 +472,7 @@ export default function PromoterListsPage() {
   }, [selectedAccount, whatsapp]);
 
   useEffect(() => {
+    if (selectedGroupId) return;
     const defaultGroup =
       selectedAccount?.defaultGroupId ||
       groups.find((group: WhatsAppGroup) => !!group.id)?.id ||
@@ -359,7 +480,89 @@ export default function PromoterListsPage() {
     if (defaultGroup) {
       setSelectedGroupId(defaultGroup);
     }
-  }, [selectedAccount, groups]);
+  }, [selectedAccount, groups, selectedGroupId]);
+
+  useEffect(() => {
+    if (!hasLoadedDraftRef.current || isHydratingDraftRef.current || !activeDraftDocumentId) {
+      return;
+    }
+
+    const metadata = {
+      singleLinkInput,
+      customLinksInput,
+      shopeeQuery,
+      shopeeLimit,
+      shopeeSortType,
+      shopeeIsAMSOffer,
+      shopeePreset,
+    };
+
+    const draft: PromoterListDraft = {
+      title: title.trim(),
+      listStatus: "draft",
+      sourceTab,
+      sessionName: selectedAccount?.sessionName || null,
+      groupId: selectedGroupId || null,
+      intervalMinutes,
+      startAt: startAt || null,
+      endAt: endAt || null,
+      overflowStartAt: overflowStartAt || null,
+      items,
+      scheduledGroups,
+      metadata,
+    };
+
+    if (draftSaveTimeoutRef.current) {
+      clearTimeout(draftSaveTimeoutRef.current);
+    }
+
+    draftSaveTimeoutRef.current = setTimeout(() => {
+      const persist = async () => {
+        try {
+          const updated = await updatePromoterListDraft(activeDraftDocumentId, draft);
+          setSavedDrafts((prev) => {
+            const next = prev.map((entry) =>
+              entry.documentId === activeDraftDocumentId ? { ...entry, ...(updated || draft), documentId: activeDraftDocumentId } : entry
+            );
+            return next.sort((a, b) => {
+              const aDate = a.updatedAt || a.createdAt || "";
+              const bDate = b.updatedAt || b.createdAt || "";
+              return bDate.localeCompare(aDate);
+            });
+          });
+        } catch (err) {
+          console.error("Erro ao persistir rascunho do promoter", err);
+        }
+      };
+
+      void persist();
+    }, 800);
+
+    return () => {
+      if (draftSaveTimeoutRef.current) {
+        clearTimeout(draftSaveTimeoutRef.current);
+      }
+    };
+  }, [
+    activeDraftDocumentId,
+    title,
+    sourceTab,
+    selectedAccount?.sessionName,
+    selectedGroupId,
+    intervalMinutes,
+    startAt,
+    endAt,
+    overflowStartAt,
+    items,
+    scheduledGroups,
+    singleLinkInput,
+    customLinksInput,
+    shopeeQuery,
+    shopeeLimit,
+    shopeeSortType,
+    shopeeIsAMSOffer,
+    shopeePreset,
+  ]);
 
   const initializeDateFields = () => {
     setStartAtField(formatDateTimeLocalInput(startAt));
@@ -644,6 +847,35 @@ export default function PromoterListsPage() {
     }
   };
 
+  const addExtensionPayloadToList = (
+    rawPayload: string,
+    inputReset?: () => void
+  ) => {
+    const parsed = tryParseExtensionPayload(rawPayload);
+    if (!parsed) return false;
+
+    const item = buildListItemFromExtensionPayload(parsed);
+    if (!item.link) {
+      setError("O payload da extensão não possui um link válido para o produto.");
+      return true;
+    }
+
+    let nextSelectedIndex: number | null = null;
+    setItems((prev) => {
+      const next = [...prev, item];
+      nextSelectedIndex = next.length > 0 ? next.length - 1 : null;
+      return next;
+    });
+    clearSchedulingAfterItemsChange();
+    if (nextSelectedIndex !== null) {
+      setSelectedItemIndex(nextSelectedIndex);
+    }
+    setError(null);
+    setSuccessMessage(null);
+    inputReset?.();
+    return true;
+  };
+
   const addShopeeProductsToList = async (products: PromoterShopeeProduct[]) => {
     if (products.length === 0) return;
     setIsAdding(true);
@@ -700,6 +932,9 @@ export default function PromoterListsPage() {
   };
 
   const handleAddCustomLinks = async () => {
+    if (addExtensionPayloadToList(customLinksInput, () => setCustomLinksInput(""))) {
+      return;
+    }
     const links = parseLinksInput(customLinksInput);
     if (links.length === 0) {
       setError("Cole pelo menos um link válido.");
@@ -710,6 +945,9 @@ export default function PromoterListsPage() {
   };
 
   const handleAddSingleLink = async () => {
+    if (addExtensionPayloadToList(singleLinkInput, () => setSingleLinkInput(""))) {
+      return;
+    }
     const link = singleLinkInput.trim();
     if (!link) {
       setError("Informe um link para adicionar.");
@@ -1143,6 +1381,67 @@ export default function PromoterListsPage() {
     }
   };
 
+  const handleSelectDraft = (draft: PromoterListDraft) => {
+    setActiveDraftDocumentId(draft.documentId || "");
+    applyDraft(draft);
+    setError(null);
+    setSuccessMessage(null);
+  };
+
+  const handleCreateNewDraft = async () => {
+    try {
+      const created = await createPromoterListDraft(buildEmptyDraftPayload());
+      if (!created?.documentId) {
+        throw new Error("Não foi possível criar a nova lista.");
+      }
+      setSavedDrafts((prev) => [created, ...prev]);
+      setActiveDraftDocumentId(created.documentId);
+      applyDraft(created);
+      setSuccessMessage("Nova lista criada.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao criar nova lista.");
+    }
+  };
+
+  const handleDeleteDraft = async (documentId: string) => {
+    const confirmed = window.confirm("Deseja excluir este rascunho?");
+    if (!confirmed) return;
+
+    try {
+      await deletePromoterListDraft(documentId);
+      const remaining = savedDrafts.filter((draft) => draft.documentId !== documentId);
+      if (remaining.length === 0) {
+        const created = await createPromoterListDraft(buildEmptyDraftPayload());
+        const nextDrafts = created ? [created] : [];
+        setSavedDrafts(nextDrafts);
+        setActiveDraftDocumentId(created?.documentId || "");
+        applyDraft(created || null);
+      } else {
+        const nextActive =
+          activeDraftDocumentId === documentId ? remaining[0] : remaining.find((d) => d.documentId === activeDraftDocumentId) || remaining[0];
+        setSavedDrafts(remaining);
+        if (nextActive) {
+          setActiveDraftDocumentId(nextActive.documentId || "");
+          applyDraft(nextActive);
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao excluir rascunho.");
+    }
+  };
+
+  const formatDraftSavedAt = (value?: string | null) => {
+    if (!value) return "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    return date.toLocaleString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
   const handleCreateList = async () => {
     if (!selectedAccount || items.length === 0 || scheduledGroups.length === 0) {
       showProblemNotice("Adicione ao menos um grupo agendado e pelo menos um item na lista.");
@@ -1208,6 +1507,25 @@ export default function PromoterListsPage() {
       setCustomLinksInput("");
       setSingleLinkInput("");
       setShopeeSelectedIds([]);
+      if (activeDraftDocumentId) {
+        await deletePromoterListDraft(activeDraftDocumentId);
+      }
+      const refreshedDrafts = await fetchPromoterListDrafts();
+      if (refreshedDrafts.length > 0) {
+        const sorted = [...refreshedDrafts].sort((a, b) => {
+          const aDate = a.updatedAt || a.createdAt || "";
+          const bDate = b.updatedAt || b.createdAt || "";
+          return bDate.localeCompare(aDate);
+        });
+        setSavedDrafts(sorted);
+        setActiveDraftDocumentId(sorted[0]?.documentId || "");
+        applyDraft(sorted[0] || null);
+      } else {
+        const createdDraft = await createPromoterListDraft(buildEmptyDraftPayload());
+        setSavedDrafts(createdDraft ? [createdDraft] : []);
+        setActiveDraftDocumentId(createdDraft?.documentId || "");
+        applyDraft(createdDraft || null);
+      }
       await load();
       setSuccessMessage("Lista criada e agendada com sucesso.");
       setNoticeDialog({
@@ -1303,13 +1621,25 @@ export default function PromoterListsPage() {
                 <TabsContent value="custom" className="space-y-3 mt-3">
                   <label className="text-sm text-muted-foreground flex items-center gap-2">
                     <Link2 className="w-4 h-4" />
-                    Adicionar por link
+                    Adicionar por link ou payload da extensão
                   </label>
                   <div className="grid grid-cols-1 md:grid-cols-[1fr,auto] gap-2">
                     <Input
                       value={singleLinkInput}
-                      onChange={(e) => setSingleLinkInput(e.target.value)}
-                      placeholder="https://shopee.com.br/... ou https://amazon.com.br/..."
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setSingleLinkInput(value);
+                        if (value.trim().startsWith("{")) {
+                          addExtensionPayloadToList(value, () => setSingleLinkInput(""));
+                        }
+                      }}
+                      onPaste={(e) => {
+                        const pasted = e.clipboardData.getData("text");
+                        if (addExtensionPayloadToList(pasted, () => setSingleLinkInput(""))) {
+                          e.preventDefault();
+                        }
+                      }}
+                      placeholder="https://shopee.com.br/... https://amazon.com.br/..."
                       onKeyDown={(e) => {
                         if (e.key === "Enter") {
                           e.preventDefault();
@@ -1335,7 +1665,13 @@ export default function PromoterListsPage() {
                   <Textarea
                     value={customLinksInput}
                     onChange={(e) => setCustomLinksInput(e.target.value)}
-                    placeholder="https://shopee.com.br/...\nhttps://amazon.com.br/..."
+                    onPaste={(e) => {
+                      const pasted = e.clipboardData.getData("text");
+                      if (addExtensionPayloadToList(pasted, () => setCustomLinksInput(""))) {
+                        e.preventDefault();
+                      }
+                    }}
+                    placeholder="https://shopee.com.br/...https://amazon.com.br/..."
                     className="min-h-32"
                   />
                   <Button
@@ -1602,12 +1938,24 @@ export default function PromoterListsPage() {
                 <ScrollArea className="h-[520px]">
                   <div className="space-y-2 pr-1">
                     {items.map((item, idx) => {
-                      const thumb =
-                        typeof item.payload?.productImageUrl === "string"
+                      const extensionCard = getExtensionPayloadCardData(item.payload);
+                      const thumb = extensionCard?.imageUrl
+                        ? extensionCard.imageUrl
+                        : typeof item.payload?.productImageUrl === "string"
                           ? (item.payload.productImageUrl as string)
                           : null;
                       const isSelected = selectedItemIndex === idx;
                       const needsAiProcessing = item.payload?.needsAiProcessing === true;
+                      const title =
+                        extensionCard?.title ||
+                        (typeof item.payload?.productTitle === "string"
+                          ? (item.payload.productTitle as string)
+                          : item.link);
+                      const subtitle =
+                        extensionCard?.price ||
+                        (typeof item.payload?.productPrice === "string"
+                          ? String(item.payload.productPrice)
+                          : item.message);
 
                       return (
                         <div
@@ -1639,8 +1987,40 @@ export default function PromoterListsPage() {
                               </div>
                             )}
                             <div className="flex-1 min-w-0">
-                              <div className="text-sm truncate">{item.link}</div>
-                              <div className="text-xs text-muted-foreground mt-1 line-clamp-2">{item.message}</div>
+                              <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                                {extensionCard ? (
+                                  <div className="inline-flex rounded-full bg-amber-500/15 text-amber-300 text-[10px] font-semibold px-2 py-1">
+                                    Importado da extensão
+                                  </div>
+                                ) : null}
+                                {extensionCard?.marketplace ? (
+                                  <Badge
+                                    variant="outline"
+                                    className="border-sky-500/40 bg-sky-950/20 text-sky-300 text-[10px]"
+                                  >
+                                    {extensionCard.marketplace === "mercado-livre"
+                                      ? "Mercado Livre"
+                                      : extensionCard.marketplace}
+                                  </Badge>
+                                ) : null}
+                                {extensionCard?.priceDiscountRate ? (
+                                  <Badge className="bg-emerald-600 text-white text-[10px]">
+                                    {extensionCard.priceDiscountRate} OFF
+                                  </Badge>
+                                ) : null}
+                              </div>
+                              <div className="text-sm truncate">{title}</div>
+                              <div className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                                {subtitle}
+                              </div>
+                              {extensionCard?.priceMax ? (
+                                <div className="text-[11px] text-muted-foreground mt-1 line-through truncate">
+                                  {extensionCard.priceMax}
+                                </div>
+                              ) : null}
+                              <div className="text-[11px] text-muted-foreground mt-1 truncate">
+                                {item.link}
+                              </div>
                             </div>
                             <Button
                               type="button"
@@ -1895,6 +2275,77 @@ export default function PromoterListsPage() {
         </div>
 
         <div className="xl:col-span-5 space-y-4">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between gap-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <ListPlus className="w-4 h-4" />
+                  Rascunhos salvos
+                </CardTitle>
+                <Button size="sm" onClick={() => void handleCreateNewDraft()}>
+                  Nova lista
+                </Button>
+              </div>
+              <CardDescription>
+                Continue de onde parou ou abra uma nova lista em rascunho.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoadingDrafts ? (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Carregando rascunhos...
+                </div>
+              ) : savedDrafts.length === 0 ? (
+                <div className="text-center text-muted-foreground">Nenhum rascunho salvo.</div>
+              ) : (
+                <div className="space-y-2">
+                  {savedDrafts.map((draft) => {
+                    const isActive = draft.documentId === activeDraftDocumentId;
+                    const draftItems = Array.isArray(draft.items) ? draft.items.length : 0;
+                    const draftTitle = draft.title?.trim() || "Lista sem título";
+                    return (
+                      <div
+                        key={draft.documentId || draft.id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => handleSelectDraft(draft)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            handleSelectDraft(draft);
+                          }
+                        }}
+                        className={`rounded-md border p-3 cursor-pointer transition-colors ${isActive ? "border-[#7d570e] bg-amber-950/20" : "bg-muted/20 hover:border-primary"}`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="font-medium truncate">{draftTitle}</div>
+                            <div className="text-xs text-muted-foreground mt-1">
+                              {draftItems} item(ns) • {formatDraftSavedAt(draft.updatedAt || draft.createdAt)}
+                            </div>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void handleDeleteDraft(draft.documentId || "");
+                            }}
+                            disabled={!draft.documentId}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">

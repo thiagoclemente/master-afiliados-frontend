@@ -37,7 +37,8 @@ async function request<T>(
 
 export async function promoterPreview(
   link: string,
-  message?: string
+  message?: string,
+  payload?: Record<string, unknown>
 ): Promise<PromoterPreview> {
   const data = await request<Record<string, unknown> | null>(
     "/api/whatsapp/promoter/preview",
@@ -46,6 +47,7 @@ export async function promoterPreview(
       body: JSON.stringify({
         link,
         ...(message ? { message } : {}),
+        ...(payload ? { payload } : {}),
       }),
     }
   );
@@ -167,6 +169,71 @@ export async function savePromoterHistory(payload: {
 
 export async function deletePromoterHistory(id: string): Promise<void> {
   await request(`/api/user-whatsapp-promoters/${id}`, {
+    method: "DELETE",
+  });
+}
+
+
+export type PromoterListDraftItem = {
+  link: string;
+  title?: string;
+  imageUrl?: string;
+  message?: string;
+  payload?: Record<string, unknown>;
+};
+
+export type PromoterListDraftGroup = {
+  groupId: string;
+  groupName: string;
+  startAt: string;
+  endAt?: string;
+  overflowStartAt?: string;
+};
+
+export type PromoterListDraft = {
+  id?: number;
+  documentId?: string;
+  title?: string;
+  listStatus?: string;
+  sourceTab?: "custom" | "shopee";
+  sessionName?: string | null;
+  groupId?: string | null;
+  intervalMinutes?: number;
+  startAt?: string | null;
+  endAt?: string | null;
+  overflowStartAt?: string | null;
+  items?: PromoterListDraftItem[];
+  scheduledGroups?: PromoterListDraftGroup[];
+  metadata?: Record<string, unknown>;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+};
+
+export async function fetchPromoterListDrafts(): Promise<PromoterListDraft[]> {
+  const data = await request<PromoterListDraft[] | { data?: PromoterListDraft[] }>("/api/promoter-lists/drafts");
+  return Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
+}
+
+export async function createPromoterListDraft(payload?: PromoterListDraft): Promise<PromoterListDraft | null> {
+  return request<PromoterListDraft | null>("/api/promoter-lists/drafts", {
+    method: "POST",
+    body: JSON.stringify({ data: payload || {} }),
+  });
+}
+
+export async function fetchPromoterListDraft(documentId: string): Promise<PromoterListDraft | null> {
+  return request<PromoterListDraft | null>(`/api/promoter-lists/drafts/${documentId}`);
+}
+
+export async function updatePromoterListDraft(documentId: string, payload: PromoterListDraft): Promise<PromoterListDraft | null> {
+  return request<PromoterListDraft | null>(`/api/promoter-lists/drafts/${documentId}`, {
+    method: "PUT",
+    body: JSON.stringify({ data: payload }),
+  });
+}
+
+export async function deletePromoterListDraft(documentId: string): Promise<void> {
+  await request(`/api/promoter-lists/drafts/${documentId}`, {
     method: "DELETE",
   });
 }

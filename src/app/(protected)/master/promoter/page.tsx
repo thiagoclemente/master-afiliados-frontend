@@ -38,10 +38,17 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import {
+  buildPreviewPayloadFromExtension,
+  getExtensionPayloadCardData,
+  getPromoterLinkFromPayload,
+  tryParseExtensionPayload,
+  type ExtensionProductPayload,
+} from "@/lib/promoter-extension-payload";
 
 type TabKey = "create" | "links" | "campaigns";
 
@@ -52,6 +59,8 @@ export default function PromoterPage() {
   const [activeTab, setActiveTab] = useState<TabKey>("create");
   const [linkInput, setLinkInput] = useState("");
   const [preview, setPreview] = useState<PromoterPreview | null>(null);
+  const [importedPayload, setImportedPayload] =
+    useState<ExtensionProductPayload | null>(null);
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<PromoterHistoryItem[]>([]);
@@ -71,7 +80,13 @@ export default function PromoterPage() {
     preview?.payload?.productTitle &&
     typeof preview.payload.productTitle === "string"
       ? (preview.payload.productTitle as string)
-      : "Promoção Shopee";
+      : "Promoção";
+  const importedCard = importedPayload
+    ? getExtensionPayloadCardData(buildPreviewPayloadFromExtension(importedPayload))
+    : null;
+  const currentSendLink = importedPayload
+    ? getPromoterLinkFromPayload(buildPreviewPayloadFromExtension(importedPayload))
+    : linkInput.trim();
 
   useEffect(() => {
     const checkSubscription = async () => {
@@ -137,25 +152,52 @@ export default function PromoterPage() {
     if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) {
       return "Informe uma URL válida.";
     }
-    if (!trimmed.includes("shopee")) {
-      return "Informe um link válido da Shopee.";
+    if (!trimmed.includes("shopee") && !trimmed.includes("amazon")) {
+      return "Informe um link válido da Shopee ou Amazon.";
     }
     return null;
   };
 
+  const handleImportedPayload = useCallback((raw: string) => {
+    const parsed = tryParseExtensionPayload(raw);
+    if (!parsed) return false;
+
+    setImportedPayload(parsed);
+    setLinkInput("");
+    setPreview(null);
+    setError(null);
+    setSendSuccess(null);
+    return true;
+  }, []);
+
   const handlePreview = async (force?: boolean) => {
     setSendSuccess(null);
     setError(null);
-    const validation = validateLink(linkInput);
-    if (validation) {
-      setError(validation);
+    const requestLink = importedPayload
+      ? getPromoterLinkFromPayload(buildPreviewPayloadFromExtension(importedPayload))
+      : linkInput.trim();
+
+    if (!requestLink) {
+      setError("Informe uma URL válida.");
       return;
     }
+
+    if (!importedPayload) {
+      const validation = validateLink(linkInput);
+      if (validation) {
+        setError(validation);
+        return;
+      }
+    }
+
     setIsLoadingPreview(true);
     try {
       const data = await promoterPreview(
-        linkInput.trim(),
-        force ? "" : undefined
+        requestLink,
+        force ? "" : undefined,
+        importedPayload
+          ? buildPreviewPayloadFromExtension(importedPayload)
+          : undefined
       );
       setPreview({
         message: data.message || "",
@@ -301,7 +343,7 @@ export default function PromoterPage() {
                         Gerar divulgação automática
                       </CardTitle>
                       <CardDescription>
-                        Cole o link da Shopee e criaremos a mensagem e a prévia.
+                        Cole um link ou o payload da extensão e criaremos a mensagem e a prévia.
                       </CardDescription>
                     </div>
                     <Button asChild variant="outline">
@@ -313,22 +355,114 @@ export default function PromoterPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <Input
-                    type="url"
+                  {importedCard && (
+                    <div className="border rounded-lg p-4 bg-muted/20">
+                      <div className="flex gap-3 items-start">
+                        {importedCard.imageUrl ? (
+                          <div className="relative w-20 h-20 shrink-0">
+                            <Image
+                              src={importedCard.imageUrl}
+                              alt={importedCard.title || "Produto importado"}
+                              fill
+                              className="object-cover rounded-md"
+                              unoptimized
+                            />
+                          </div>
+                        ) : (
+                          <div className="w-20 h-20 rounded-md bg-muted flex items-center justify-center text-muted-foreground shrink-0">
+                            <MessageCircle className="w-6 h-6" />
+                          </div>
+                        )}
+                          <div className="flex-1 min-w-0">
+                          <div className="flex flex-wrap items-center gap-2 mb-2">
+                            <div className="inline-flex rounded-full bg-amber-500/15 text-amber-300 text-xs font-semibold px-3 py-1">
+                              Importado da extensão
+                            </div>
+                            {importedCard.marketplace ? (
+                              <Badge
+                                variant="outline"
+                                className="border-sky-500/40 bg-sky-950/20 text-sky-300"
+                              >
+                                {importedCard.marketplace === "mercado-livre"
+                                  ? "Mercado Livre"
+                                  : importedCard.marketplace}
+                              </Badge>
+                            ) : null}
+                            {importedCard.priceDiscountRate ? (
+                              <Badge className="bg-emerald-600 text-white">
+                                {importedCard.priceDiscountRate} OFF
+                              </Badge>
+                            ) : null}
+                          </div>
+                          <div className="font-semibold leading-snug line-clamp-3">
+                            {importedCard.title}
+                          </div>
+                          {(importedCard.price || importedCard.priceMax) && (
+                            <div className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                              {importedCard.price ? (
+                                <div className="text-lg font-bold text-amber-300">
+                                  {importedCard.price}
+                                </div>
+                              ) : null}
+                              {importedCard.priceMax ? (
+                                <div className="text-sm text-muted-foreground line-through">
+                                  {importedCard.priceMax}
+                                </div>
+                              ) : null}
+                            </div>
+                          )}
+                          {importedCard.shopName ? (
+                            <div className="text-sm text-muted-foreground mt-1 line-clamp-1">
+                              {importedCard.shopName}
+                            </div>
+                          ) : null}
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            setImportedPayload(null);
+                            setPreview(null);
+                          }}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  <Textarea
                     value={linkInput}
-                    onChange={(e) => setLinkInput(e.target.value)}
-                    placeholder="https://shopee.com.br/..."
+                    onChange={(e) => {
+                      const nextValue = e.target.value;
+                      setLinkInput(nextValue);
+                      if (nextValue.trim().startsWith("{")) {
+                        handleImportedPayload(nextValue);
+                      }
+                    }}
+                    onPaste={(e) => {
+                      const pasted = e.clipboardData.getData("text");
+                      if (handleImportedPayload(pasted)) {
+                        e.preventDefault();
+                      }
+                    }}
+                    placeholder="https://shopee.com.br/... https://amazon.com.br/..."
+                    rows={4}
                   />
                   <div className="flex gap-2">
                     <Button
                       onClick={() => void handlePreview()}
-                      disabled={!linkInput.trim() || isLoadingPreview}
+                      disabled={
+                        (!linkInput.trim() && !importedPayload) || isLoadingPreview
+                      }
                     >
                       {isLoadingPreview ? "Processando..." : "Gerar divulgação"}
                     </Button>
                     <Button
                       onClick={() => void handlePreview(true)}
-                      disabled={!linkInput.trim() || isLoadingPreview}
+                      disabled={
+                        (!linkInput.trim() && !importedPayload) || isLoadingPreview
+                      }
                       variant="outline"
                     >
                       Reprocessar
@@ -373,7 +507,7 @@ export default function PromoterPage() {
                       </div>
                       <Button
                         onClick={() => setShowSendModal(true)}
-                        disabled={!preview || !linkInput.trim()}
+                        disabled={!preview || !currentSendLink}
                       >
                         <Send className="w-4 h-4 mr-2" />
                         Enviar pelo WhatsApp
@@ -425,10 +559,21 @@ export default function PromoterPage() {
                             </div>
                             <Button
                               onClick={() => {
-                                setLinkInput(item.link);
+                                const restoredPayload =
+                                  item.payload && typeof item.payload === "object"
+                                    ? item.payload
+                                    : {};
+                                const extensionPayload =
+                                  restoredPayload.extensionPayload &&
+                                  typeof restoredPayload.extensionPayload === "object"
+                                    ? (restoredPayload
+                                        .extensionPayload as ExtensionProductPayload)
+                                    : null;
+                                setImportedPayload(extensionPayload);
+                                setLinkInput(extensionPayload ? "" : item.link);
                                 setPreview({
                                   message: item.message || "",
-                                  payload: item.payload || {},
+                                  payload: restoredPayload || {},
                                 });
                                 setActiveTab("create");
                                 setSendSuccess(null);
@@ -499,10 +644,21 @@ export default function PromoterPage() {
                         <div className="mt-3 whitespace-pre-wrap">{item.message || ""}</div>
                         <Button
                           onClick={() => {
-                            setLinkInput(item.link);
+                            const restoredPayload =
+                              item.payload && typeof item.payload === "object"
+                                ? item.payload
+                                : {};
+                            const extensionPayload =
+                              restoredPayload.extensionPayload &&
+                              typeof restoredPayload.extensionPayload === "object"
+                                ? (restoredPayload
+                                    .extensionPayload as ExtensionProductPayload)
+                                : null;
+                            setImportedPayload(extensionPayload);
+                            setLinkInput(extensionPayload ? "" : item.link);
                             setPreview({
                               message: item.message || "",
-                              payload: item.payload || {},
+                              payload: restoredPayload || {},
                             });
                             setActiveTab("create");
                           }}
@@ -569,7 +725,7 @@ export default function PromoterPage() {
 
       {showSendModal && preview && (
         <PromoterSendModal
-          link={linkInput.trim()}
+          link={currentSendLink}
           initialMessage={preview.message}
           payload={preview.payload}
           whatsapp={whatsapp}
@@ -577,11 +733,12 @@ export default function PromoterPage() {
           onSent={async (msg) => {
             setPreview({ ...preview, message: msg });
             await savePromoterHistory({
-              link: linkInput.trim(),
+              link: currentSendLink,
               message: msg,
               payload: preview.payload,
             });
             setLinkInput("");
+            setImportedPayload(null);
             setPreview(null);
             setSendSuccess("Mensagem enviada e salva no histórico.");
             setHistory([]);
