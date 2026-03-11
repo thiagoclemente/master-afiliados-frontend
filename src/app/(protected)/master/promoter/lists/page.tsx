@@ -62,6 +62,7 @@ type ScheduledGroup = {
   startAt: string;
   endAt?: string;
   overflowStartAt?: string;
+  intervalMinutes?: number;
 };
 
 type SourceTab = "custom" | "shopee";
@@ -742,6 +743,67 @@ export default function PromoterListsPage() {
       .map((link) => link.trim().replace(/[),.;!?]+$/g, ""))
       .filter(Boolean);
     return Array.from(new Set(sanitized));
+  };
+
+  const formatIntervalLabel = (minutes: number) =>
+    minutes >= 60 ? `${Math.floor(minutes / 60)}h` : `${minutes}m`;
+
+  const calculateScheduledGroupEstimatedEnd = (group: ScheduledGroup) => {
+    if (!group.startAt || items.length <= 0) return null;
+    const start = new Date(group.startAt);
+    if (Number.isNaN(start.getTime())) return null;
+
+    const total = Math.max(1, items.length);
+    const interval = Math.max(1, group.intervalMinutes || intervalMinutes || 1);
+    const end = group.endAt ? new Date(group.endAt) : null;
+    const overflow = group.overflowStartAt ? new Date(group.overflowStartAt) : null;
+    const defaultOverflowStart = buildDefaultOverflowStartForDay(start);
+
+    let overflowWindowStarted = false;
+    let current = new Date(start);
+
+    const moveToNextWindowStart = (fromDate: Date) => {
+      if (!overflowWindowStarted && overflow) {
+        overflowWindowStarted = true;
+        return new Date(Math.max(overflow.getTime(), fromDate.getTime()));
+      }
+      overflowWindowStarted = true;
+      const source = overflow ?? defaultOverflowStart;
+      return new Date(
+        fromDate.getFullYear(),
+        fromDate.getMonth(),
+        fromDate.getDate() + 1,
+        source.getHours(),
+        source.getMinutes(),
+        source.getSeconds(),
+        source.getMilliseconds()
+      );
+    };
+
+    for (let i = 1; i < total; i++) {
+      const candidate = new Date(current.getTime() + interval * 60 * 1000);
+      if (!end) {
+        current = candidate;
+        continue;
+      }
+
+      const dayEnd = new Date(
+        current.getFullYear(),
+        current.getMonth(),
+        current.getDate(),
+        end.getHours(),
+        end.getMinutes(),
+        end.getSeconds(),
+        end.getMilliseconds()
+      );
+
+      current =
+        candidate.getTime() > dayEnd.getTime()
+          ? moveToNextWindowStart(current)
+          : candidate;
+    }
+
+    return current;
   };
 
   const clearSchedulingAfterItemsChange = () => {
@@ -1534,6 +1596,7 @@ export default function PromoterListsPage() {
       startAt,
       endAt: endAt || undefined,
       overflowStartAt: overflowStartAt || undefined,
+      intervalMinutes,
     };
 
     setScheduledGroups((prev) => [...prev, nextGroup]);
@@ -1674,7 +1737,7 @@ export default function PromoterListsPage() {
           groupId: group.groupId,
           groupName: group.groupName,
           sessionName: selectedAccount.sessionName,
-          intervalMinutes: intervalMinutes || undefined,
+          intervalMinutes: group.intervalMinutes || intervalMinutes || undefined,
           startAt: group.startAt || undefined,
           endAt: group.endAt || undefined,
           overflowStartAt: group.overflowStartAt || undefined,
@@ -2519,21 +2582,30 @@ export default function PromoterListsPage() {
                     {scheduledGroups.map((group, index) => (
                       <div
                         key={`${group.groupId}-${group.startAt}-${index}`}
-                        className="rounded-md border p-3 bg-muted/20"
+                        className="rounded-md border border-slate-300 p-3 bg-slate-50"
                       >
+                        {(() => {
+                          const estimated = calculateScheduledGroupEstimatedEnd(group);
+                          const endDisplay = group.endAt
+                            ? formatDateTime(group.endAt)
+                            : estimated
+                              ? formatDateTime(estimated.toISOString())
+                              : "--";
+                          return (
                         <div className="flex items-start justify-between gap-2">
-                          <div className="text-sm">
-                            <div className="font-medium">{group.groupName}</div>
-                            <div className="text-muted-foreground">
+                          <div className="text-sm text-slate-800">
+                            <div className="font-semibold text-slate-900">{group.groupName}</div>
+                            <div className="text-slate-800">
                               Início: {formatDateTime(group.startAt)}
                             </div>
-                            {group.endAt && (
-                              <div className="text-muted-foreground">
-                                Fim diário: {formatDateTime(group.endAt)}
-                              </div>
-                            )}
+                            <div className="text-slate-800">
+                              Fim: {endDisplay}
+                            </div>
+                            <div className="text-slate-900 font-medium mt-1">
+                              Intervalo: {formatIntervalLabel(group.intervalMinutes || intervalMinutes)} • Itens: {items.length} • Fim estimado: {estimated ? formatDateTime(estimated.toISOString()) : "--"}
+                            </div>
                             {group.overflowStartAt && (
-                              <div className="text-muted-foreground">
+                              <div className="text-slate-800">
                                 Próximos dias: {formatDateTime(group.overflowStartAt)}
                               </div>
                             )}
@@ -2541,11 +2613,14 @@ export default function PromoterListsPage() {
                           <Button
                             variant="ghost"
                             size="icon"
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
                             onClick={() => removeScheduledGroup(index)}
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-4 h-4 text-red-600" />
                           </Button>
                         </div>
+                          );
+                        })()}
                       </div>
                     ))}
                   </div>
