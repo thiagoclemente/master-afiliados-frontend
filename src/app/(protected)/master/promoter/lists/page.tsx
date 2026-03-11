@@ -21,7 +21,7 @@ import {
   scheduleWhatsappList,
   checkWhatsappQuota,
   deleteWhatsappBatch,
-  promoterPreview,
+  fetchWhatsAppProductInfo,
   fetchWhatsappBatchDetail,
   fetchPromoterShopeeProducts,
   fetchPromoterListDrafts,
@@ -826,7 +826,7 @@ export default function PromoterListsPage() {
         const results = await Promise.all(
           chunk.map(async (link) => {
             try {
-              const preview = await promoterPreview(link);
+              const preview = await fetchWhatsAppProductInfo(link);
               const previewPayload = (preview.payload || {}) as Record<string, unknown>;
               const productTitle =
                 typeof previewPayload.productTitle === "string"

@@ -59,6 +59,24 @@ export async function promoterPreview(
   };
 }
 
+export async function fetchWhatsAppProductInfo(
+  link: string
+): Promise<PromoterPreview> {
+  const data = await request<Record<string, unknown> | null>(
+    "/api/whatsapp/campaigns/product-info",
+    {
+      method: "POST",
+      body: JSON.stringify({ link }),
+    }
+  );
+
+  return {
+    message: (data?.message as string) ?? "",
+    payload:
+      (data?.payload as Record<string, unknown> | undefined) ?? {},
+  };
+}
+
 export type PromoterShopeeProduct = {
   itemId: string | number;
   productName?: string;
