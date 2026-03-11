@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -68,6 +68,28 @@ type SourceTab = "custom" | "shopee";
 
 const SHOPEE_ACCENT = "#EE4D2D";
 const LINK_PREVIEW_CONCURRENCY = 4;
+const MAX_LIST_ITEMS = 100;
+const LIGHT_THEME_VARS: CSSProperties = {
+  "--background": "0 0% 100%",
+  "--foreground": "222.2 84% 4.9%",
+  "--card": "0 0% 100%",
+  "--card-foreground": "222.2 84% 4.9%",
+  "--popover": "0 0% 100%",
+  "--popover-foreground": "222.2 84% 4.9%",
+  "--primary": "221.2 83.2% 53.3%",
+  "--primary-foreground": "210 40% 98%",
+  "--secondary": "210 40% 96.1%",
+  "--secondary-foreground": "222.2 47.4% 11.2%",
+  "--muted": "210 40% 96.1%",
+  "--muted-foreground": "215.4 16.3% 28%",
+  "--accent": "210 40% 96.1%",
+  "--accent-foreground": "222.2 47.4% 11.2%",
+  "--destructive": "0 84.2% 60.2%",
+  "--destructive-foreground": "210 40% 98%",
+  "--border": "214.3 31.8% 86.4%",
+  "--input": "214.3 31.8% 86.4%",
+  "--ring": "221.2 83.2% 53.3%",
+} as CSSProperties;
 
 export default function PromoterListsPage() {
   const [batches, setBatches] = useState<WhatsAppBatch[]>([]);
@@ -109,6 +131,26 @@ export default function PromoterListsPage() {
   const [customLinksInput, setCustomLinksInput] = useState("");
   const [isAdding, setIsAdding] = useState(false);
   const [addingStatus, setAddingStatus] = useState<string | null>(null);
+  const [linkProcessingOverlay, setLinkProcessingOverlay] = useState<{
+    open: boolean;
+    processed: number;
+    total: number;
+    added: number;
+    failed: number;
+    currentProduct: {
+      title?: string;
+      price?: string;
+      imageUrl?: string;
+      link?: string;
+    } | null;
+  }>({
+    open: false,
+    processed: 0,
+    total: 0,
+    added: 0,
+    failed: 0,
+    currentProduct: null,
+  });
 
   const [shopeeQuery, setShopeeQuery] = useState("");
   const [shopeeLimit, setShopeeLimit] = useState(10);
@@ -695,7 +737,7 @@ export default function PromoterListsPage() {
   }, [selectedGroupId, startAt, endAt, overflowStartAt, intervalMinutes, items]);
 
   const parseLinksInput = (value: string) => {
-    const matches = value.match(/https?:\/\/[^\s<>"']+/gi) ?? [];
+    const matches = value.match(/https?:\/\/[^\s<>"]+/gi) ?? [];
     const sanitized = matches
       .map((link) => link.trim().replace(/[),.;!?]+$/g, ""))
       .filter(Boolean);
@@ -802,27 +844,46 @@ export default function PromoterListsPage() {
   };
 
   const addLinksToList = async (links: string[]) => {
+    const availableSlots = Math.max(0, MAX_LIST_ITEMS - items.length);
+    if (availableSlots <= 0) {
+      setError(`Limite máximo de ${MAX_LIST_ITEMS} itens por lista atingido.`);
+      return;
+    }
+
     const existingLinks = new Set(items.map((item) => item.link.trim()).filter(Boolean));
     const uniqueLinks = Array.from(
       new Set(links.map((link) => link.trim()).filter(Boolean))
     ).filter((link) => !existingLinks.has(link));
+    const linksToProcess = uniqueLinks.slice(0, availableSlots);
+    const ignoredByLimitCount = uniqueLinks.length - linksToProcess.length;
 
-    if (uniqueLinks.length === 0) {
+    if (linksToProcess.length === 0) {
       setError("Nenhum link novo para adicionar. Verifique se já não estão na lista.");
       return;
     }
 
     setIsAdding(true);
-    setAddingStatus(`Adicionando ${uniqueLinks.length} item(ns) à lista...`);
+    setAddingStatus(`Adicionando ${linksToProcess.length} item(ns) à lista...`);
+    setLinkProcessingOverlay({
+      open: true,
+      processed: 0,
+      total: linksToProcess.length,
+      added: 0,
+      failed: 0,
+      currentProduct: null,
+    });
     setError(null);
     setSuccessMessage(null);
 
     try {
       const addedItems: ListItem[] = [];
       const failedLinks: string[] = [];
+      let processedCount = 0;
+      let addedCount = 0;
+      let failedCount = 0;
 
-      for (let start = 0; start < uniqueLinks.length; start += LINK_PREVIEW_CONCURRENCY) {
-        const chunk = uniqueLinks.slice(start, start + LINK_PREVIEW_CONCURRENCY);
+      for (let start = 0; start < linksToProcess.length; start += LINK_PREVIEW_CONCURRENCY) {
+        const chunk = linksToProcess.slice(start, start + LINK_PREVIEW_CONCURRENCY);
         const results = await Promise.all(
           chunk.map(async (link) => {
             try {
@@ -834,6 +895,16 @@ export default function PromoterListsPage() {
                   : typeof previewPayload.productName === "string"
                     ? previewPayload.productName
                     : "";
+              const productPrice =
+                typeof previewPayload.productPrice === "string"
+                  ? previewPayload.productPrice
+                  : typeof previewPayload.productPriceMin === "string"
+                    ? previewPayload.productPriceMin
+                    : undefined;
+              const productImageUrl =
+                typeof previewPayload.productImageUrl === "string"
+                  ? previewPayload.productImageUrl
+                  : undefined;
               return {
                 ok: true as const,
                 item: {
@@ -846,6 +917,12 @@ export default function PromoterListsPage() {
                     sourceLink: link,
                   },
                 },
+                product: {
+                  title: productTitle || undefined,
+                  price: productPrice,
+                  imageUrl: productImageUrl,
+                  link,
+                },
               };
             } catch {
               return { ok: false as const, link };
@@ -853,17 +930,36 @@ export default function PromoterListsPage() {
           })
         );
 
+        let lastSuccessProduct: {
+          title?: string;
+          price?: string;
+          imageUrl?: string;
+          link?: string;
+        } | null = null;
+
         results.forEach((result) => {
           if (result.ok) {
             addedItems.push(result.item);
+            addedCount += 1;
+            lastSuccessProduct = result.product;
             return;
           }
           failedLinks.push(result.link);
+          failedCount += 1;
         });
+        processedCount += results.length;
 
         setAddingStatus(
-          `Processando links... ${Math.min(start + chunk.length, uniqueLinks.length)}/${uniqueLinks.length}`
+          `Processando links... ${Math.min(start + chunk.length, linksToProcess.length)}/${linksToProcess.length}`
         );
+        setLinkProcessingOverlay((prev) => ({
+          ...prev,
+          open: true,
+          processed: processedCount,
+          added: addedCount,
+          failed: failedCount,
+          currentProduct: lastSuccessProduct ?? prev.currentProduct,
+        }));
       }
 
       let nextSelectedIndex: number | null = null;
@@ -879,16 +975,22 @@ export default function PromoterListsPage() {
         }
       }
 
-      if (failedLinks.length > 0) {
+      if (failedLinks.length > 0 || ignoredByLimitCount > 0) {
         const previewLinksLimit = 10;
         const failedLinksPreview = failedLinks.slice(0, previewLinksLimit);
         const remaining = failedLinks.length - failedLinksPreview.length;
         const failedLinksText = failedLinksPreview.join("\n");
         const remainingText =
           remaining > 0 ? `\n...e mais ${remaining} link(s).` : "";
-        setError(
-          `${failedLinks.length} link(s) não puderam ser processados e foram ignorados:\n${failedLinksText}${remainingText}`
-        );
+        const failedText =
+          failedLinks.length > 0
+            ? `${failedLinks.length} link(s) não puderam ser processados e foram ignorados:\n${failedLinksText}${remainingText}`
+            : "";
+        const limitText =
+          ignoredByLimitCount > 0
+            ? `${failedText ? "\n\n" : ""}${ignoredByLimitCount} link(s) foram ignorados por limite máximo de ${MAX_LIST_ITEMS} itens por lista.`
+            : "";
+        setError(`${failedText}${limitText}`);
       } else if (addedItems.length > 0) {
         setSuccessMessage(`${addedItems.length} link(s) adicionados à fila.`);
       }
@@ -897,6 +999,7 @@ export default function PromoterListsPage() {
     } finally {
       setIsAdding(false);
       setAddingStatus(null);
+      setLinkProcessingOverlay((prev) => ({ ...prev, open: false }));
     }
   };
 
@@ -904,6 +1007,11 @@ export default function PromoterListsPage() {
     rawPayload: string,
     inputReset?: () => void
   ) => {
+    if (items.length >= MAX_LIST_ITEMS) {
+      setError(`Limite máximo de ${MAX_LIST_ITEMS} itens por lista atingido.`);
+      return true;
+    }
+
     const parsed = tryParseExtensionPayload(rawPayload);
     if (!parsed) return false;
 
@@ -930,40 +1038,58 @@ export default function PromoterListsPage() {
   };
 
   const addShopeeProductsToList = async (products: PromoterShopeeProduct[]) => {
-    if (products.length === 0) return;
+    if (products.length === 0) return [] as string[];
+
+    const availableSlots = Math.max(0, MAX_LIST_ITEMS - items.length);
+    if (availableSlots <= 0) {
+      setShopeeError(`Limite máximo de ${MAX_LIST_ITEMS} itens por lista atingido.`);
+      return [] as string[];
+    }
+
     setIsAdding(true);
-    setAddingStatus(`Adicionando ${products.length} produto(s) da Shopee...`);
+    setAddingStatus(`Adicionando ${Math.min(products.length, availableSlots)} produto(s) da Shopee...`);
     setError(null);
     setSuccessMessage(null);
 
     try {
-      const addedItems: ListItem[] = products.flatMap((product) => {
-          const link = (product.offerLink || product.productLink || "").trim();
-          if (!link) return [];
+      const existingLinks = new Set(items.map((item) => item.link.trim()).filter(Boolean));
+      const seenIncoming = new Set<string>();
+      const acceptedProductIds: string[] = [];
+      const ignoredByLimitCount = Math.max(0, products.length - availableSlots);
 
-          return [{
-            link,
-            // Não processa IA nesta etapa; IA acontece na fila após agendar.
-            message: product.productName || "",
-            payload: {
-              needsAiProcessing: true,
-              productTitle: product.productName,
-              productImageUrl: product.imageUrl,
-              productPrice: product.price,
-              productPriceMin: product.priceMin,
-              productPriceMax: product.priceMax,
-              productSales: product.sales,
-              commissionRate: product.commissionRate,
-              offerLink: product.offerLink,
-              productLink: product.productLink,
-              itemId: product.itemId,
-            },
-          }];
-        });
+      const addedItems: ListItem[] = products.flatMap((product) => {
+        const link = (product.offerLink || product.productLink || "").trim();
+        if (!link) return [];
+        if (existingLinks.has(link)) return [];
+        if (seenIncoming.has(link)) return [];
+        if (acceptedProductIds.length >= availableSlots) return [];
+
+        seenIncoming.add(link);
+        acceptedProductIds.push(String(product.itemId));
+
+        return [{
+          link,
+          // Não processa IA nesta etapa; IA acontece na fila após agendar.
+          message: product.productName || "",
+          payload: {
+            needsAiProcessing: true,
+            productTitle: product.productName,
+            productImageUrl: product.imageUrl,
+            productPrice: product.price,
+            productPriceMin: product.priceMin,
+            productPriceMax: product.priceMax,
+            productSales: product.sales,
+            commissionRate: product.commissionRate,
+            offerLink: product.offerLink,
+            productLink: product.productLink,
+            itemId: product.itemId,
+          },
+        }];
+      });
 
       if (addedItems.length === 0) {
         setShopeeError("Nenhum produto válido encontrado para adicionar.");
-        return;
+        return [] as string[];
       }
 
       let nextSelectedIndex: number | null = null;
@@ -976,8 +1102,18 @@ export default function PromoterListsPage() {
       if (nextSelectedIndex !== null) {
         setSelectedItemIndex(nextSelectedIndex);
       }
+
+      if (ignoredByLimitCount > 0) {
+        setShopeeError(
+          `${ignoredByLimitCount} produto(s) foram ignorados por limite máximo de ${MAX_LIST_ITEMS} itens por lista.`
+        );
+      } else {
+        setShopeeError(null);
+      }
+      return acceptedProductIds;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao adicionar produtos da Shopee.");
+      return [] as string[];
     } finally {
       setIsAdding(false);
       setAddingStatus(null);
@@ -1143,12 +1279,12 @@ export default function PromoterListsPage() {
       return;
     }
 
-    await addShopeeProductsToList(selectedProducts);
-    const selectedIdsSet = new Set(shopeeSelectedIds);
+    const addedIds = await addShopeeProductsToList(selectedProducts);
+    const addedIdsSet = new Set(addedIds);
     setShopeeProducts((prev) =>
-      prev.filter((product) => !selectedIdsSet.has(String(product.itemId)))
+      prev.filter((product) => !addedIdsSet.has(String(product.itemId)))
     );
-    setShopeeSelectedIds([]);
+    setShopeeSelectedIds((prev) => prev.filter((id) => !addedIdsSet.has(id)));
   };
 
   const applyShopeePreset = (preset: "top_sales" | "high_commission" | "ams_only") => {
@@ -1596,8 +1732,8 @@ export default function PromoterListsPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <Card>
+    <div className="space-y-6 rounded-xl bg-slate-50 p-4 md:p-6 text-slate-900" style={LIGHT_THEME_VARS}>
+      <Card className="bg-white border-slate-200 shadow-sm">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -1622,22 +1758,22 @@ export default function PromoterListsPage() {
       </Card>
 
       {error && (
-        <Alert variant="destructive">
+        <Alert className="border-red-300 bg-red-50 text-red-800">
           <AlertDescription className="whitespace-pre-line break-words">{error}</AlertDescription>
         </Alert>
       )}
       {successMessage && (
-        <Alert className="border-emerald-700 bg-emerald-900/20 text-emerald-200">
+        <Alert className="border-emerald-300 bg-emerald-50 text-emerald-800">
           <AlertDescription>{successMessage}</AlertDescription>
         </Alert>
       )}
       {scheduleResetNotice && (
-        <Alert className="border-amber-700 bg-amber-900/30 text-amber-200">
+        <Alert className="border-amber-300 bg-amber-50 text-amber-800">
           <AlertDescription>{scheduleResetNotice}</AlertDescription>
         </Alert>
       )}
-      {isAdding && addingStatus && (
-        <Alert>
+      {isAdding && addingStatus && !linkProcessingOverlay.open && (
+        <Alert className="border-sky-300 bg-sky-50 text-sky-800">
           <AlertDescription className="flex items-center gap-2">
             <Loader2 className="w-4 h-4 animate-spin" />
             {addingStatus}
@@ -1645,33 +1781,138 @@ export default function PromoterListsPage() {
         </Alert>
       )}
 
+      {isAdding && linkProcessingOverlay.open && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-[1px] flex items-center justify-center p-4">
+          <div className="w-full max-w-xl rounded-xl border border-slate-200 bg-white shadow-2xl p-4 space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-base font-semibold text-slate-900">Processando links</div>
+              <div className="text-xs text-slate-600">
+                {linkProcessingOverlay.processed}/{linkProcessingOverlay.total}
+              </div>
+            </div>
+
+            <div className="h-2 rounded-full bg-slate-200 overflow-hidden">
+              <div
+                className="h-full bg-indigo-600 transition-all"
+                style={{
+                  width: `${
+                    linkProcessingOverlay.total > 0
+                      ? (linkProcessingOverlay.processed / linkProcessingOverlay.total) * 100
+                      : 0
+                  }%`,
+                }}
+              />
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 text-xs">
+              <div className="rounded-md border border-slate-200 bg-slate-50 p-2 text-center">
+                <div className="text-slate-500">Adicionados</div>
+                <div className="text-emerald-700 font-semibold">{linkProcessingOverlay.added}</div>
+              </div>
+              <div className="rounded-md border border-slate-200 bg-slate-50 p-2 text-center">
+                <div className="text-slate-500">Falharam</div>
+                <div className="text-rose-700 font-semibold">{linkProcessingOverlay.failed}</div>
+              </div>
+              <div className="rounded-md border border-slate-200 bg-slate-50 p-2 text-center">
+                <div className="text-slate-500">Restantes</div>
+                <div className="text-slate-900 font-semibold">
+                  {Math.max(0, linkProcessingOverlay.total - linkProcessingOverlay.processed)}
+                </div>
+              </div>
+            </div>
+
+            {linkProcessingOverlay.currentProduct ? (
+              <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+                <div className="text-xs text-slate-500 mb-2">Último produto processado</div>
+                <div className="flex items-start gap-3">
+                  {linkProcessingOverlay.currentProduct.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={linkProcessingOverlay.currentProduct.imageUrl}
+                      alt={linkProcessingOverlay.currentProduct.title || "Produto"}
+                      className="w-12 h-12 rounded-md object-cover border border-slate-200"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 rounded-md bg-slate-200 flex items-center justify-center text-[10px] text-slate-500">
+                      IMG
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium text-slate-900 truncate">
+                      {linkProcessingOverlay.currentProduct.title || "Produto sem título"}
+                    </div>
+                    {linkProcessingOverlay.currentProduct.price ? (
+                      <div className="text-xs text-emerald-700 mt-0.5 truncate">
+                        {linkProcessingOverlay.currentProduct.price}
+                      </div>
+                    ) : null}
+                    <div className="text-xs text-slate-500 mt-1 truncate">
+                      {linkProcessingOverlay.currentProduct.link}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="text-xs text-slate-500">Buscando informações dos produtos...</div>
+            )}
+
+            <div className="text-xs text-slate-600 flex items-center gap-2">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              {addingStatus || "Processando..."}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
         <div className="xl:col-span-7 space-y-4">
-          <Card>
+          <Card className="bg-white border-slate-200 shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2 text-slate-900">
+                <ListPlus className="w-4 h-4 text-indigo-600" />
+                1. Nome da lista
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Título da lista"
+              />
+            </CardContent>
+          </Card>
+
+          <Card className="bg-white border-slate-200 shadow-sm">
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
                 <ListPlus className="w-4 h-4 text-[#7d570e]" />
-                1. Origem dos produtos
+                2. Origem dos produtos
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <Tabs value={sourceTab} onValueChange={(value) => setSourceTab(value as SourceTab)}>
-                <TabsList className="grid grid-cols-2 w-full">
+                <TabsList className="grid grid-cols-2 w-full h-auto gap-2 p-0 bg-transparent">
                   <TabsTrigger
                     value="custom"
-                    className="border border-blue-500/40 bg-blue-950/20 text-blue-200 data-[state=active]:border-blue-400 data-[state=active]:bg-blue-700 data-[state=active]:text-white"
+                    className="h-11 rounded-md border border-slate-300 bg-slate-100 text-slate-700 font-semibold transition-colors hover:bg-slate-200 data-[state=active]:bg-gradient-to-r data-[state=active]:from-indigo-600 data-[state=active]:to-blue-600 data-[state=active]:!text-white data-[state=active]:border-indigo-600 data-[state=active]:shadow-md"
                   >
-                    Links Personalizados
+                    <span className="inline-flex items-center gap-2 text-inherit">
+                      <Link2 className="w-4 h-4" />
+                      Links Personalizados
+                    </span>
                   </TabsTrigger>
                   <TabsTrigger
                     value="shopee"
-                    className="border border-[#EE4D2D]/40 bg-[#EE4D2D]/20 text-[#ff9e8e] data-[state=active]:border-[#EE4D2D] data-[state=active]:bg-[#EE4D2D] data-[state=active]:text-white"
+                    className="h-11 rounded-md border border-slate-300 bg-slate-100 text-slate-700 font-semibold transition-colors hover:bg-slate-200 data-[state=active]:bg-gradient-to-r data-[state=active]:from-indigo-600 data-[state=active]:to-blue-600 data-[state=active]:!text-white data-[state=active]:border-indigo-600 data-[state=active]:shadow-md"
                   >
-                    Carregar da Shopee
+                    <span className="inline-flex items-center gap-2 text-inherit">
+                      <ShoppingBag className="w-4 h-4" />
+                      Carregar da Shopee
+                    </span>
                   </TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="custom" className="space-y-3 mt-3">
+                <TabsContent value="custom" className="space-y-3 mt-4">
                   <label className="text-sm text-muted-foreground flex items-center gap-2">
                     <Link2 className="w-4 h-4" />
                     Adicionar por link ou payload da extensão
@@ -1703,6 +1944,7 @@ export default function PromoterListsPage() {
                   <Button
                     onClick={() => void handleAddSingleLink()}
                     disabled={!singleLinkInput.trim() || isAdding}
+                    className="bg-blue-700 hover:bg-blue-800 text-white"
                   >
                     {isAdding ? (
                       <>
@@ -1743,8 +1985,8 @@ export default function PromoterListsPage() {
                   </Button>
                 </TabsContent>
 
-                <TabsContent value="shopee" className="space-y-3 mt-3">
-                  <div className="space-y-2 rounded-md border border-border/70 bg-muted/20 p-3">
+                <TabsContent value="shopee" className="space-y-3 mt-4">
+                  <div className="space-y-2 rounded-md border border-orange-200 bg-orange-50 p-3">
                     <div className="text-sm font-medium">Quantidade de produtos</div>
                     <div className="flex flex-wrap items-center gap-2">
                       {shopeeItemsOptions.map((qty) => {
@@ -1766,7 +2008,7 @@ export default function PromoterListsPage() {
                     </div>
                   </div>
 
-                  <div className="space-y-2 rounded-md border border-border/70 bg-muted/20 p-3">
+                  <div className="space-y-2 rounded-md border border-orange-200 bg-orange-50 p-3">
                     <div className="text-sm font-medium">Filtros rápidos</div>
                     <div className="flex flex-wrap items-center gap-2">
                       <Button
@@ -1843,12 +2085,12 @@ export default function PromoterListsPage() {
                   </div>
 
                   {shopeeError && (
-                    <Alert variant="destructive">
+                    <Alert className="border-red-300 bg-red-50 text-red-800">
                       <AlertDescription>{shopeeError}</AlertDescription>
                     </Alert>
                   )}
 
-                  <div className="border rounded-md bg-muted/20">
+                  <div className="border border-orange-200 rounded-md bg-orange-50">
                     <div className="flex items-center justify-between px-3 py-2 border-b">
                       <div className="text-sm text-muted-foreground">
                         Produtos carregados: {shopeeProducts.length} • Selecionados: {shopeeSelectedIds.length}
@@ -1886,7 +2128,7 @@ export default function PromoterListsPage() {
                     <ScrollArea className="h-72">
                       <div className="divide-y">
                         {shopeeProducts.length === 0 ? (
-                          <div className="p-4 text-sm text-gray-500">
+                          <div className="p-4 text-sm text-gray-500 bg-white/60">
                             {hasLoadedShopee
                               ? "Nenhum produto encontrado para os filtros aplicados."
                               : "Defina os filtros e clique em Carregar da Shopee para buscar produtos."}
@@ -1958,31 +2200,35 @@ export default function PromoterListsPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="bg-white border-slate-200 shadow-sm">
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle className="text-base">2. Itens da lista</CardTitle>
-                <Badge variant="secondary">{items.length}</Badge>
+                <CardTitle className="text-base flex items-center gap-2 text-slate-900">
+                  <ShoppingBag className="w-4 h-4 text-emerald-600" />
+                  3. Itens da lista
+                </CardTitle>
+                <div className="flex items-center gap-2">
+                  <Badge className="bg-indigo-600 text-white hover:bg-indigo-600 px-2.5 py-1 font-semibold">
+                    {items.length} item(ns)
+                  </Badge>
+                  <Button
+                    onClick={() => {
+                      setItems([]);
+                      setSelectedItemIndex(null);
+                      clearSchedulingAfterItemsChange();
+                    }}
+                    disabled={items.length === 0}
+                    variant="outline"
+                    size="sm"
+                    className="text-red-600 border-red-200 hover:text-red-700 hover:bg-red-50"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 mr-1" />
+                    Limpar
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="flex justify-end">
-                <Button
-                  onClick={() => {
-                    setItems([]);
-                    setSelectedItemIndex(null);
-                    clearSchedulingAfterItemsChange();
-                  }}
-                  disabled={items.length === 0}
-                  variant="outline"
-                  size="sm"
-                  className="text-destructive"
-                >
-                  <Trash2 className="w-3.5 h-3.5 mr-1" />
-                  Limpar
-                </Button>
-              </div>
-
               {items.length === 0 ? (
                 <div className="text-sm text-muted-foreground border border-dashed rounded-md p-4">
                   Nenhum item adicionado ainda.
@@ -2015,10 +2261,10 @@ export default function PromoterListsPage() {
                           key={`${item.link}-${idx}`}
                           role="button"
                           tabIndex={0}
-                          className={`w-full text-left border rounded-md p-3 bg-muted/20 transition-colors cursor-pointer ${
+                          className={`w-full text-left border rounded-md p-3 bg-slate-50 transition-colors cursor-pointer overflow-hidden ${
                             isSelected
-                              ? "border-[#7d570e]"
-                              : "border-border hover:border-primary"
+                              ? "border-[#7d570e] bg-amber-50"
+                              : "border-slate-300 hover:border-primary"
                           }`}
                           onClick={() => setSelectedItemIndex(idx)}
                           onKeyDown={(e) => {
@@ -2028,28 +2274,28 @@ export default function PromoterListsPage() {
                             }
                           }}
                         >
-                          <div className="flex gap-3 items-start">
+                          <div className="flex gap-3 items-start overflow-hidden">
                             {thumb ? (
                               <div className="relative w-12 h-12 flex-shrink-0">
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img src={thumb} alt="Produto" className="w-12 h-12 rounded-md object-cover" />
                               </div>
                             ) : (
-                              <div className="w-12 h-12 rounded-md bg-gray-800 flex items-center justify-center text-gray-500 text-xs">
+                              <div className="w-12 h-12 rounded-md bg-slate-200 flex items-center justify-center text-slate-500 text-xs">
                                 IMG
                               </div>
                             )}
                             <div className="flex-1 min-w-0">
                               <div className="flex flex-wrap items-center gap-1.5 mb-1">
                                 {extensionCard ? (
-                                  <div className="inline-flex rounded-full bg-amber-500/15 text-amber-300 text-[10px] font-semibold px-2 py-1">
+                                  <div className="inline-flex rounded-full bg-amber-100 text-amber-700 text-[10px] font-semibold px-2 py-1">
                                     Importado da extensão
                                   </div>
                                 ) : null}
                                 {extensionCard?.marketplace ? (
                                   <Badge
                                     variant="outline"
-                                    className="border-sky-500/40 bg-sky-950/20 text-sky-300 text-[10px]"
+                                    className="border-sky-300 bg-sky-50 text-sky-700 text-[10px]"
                                   >
                                     {extensionCard.marketplace === "mercado-livre"
                                       ? "Mercado Livre"
@@ -2062,8 +2308,8 @@ export default function PromoterListsPage() {
                                   </Badge>
                                 ) : null}
                               </div>
-                              <div className="text-sm truncate">{title}</div>
-                              <div className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                              <div className="text-sm leading-5 line-clamp-2 break-words">{title}</div>
+                              <div className="text-xs text-muted-foreground mt-1 line-clamp-2 break-words">
                                 {subtitle}
                               </div>
                               {extensionCard?.priceMax ? (
@@ -2071,7 +2317,7 @@ export default function PromoterListsPage() {
                                   {extensionCard.priceMax}
                                 </div>
                               ) : null}
-                              <div className="text-[11px] text-muted-foreground mt-1 truncate">
+                              <div className="text-[11px] text-muted-foreground mt-1 break-all line-clamp-1">
                                 {item.link}
                               </div>
                             </div>
@@ -2079,13 +2325,13 @@ export default function PromoterListsPage() {
                               type="button"
                               variant="ghost"
                               size="icon"
-                              className="shrink-0"
+                              className="shrink-0 text-red-600 hover:text-red-700 hover:bg-red-50"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 removeItemAtIndex(idx);
                               }}
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Trash2 className="w-4 h-4 text-red-600" />
                             </Button>
                           </div>
 
@@ -2146,17 +2392,14 @@ export default function PromoterListsPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="bg-white border-slate-200 shadow-sm">
             <CardHeader>
-              <CardTitle className="text-base">3. Configuração e agendamento</CardTitle>
+              <CardTitle className="text-base flex items-center gap-2 text-slate-900">
+                <Calendar className="w-4 h-4 text-amber-600" />
+                4. Configuração e agendamento
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Título da lista"
-              />
-
               <div className="space-y-1.5">
                 <div className="text-xs text-muted-foreground">Grupo</div>
                 <Select
@@ -2198,12 +2441,12 @@ export default function PromoterListsPage() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground whitespace-nowrap">Janela:</span>
+              <div className="space-y-1.5">
+                <div className="text-xs text-muted-foreground">Data de envio</div>
                 <Button
                   type="button"
                   variant="outline"
-                  className="flex-1 justify-start"
+                  className="w-full justify-start"
                   onClick={() => {
                     initializeDateFields();
                     setShowDateModal(true);
@@ -2217,7 +2460,7 @@ export default function PromoterListsPage() {
               </div>
 
               {startAt && (
-                <Alert className="border-emerald-700 bg-emerald-900/20 text-emerald-200">
+                <Alert className="border-emerald-300 bg-emerald-50 text-emerald-800">
                   <AlertDescription>
                     {overflowInfo?.todayCount
                       ? `Hoje: ${overflowInfo.todayCount} campanha(s) iniciando em ${formatDateTime(startAt)}${overflowInfo.todayEndsAt ? ` e terminando em ${formatDateTime(overflowInfo.todayEndsAt.toISOString())}` : ""}.`
@@ -2227,7 +2470,7 @@ export default function PromoterListsPage() {
               )}
 
               {overflowInfo && overflowInfo.days.length > 0 && (
-                <Alert className="border-amber-700 bg-amber-900/30 text-amber-200">
+                <Alert className="border-amber-300 bg-amber-50 text-amber-800">
                   <AlertDescription className="space-y-1">
                     <div>{overflowInfo.overflowTotal} campanha(s) serão enviadas nos próximos dias:</div>
                     {overflowInfo.days.map((day) => (
@@ -2255,9 +2498,12 @@ export default function PromoterListsPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="bg-white border-slate-200 shadow-sm">
             <CardHeader>
-              <CardTitle className="text-base">4. Grupos agendados</CardTitle>
+              <CardTitle className="text-base flex items-center gap-2 text-slate-900">
+                <Send className="w-4 h-4 text-sky-600" />
+                5. Grupos agendados
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="space-y-2">
@@ -2328,14 +2574,19 @@ export default function PromoterListsPage() {
         </div>
 
         <div className="xl:col-span-5 space-y-4">
-          <Card>
+          <Card className="bg-white border-slate-200 shadow-sm">
             <CardHeader>
               <div className="flex items-center justify-between gap-3">
                 <CardTitle className="text-base flex items-center gap-2">
-                  <ListPlus className="w-4 h-4" />
+                  <ListPlus className="w-4 h-4 text-violet-600" />
                   Rascunhos salvos
                 </CardTitle>
-                <Button size="sm" onClick={() => void handleCreateNewDraft()}>
+                <Button
+                  size="sm"
+                  onClick={() => void handleCreateNewDraft()}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold shadow-sm"
+                >
+                  <ListPlus className="w-4 h-4 mr-1.5" />
                   Nova lista
                 </Button>
               </div>
@@ -2369,7 +2620,7 @@ export default function PromoterListsPage() {
                             handleSelectDraft(draft);
                           }
                         }}
-                        className={`rounded-md border p-3 cursor-pointer transition-colors ${isActive ? "border-[#7d570e] bg-amber-950/20" : "bg-muted/20 hover:border-primary"}`}
+                        className={`rounded-md border p-3 cursor-pointer transition-colors ${isActive ? "border-[#7d570e] bg-amber-50" : "bg-slate-50 hover:border-primary"}`}
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
@@ -2399,10 +2650,10 @@ export default function PromoterListsPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="bg-white border-slate-200 shadow-sm">
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
-                <ShoppingBag className="w-4 h-4" />
+                <ShoppingBag className="w-4 h-4 text-blue-600" />
                 Listas criadas recentemente
               </CardTitle>
             </CardHeader>
@@ -2428,7 +2679,7 @@ export default function PromoterListsPage() {
                           void handleSelectBatch(batch);
                         }
                       }}
-                      className="w-full text-left border rounded-lg p-4 bg-muted/20 hover:border-primary transition-colors cursor-pointer"
+                      className="w-full text-left border rounded-lg p-4 bg-slate-50 hover:border-primary transition-colors cursor-pointer"
                     >
                       {(() => {
                         const batchStatus = resolveBatchStatus(batch);
@@ -2447,7 +2698,7 @@ export default function PromoterListsPage() {
                               className={
                                 isFinalized
                                   ? "text-muted-foreground"
-                                  : "text-emerald-400"
+                                  : "text-emerald-600"
                               }
                             >
                               {formatBatchStatus(batchStatus)}
@@ -2477,13 +2728,13 @@ export default function PromoterListsPage() {
                             type="button"
                             variant="ghost"
                             size="icon"
-                            className="text-destructive hover:text-destructive"
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
                             onClick={(e) => {
                               e.stopPropagation();
                               void handleDeleteBatch(batch.documentId);
                             }}
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-4 h-4 text-red-600" />
                           </Button>
                         </div>
                       </div>
