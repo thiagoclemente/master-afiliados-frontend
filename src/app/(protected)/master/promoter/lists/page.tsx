@@ -67,6 +67,7 @@ type ScheduledGroup = {
 type SourceTab = "custom" | "shopee";
 
 const SHOPEE_ACCENT = "#EE4D2D";
+const LINK_PREVIEW_CONCURRENCY = 4;
 
 export default function PromoterListsPage() {
   const [batches, setBatches] = useState<WhatsAppBatch[]>([]);
@@ -694,10 +695,11 @@ export default function PromoterListsPage() {
   }, [selectedGroupId, startAt, endAt, overflowStartAt, intervalMinutes, items]);
 
   const parseLinksInput = (value: string) => {
-    return value
-      .split(/\n|,|;/g)
-      .map((part) => part.trim())
+    const matches = value.match(/https?:\/\/[^\s<>"']+/gi) ?? [];
+    const sanitized = matches
+      .map((link) => link.trim().replace(/[),.;!?]+$/g, ""))
       .filter(Boolean);
+    return Array.from(new Set(sanitized));
   };
 
   const clearSchedulingAfterItemsChange = () => {
@@ -800,44 +802,95 @@ export default function PromoterListsPage() {
   };
 
   const addLinksToList = async (links: string[]) => {
-    if (links.length === 0) return;
+    const existingLinks = new Set(items.map((item) => item.link.trim()).filter(Boolean));
+    const uniqueLinks = Array.from(
+      new Set(links.map((link) => link.trim()).filter(Boolean))
+    ).filter((link) => !existingLinks.has(link));
+
+    if (uniqueLinks.length === 0) {
+      setError("Nenhum link novo para adicionar. Verifique se já não estão na lista.");
+      return;
+    }
+
     setIsAdding(true);
-    setAddingStatus(`Adicionando ${links.length} item(ns) à lista...`);
+    setAddingStatus(`Adicionando ${uniqueLinks.length} item(ns) à lista...`);
     setError(null);
     setSuccessMessage(null);
 
     try {
       const addedItems: ListItem[] = [];
-      for (const link of links) {
-        const preview = await promoterPreview(link);
-        const previewPayload = (preview.payload || {}) as Record<string, unknown>;
-        const productTitle =
-          typeof previewPayload.productTitle === "string"
-            ? previewPayload.productTitle
-            : typeof previewPayload.productName === "string"
-              ? previewPayload.productName
-              : "";
-        addedItems.push({
-          link,
-          message: productTitle || preview.message || "",
-          payload: {
-            ...previewPayload,
-            needsAiProcessing: true,
-            sourceType: "custom_link",
-            sourceLink: link,
-          },
+      const failedLinks: string[] = [];
+
+      for (let start = 0; start < uniqueLinks.length; start += LINK_PREVIEW_CONCURRENCY) {
+        const chunk = uniqueLinks.slice(start, start + LINK_PREVIEW_CONCURRENCY);
+        const results = await Promise.all(
+          chunk.map(async (link) => {
+            try {
+              const preview = await promoterPreview(link);
+              const previewPayload = (preview.payload || {}) as Record<string, unknown>;
+              const productTitle =
+                typeof previewPayload.productTitle === "string"
+                  ? previewPayload.productTitle
+                  : typeof previewPayload.productName === "string"
+                    ? previewPayload.productName
+                    : "";
+              return {
+                ok: true as const,
+                item: {
+                  link,
+                  message: productTitle || preview.message || "",
+                  payload: {
+                    ...previewPayload,
+                    needsAiProcessing: true,
+                    sourceType: "custom_link",
+                    sourceLink: link,
+                  },
+                },
+              };
+            } catch {
+              return { ok: false as const, link };
+            }
+          })
+        );
+
+        results.forEach((result) => {
+          if (result.ok) {
+            addedItems.push(result.item);
+            return;
+          }
+          failedLinks.push(result.link);
         });
+
+        setAddingStatus(
+          `Processando links... ${Math.min(start + chunk.length, uniqueLinks.length)}/${uniqueLinks.length}`
+        );
       }
 
       let nextSelectedIndex: number | null = null;
-      setItems((prev) => {
-        const next = [...prev, ...addedItems];
-        nextSelectedIndex = next.length > 0 ? next.length - 1 : null;
-        return next;
-      });
-      clearSchedulingAfterItemsChange();
-      if (nextSelectedIndex !== null) {
-        setSelectedItemIndex(nextSelectedIndex);
+      if (addedItems.length > 0) {
+        setItems((prev) => {
+          const next = [...prev, ...addedItems];
+          nextSelectedIndex = next.length > 0 ? next.length - 1 : null;
+          return next;
+        });
+        clearSchedulingAfterItemsChange();
+        if (nextSelectedIndex !== null) {
+          setSelectedItemIndex(nextSelectedIndex);
+        }
+      }
+
+      if (failedLinks.length > 0) {
+        const previewLinksLimit = 10;
+        const failedLinksPreview = failedLinks.slice(0, previewLinksLimit);
+        const remaining = failedLinks.length - failedLinksPreview.length;
+        const failedLinksText = failedLinksPreview.join("\n");
+        const remainingText =
+          remaining > 0 ? `\n...e mais ${remaining} link(s).` : "";
+        setError(
+          `${failedLinks.length} link(s) não puderam ser processados e foram ignorados:\n${failedLinksText}${remainingText}`
+        );
+      } else if (addedItems.length > 0) {
+        setSuccessMessage(`${addedItems.length} link(s) adicionados à fila.`);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao adicionar links.");
@@ -948,12 +1001,12 @@ export default function PromoterListsPage() {
     if (addExtensionPayloadToList(singleLinkInput, () => setSingleLinkInput(""))) {
       return;
     }
-    const link = singleLinkInput.trim();
-    if (!link) {
+    const links = parseLinksInput(singleLinkInput);
+    if (links.length === 0) {
       setError("Informe um link para adicionar.");
       return;
     }
-    await addLinksToList([link]);
+    await addLinksToList(links);
     setSingleLinkInput("");
   };
 
@@ -1570,7 +1623,7 @@ export default function PromoterListsPage() {
 
       {error && (
         <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription className="whitespace-pre-line break-words">{error}</AlertDescription>
         </Alert>
       )}
       {successMessage && (
