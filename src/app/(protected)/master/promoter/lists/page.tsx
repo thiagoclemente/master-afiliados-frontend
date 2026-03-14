@@ -44,6 +44,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import ExtensionInstallBanner from "@/components/promoter/ExtensionInstallBanner";
 import {
   buildListItemFromExtensionPayload,
   getExtensionPayloadCardData,
@@ -1819,6 +1820,8 @@ export default function PromoterListsPage() {
           </div>
         </CardHeader>
       </Card>
+
+      <ExtensionInstallBanner />
 
       {error && (
         <Alert className="border-red-300 bg-red-50 text-red-800">

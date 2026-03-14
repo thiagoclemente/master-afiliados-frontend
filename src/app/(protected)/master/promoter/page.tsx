@@ -42,6 +42,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import ExtensionInstallBanner from "@/components/promoter/ExtensionInstallBanner";
 import {
   buildPreviewPayloadFromExtension,
   getExtensionPayloadCardData,
@@ -293,6 +294,8 @@ export default function PromoterPage() {
           </div>
         </CardHeader>
       </Card>
+
+      <ExtensionInstallBanner />
 
       {error && (
         <Alert variant="destructive">
