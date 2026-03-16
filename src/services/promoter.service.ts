@@ -60,13 +60,17 @@ export async function promoterPreview(
 }
 
 export async function fetchWhatsAppProductInfo(
-  link: string
+  link: string,
+  options?: {
+    signal?: AbortSignal;
+  }
 ): Promise<PromoterPreview> {
   const data = await request<Record<string, unknown> | null>(
     "/api/whatsapp/campaigns/product-info",
     {
       method: "POST",
       body: JSON.stringify({ link }),
+      signal: options?.signal,
     }
   );
 

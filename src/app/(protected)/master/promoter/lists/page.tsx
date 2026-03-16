@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -15,6 +15,7 @@ import {
   Link2,
   Trash2,
   Ban,
+  Upload,
 } from "lucide-react";
 import {
   fetchWhatsappBatches,
@@ -50,6 +51,12 @@ import {
   getExtensionPayloadCardData,
   tryParseExtensionPayload,
 } from "@/lib/promoter-extension-payload";
+import {
+  getFirstPromoterCsvValue,
+  hasPromoterCsvProductLinkColumns,
+  parsePromoterCsvDocument,
+  resolvePromoterCsvLink,
+} from "@/lib/promoter-csv";
 
 type ListItem = {
   link: string;
@@ -68,9 +75,68 @@ type ScheduledGroup = {
 
 type SourceTab = "custom" | "shopee";
 
+type ProcessingOverlayCurrentProduct = {
+  title?: string;
+  price?: string;
+  imageUrl?: string;
+  link?: string;
+};
+
+type ProcessingOverlayState = {
+  open: boolean;
+  mode: "links" | "csv" | null;
+  title: string;
+  description: string;
+  processed: number;
+  total: number;
+  added: number;
+  failed: number;
+  currentProduct: ProcessingOverlayCurrentProduct | null;
+  status: string | null;
+  allowCancel: boolean;
+  isCancelling: boolean;
+};
+
 const SHOPEE_ACCENT = "#EE4D2D";
 const LINK_PREVIEW_CONCURRENCY = 4;
 const MAX_LIST_ITEMS = 100;
+const CSV_IMPORT_DELAY_MS = 120;
+const CSV_PRODUCT_TITLE_ALIASES = [
+  "Product Name",
+  "product_name",
+  "Item Name",
+  "Title",
+  "Nome do produto",
+  "Nome",
+];
+const CSV_IMAGE_ALIASES = [
+  "Image Url",
+  "Image URL",
+  "image_url",
+  "Product Image",
+  "Imagem",
+];
+const CSV_PRICE_ALIASES = [
+  "Price",
+  "Offer Price",
+  "Product Price",
+  "Preço",
+  "Valor",
+];
+const EMPTY_PROCESSING_OVERLAY: ProcessingOverlayState = {
+  open: false,
+  mode: null,
+  title: "",
+  description: "",
+  processed: 0,
+  total: 0,
+  added: 0,
+  failed: 0,
+  currentProduct: null,
+  status: null,
+  allowCancel: false,
+  isCancelling: false,
+};
 const LIGHT_THEME_VARS: CSSProperties = {
   "--background": "0 0% 100%",
   "--foreground": "222.2 84% 4.9%",
@@ -92,6 +158,37 @@ const LIGHT_THEME_VARS: CSSProperties = {
   "--input": "214.3 31.8% 86.4%",
   "--ring": "221.2 83.2% 53.3%",
 } as CSSProperties;
+
+const toOptionalString = (value: unknown): string | undefined => {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed || undefined;
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+
+  return undefined;
+};
+
+const detectMarketplaceFromLink = (link: string): string | undefined => {
+  const normalized = link.toLowerCase();
+  if (normalized.includes("shopee")) return "shopee";
+  if (normalized.includes("amazon")) return "amazon";
+  if (normalized.includes("mercadolivre") || normalized.includes("mercadolibre")) {
+    return "mercado-livre";
+  }
+  return undefined;
+};
+
+const isAbortError = (error: unknown) =>
+  error instanceof Error && error.name === "AbortError";
+
+const wait = (ms: number) =>
+  new Promise<void>((resolve) => {
+    setTimeout(resolve, ms);
+  });
 
 export default function PromoterListsPage() {
   const [batches, setBatches] = useState<WhatsAppBatch[]>([]);
@@ -133,26 +230,9 @@ export default function PromoterListsPage() {
   const [customLinksInput, setCustomLinksInput] = useState("");
   const [isAdding, setIsAdding] = useState(false);
   const [addingStatus, setAddingStatus] = useState<string | null>(null);
-  const [linkProcessingOverlay, setLinkProcessingOverlay] = useState<{
-    open: boolean;
-    processed: number;
-    total: number;
-    added: number;
-    failed: number;
-    currentProduct: {
-      title?: string;
-      price?: string;
-      imageUrl?: string;
-      link?: string;
-    } | null;
-  }>({
-    open: false,
-    processed: 0,
-    total: 0,
-    added: 0,
-    failed: 0,
-    currentProduct: null,
-  });
+  const [processingOverlay, setProcessingOverlay] =
+    useState<ProcessingOverlayState>(EMPTY_PROCESSING_OVERLAY);
+  const [selectedCsvFileName, setSelectedCsvFileName] = useState("");
 
   const [shopeeQuery, setShopeeQuery] = useState("");
   const [shopeeLimit, setShopeeLimit] = useState(10);
@@ -183,6 +263,8 @@ export default function PromoterListsPage() {
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const startAtInputRef = useRef<HTMLInputElement | null>(null);
   const endAtInputRef = useRef<HTMLInputElement | null>(null);
+  const csvFileInputRef = useRef<HTMLInputElement | null>(null);
+  const csvImportAbortControllerRef = useRef<AbortController | null>(null);
 
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [scheduledGroups, setScheduledGroups] = useState<ScheduledGroup[]>([]);
@@ -447,6 +529,7 @@ export default function PromoterListsPage() {
       typeof metadata.shopeeIsAMSOffer === "boolean" ? metadata.shopeeIsAMSOffer : null
     );
     setShopeePreset(typeof metadata.shopeePreset === "string" ? metadata.shopeePreset : "");
+    setSelectedCsvFileName("");
     setSelectedItemIndex(null);
     setTimeout(() => {
       isHydratingDraftRef.current = false;
@@ -455,6 +538,12 @@ export default function PromoterListsPage() {
 
   useEffect(() => {
     void load();
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      csvImportAbortControllerRef.current?.abort();
+    };
   }, []);
 
   useEffect(() => {
@@ -832,6 +921,21 @@ export default function PromoterListsPage() {
     });
   };
 
+  const appendItemsToList = (incomingItems: ListItem[]) => {
+    if (incomingItems.length === 0) return;
+
+    let nextSelectedIndex: number | null = null;
+    setItems((prev) => {
+      const next = [...prev, ...incomingItems];
+      nextSelectedIndex = next.length > 0 ? next.length - 1 : null;
+      return next;
+    });
+    clearSchedulingAfterItemsChange();
+    if (nextSelectedIndex !== null) {
+      setSelectedItemIndex(nextSelectedIndex);
+    }
+  };
+
   const openQuotaDialog = (params: {
     mode: "confirm" | "insufficient";
     title: string;
@@ -927,16 +1031,23 @@ export default function PromoterListsPage() {
 
     setIsAdding(true);
     setAddingStatus(`Adicionando ${linksToProcess.length} item(ns) à lista...`);
-    setLinkProcessingOverlay({
+    setProcessingOverlay({
       open: true,
+      mode: "links",
+      title: "Processando links",
+      description: "Buscando informações dos produtos e adicionando à sua lista.",
       processed: 0,
       total: linksToProcess.length,
       added: 0,
       failed: 0,
       currentProduct: null,
+      status: `Adicionando ${linksToProcess.length} item(ns) à lista...`,
+      allowCancel: false,
+      isCancelling: false,
     });
     setError(null);
     setSuccessMessage(null);
+    setShopeeError(null);
 
     try {
       const addedItems: ListItem[] = [];
@@ -1015,27 +1126,22 @@ export default function PromoterListsPage() {
         setAddingStatus(
           `Processando links... ${Math.min(start + chunk.length, linksToProcess.length)}/${linksToProcess.length}`
         );
-        setLinkProcessingOverlay((prev) => ({
+        setProcessingOverlay((prev) => ({
           ...prev,
           open: true,
           processed: processedCount,
           added: addedCount,
           failed: failedCount,
           currentProduct: lastSuccessProduct ?? prev.currentProduct,
+          status: `Processando links... ${Math.min(
+            start + chunk.length,
+            linksToProcess.length
+          )}/${linksToProcess.length}`,
         }));
       }
 
-      let nextSelectedIndex: number | null = null;
       if (addedItems.length > 0) {
-        setItems((prev) => {
-          const next = [...prev, ...addedItems];
-          nextSelectedIndex = next.length > 0 ? next.length - 1 : null;
-          return next;
-        });
-        clearSchedulingAfterItemsChange();
-        if (nextSelectedIndex !== null) {
-          setSelectedItemIndex(nextSelectedIndex);
-        }
+        appendItemsToList(addedItems);
       }
 
       if (failedLinks.length > 0 || ignoredByLimitCount > 0) {
@@ -1062,7 +1168,7 @@ export default function PromoterListsPage() {
     } finally {
       setIsAdding(false);
       setAddingStatus(null);
-      setLinkProcessingOverlay((prev) => ({ ...prev, open: false }));
+      setProcessingOverlay(EMPTY_PROCESSING_OVERLAY);
     }
   };
 
@@ -1155,16 +1261,7 @@ export default function PromoterListsPage() {
         return [] as string[];
       }
 
-      let nextSelectedIndex: number | null = null;
-      setItems((prev) => {
-        const next = [...prev, ...addedItems];
-        nextSelectedIndex = next.length > 0 ? next.length - 1 : null;
-        return next;
-      });
-      clearSchedulingAfterItemsChange();
-      if (nextSelectedIndex !== null) {
-        setSelectedItemIndex(nextSelectedIndex);
-      }
+      appendItemsToList(addedItems);
 
       if (ignoredByLimitCount > 0) {
         setShopeeError(
@@ -1207,6 +1304,323 @@ export default function PromoterListsPage() {
     }
     await addLinksToList(links);
     setSingleLinkInput("");
+  };
+
+  const buildCsvImportItem = (
+    link: string,
+    csvRow: Record<string, string>,
+    preview: Awaited<ReturnType<typeof fetchWhatsAppProductInfo>>
+  ): {
+    item: ListItem;
+    product: ProcessingOverlayCurrentProduct;
+  } => {
+    const previewPayload = (preview.payload || {}) as Record<string, unknown>;
+    const csvTitle = getFirstPromoterCsvValue(csvRow, CSV_PRODUCT_TITLE_ALIASES);
+    const csvImageUrl = getFirstPromoterCsvValue(csvRow, CSV_IMAGE_ALIASES);
+    const csvPrice = getFirstPromoterCsvValue(csvRow, CSV_PRICE_ALIASES);
+    const csvOfferLink = getFirstPromoterCsvValue(csvRow, ["Offer Link", "offerLink"]);
+    const csvProductLink = getFirstPromoterCsvValue(csvRow, [
+      "Product Link",
+      "productLink",
+    ]);
+
+    const resolvedTitle =
+      toOptionalString(previewPayload.productTitle) ??
+      toOptionalString(previewPayload.productName) ??
+      csvTitle ??
+      link;
+    const resolvedImageUrl =
+      toOptionalString(previewPayload.productImageUrl) ??
+      toOptionalString(previewPayload.imageUrl) ??
+      csvImageUrl;
+    const resolvedPrice =
+      toOptionalString(previewPayload.productPrice) ??
+      toOptionalString(previewPayload.productPriceMin) ??
+      toOptionalString(previewPayload.price) ??
+      csvPrice;
+    const resolvedOfferLink =
+      toOptionalString(previewPayload.offerLink) ?? csvOfferLink ?? link;
+    const resolvedProductLink =
+      toOptionalString(previewPayload.productLink) ??
+      csvProductLink ??
+      resolvedOfferLink;
+    const resolvedMarketplace =
+      toOptionalString(previewPayload.marketplace) ?? detectMarketplaceFromLink(link) ?? "shopee";
+
+    return {
+      item: {
+        link,
+        message: preview.message || resolvedTitle || link,
+        payload: {
+          ...previewPayload,
+          productLink: resolvedProductLink,
+          offerLink: resolvedOfferLink,
+          marketplace: resolvedMarketplace,
+          productTitle: resolvedTitle,
+          productImageUrl: resolvedImageUrl,
+          productPrice: resolvedPrice,
+          needsAiProcessing: true,
+          source: "csv",
+          sourceType: "csv_import",
+          sourceLink: link,
+          csvRawData: { ...csvRow },
+        },
+      },
+      product: {
+        title: resolvedTitle,
+        price: resolvedPrice,
+        imageUrl: resolvedImageUrl,
+        link,
+      },
+    };
+  };
+
+  const handleCancelCsvImport = () => {
+    if (!csvImportAbortControllerRef.current) return;
+
+    const confirmed = window.confirm(
+      "Deseja cancelar o processamento do CSV? Os produtos já processados serão mantidos na lista."
+    );
+
+    if (!confirmed) return;
+
+    setAddingStatus("Cancelando processamento do CSV...");
+    setProcessingOverlay((prev) => ({
+      ...prev,
+      isCancelling: true,
+      status: "Cancelando...",
+    }));
+    csvImportAbortControllerRef.current.abort();
+  };
+
+  const processCsvImportFile = async (file: File) => {
+    const isCsvFile =
+      file.name.toLowerCase().endsWith(".csv") || file.type.toLowerCase().includes("csv");
+
+    if (!isCsvFile) {
+      setShopeeError("Selecione um arquivo CSV válido.");
+      return;
+    }
+
+    const availableSlots = Math.max(0, MAX_LIST_ITEMS - items.length);
+    if (availableSlots <= 0) {
+      setShopeeError(`Limite máximo de ${MAX_LIST_ITEMS} itens por lista atingido.`);
+      return;
+    }
+
+    const abortController = new AbortController();
+    csvImportAbortControllerRef.current = abortController;
+    setSelectedCsvFileName(file.name);
+    setIsAdding(true);
+    setAddingStatus("Lendo arquivo CSV...");
+    setProcessingOverlay({
+      ...EMPTY_PROCESSING_OVERLAY,
+      open: true,
+      mode: "csv",
+      title: "Processando CSV",
+      description: "Produtos do CSV estão sendo processados e adicionados à sua lista.",
+      allowCancel: true,
+      status: "Lendo arquivo CSV...",
+    });
+    setError(null);
+    setSuccessMessage(null);
+    setShopeeError(null);
+
+    try {
+      const content = await file.text();
+      const parsed = parsePromoterCsvDocument(content);
+
+      if (parsed.header.length === 0 || parsed.rows.length === 0) {
+        setShopeeError("CSV vazio ou inválido.");
+        return;
+      }
+
+      if (!hasPromoterCsvProductLinkColumns(parsed.header)) {
+        setShopeeError('CSV deve conter coluna "Offer Link" ou "Product Link".');
+        return;
+      }
+
+      const rows = parsed.rows.filter((row) =>
+        Object.values(row.record).some((value) => value.trim().length > 0)
+      );
+
+      if (rows.length === 0) {
+        setShopeeError("CSV vazio ou inválido.");
+        return;
+      }
+
+      const existingLinks = new Set(items.map((item) => item.link.trim()).filter(Boolean));
+      const seenCsvLinks = new Set<string>();
+      const addedItems: ListItem[] = [];
+      const failedLines: number[] = [];
+      let addedCount = 0;
+      let failedCount = 0;
+      let ignoredByLimitCount = 0;
+
+      setAddingStatus(`Processando ${rows.length} produto(s) do CSV...`);
+      setProcessingOverlay((prev) => ({
+        ...prev,
+        total: rows.length,
+        status: `Processando ${rows.length} produto(s)...`,
+      }));
+
+      for (let index = 0; index < rows.length; index += 1) {
+        if (abortController.signal.aborted) {
+          break;
+        }
+
+        if (addedCount >= availableSlots) {
+          ignoredByLimitCount = rows.length - index;
+          break;
+        }
+
+        const row = rows[index];
+        const currentItem = index + 1;
+        const currentLink = resolvePromoterCsvLink(row.record)?.trim();
+
+        setAddingStatus(`Adicionando produto ${currentItem} de ${rows.length}...`);
+        setProcessingOverlay((prev) => ({
+          ...prev,
+          processed: currentItem,
+          status: `Adicionando produto ${currentItem} de ${rows.length}...`,
+        }));
+
+        if (!currentLink) {
+          failedCount += 1;
+          failedLines.push(row.lineNumber);
+          setProcessingOverlay((prev) => ({
+            ...prev,
+            failed: failedCount,
+            status: `Linha ${row.lineNumber}: link não encontrado`,
+          }));
+          continue;
+        }
+
+        if (existingLinks.has(currentLink) || seenCsvLinks.has(currentLink)) {
+          failedCount += 1;
+          failedLines.push(row.lineNumber);
+          setProcessingOverlay((prev) => ({
+            ...prev,
+            failed: failedCount,
+            status: `Linha ${row.lineNumber}: produto duplicado`,
+          }));
+          continue;
+        }
+
+        seenCsvLinks.add(currentLink);
+
+        try {
+          const preview = await fetchWhatsAppProductInfo(currentLink, {
+            signal: abortController.signal,
+          });
+
+          if (abortController.signal.aborted) {
+            break;
+          }
+
+          const builtItem = buildCsvImportItem(currentLink, row.record, preview);
+          addedItems.push(builtItem.item);
+          existingLinks.add(currentLink);
+          addedCount += 1;
+
+          setProcessingOverlay((prev) => ({
+            ...prev,
+            added: addedCount,
+            currentProduct: builtItem.product,
+            status: `Produto adicionado! (${addedCount} adicionado(s), ${currentItem}/${rows.length})`,
+          }));
+        } catch (err) {
+          if (isAbortError(err)) {
+            break;
+          }
+
+          failedCount += 1;
+          failedLines.push(row.lineNumber);
+          setProcessingOverlay((prev) => ({
+            ...prev,
+            failed: failedCount,
+            status: `Linha ${row.lineNumber}: não foi possível carregar o produto`,
+          }));
+        }
+
+        if (!abortController.signal.aborted && index < rows.length - 1) {
+          await wait(CSV_IMPORT_DELAY_MS);
+        }
+      }
+
+      const wasCancelled = abortController.signal.aborted;
+
+      if (addedItems.length > 0) {
+        appendItemsToList(addedItems);
+      }
+
+      setProcessingOverlay((prev) => ({
+        ...prev,
+        processed: rows.length,
+        total: rows.length,
+        status: wasCancelled ? "Processamento cancelado." : "Finalizando...",
+      }));
+
+      if (!wasCancelled) {
+        await wait(250);
+      }
+
+      if (wasCancelled) {
+        if (addedCount > 0) {
+          setSuccessMessage(`Processamento cancelado. ${addedCount} produto(s) já adicionado(s).`);
+        } else {
+          setShopeeError("Processamento do CSV cancelado.");
+        }
+        return;
+      }
+
+      const failedLinesPreview = failedLines.slice(0, 10).join(", ");
+      const failedLinesSuffix = failedLines.length > 10 ? ", ..." : "";
+      const failedText =
+        failedCount > 0
+          ? `${failedCount} linha(s) foram ignoradas por erro ou duplicidade${
+              failedLinesPreview ? `: ${failedLinesPreview}${failedLinesSuffix}` : ""
+            }.`
+          : "";
+      const limitText =
+        ignoredByLimitCount > 0
+          ? `${failedText ? " " : ""}${ignoredByLimitCount} produto(s) foram ignorados por limite máximo de ${MAX_LIST_ITEMS} itens por lista.`
+          : "";
+
+      if (addedCount === 0) {
+        setError(`Nenhum produto adicionado. Verifique os links no CSV.${failedText ? ` ${failedText}` : ""}${limitText}`);
+        return;
+      }
+
+      if (failedText || limitText) {
+        setError(`CSV processado: ${addedCount} produto(s) adicionados. ${failedText}${limitText}`.trim());
+      } else {
+        setSuccessMessage(`CSV processado: ${addedCount} produto(s) adicionados à fila.`);
+      }
+    } catch (err) {
+      if (isAbortError(err)) {
+        setShopeeError("Processamento do CSV cancelado.");
+        return;
+      }
+
+      setShopeeError(
+        err instanceof Error ? err.message : "Erro ao processar o arquivo CSV."
+      );
+    } finally {
+      csvImportAbortControllerRef.current = null;
+      setIsAdding(false);
+      setAddingStatus(null);
+      setProcessingOverlay(EMPTY_PROCESSING_OVERLAY);
+    }
+  };
+
+  const handleCsvFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) return;
+
+    void processCsvImportFile(file);
   };
 
   const loadShopeeProducts = async (pageToLoad = 1, append = false) => {
@@ -1838,7 +2252,7 @@ export default function PromoterListsPage() {
           <AlertDescription>{scheduleResetNotice}</AlertDescription>
         </Alert>
       )}
-      {isAdding && addingStatus && !linkProcessingOverlay.open && (
+      {isAdding && addingStatus && !processingOverlay.open && (
         <Alert className="border-sky-300 bg-sky-50 text-sky-800">
           <AlertDescription className="flex items-center gap-2">
             <Loader2 className="w-4 h-4 animate-spin" />
@@ -1847,23 +2261,25 @@ export default function PromoterListsPage() {
         </Alert>
       )}
 
-      {isAdding && linkProcessingOverlay.open && (
+      {isAdding && processingOverlay.open && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-[1px] flex items-center justify-center p-4">
           <div className="w-full max-w-xl rounded-xl border border-slate-200 bg-white shadow-2xl p-4 space-y-4">
             <div className="flex items-center justify-between gap-3">
-              <div className="text-base font-semibold text-slate-900">Processando links</div>
+              <div className="text-base font-semibold text-slate-900">{processingOverlay.title}</div>
               <div className="text-xs text-slate-600">
-                {linkProcessingOverlay.processed}/{linkProcessingOverlay.total}
+                {processingOverlay.processed}/{processingOverlay.total}
               </div>
             </div>
+
+            <div className="text-sm text-slate-600">{processingOverlay.description}</div>
 
             <div className="h-2 rounded-full bg-slate-200 overflow-hidden">
               <div
                 className="h-full bg-indigo-600 transition-all"
                 style={{
                   width: `${
-                    linkProcessingOverlay.total > 0
-                      ? (linkProcessingOverlay.processed / linkProcessingOverlay.total) * 100
+                    processingOverlay.total > 0
+                      ? (processingOverlay.processed / processingOverlay.total) * 100
                       : 0
                   }%`,
                 }}
@@ -1873,29 +2289,29 @@ export default function PromoterListsPage() {
             <div className="grid grid-cols-3 gap-2 text-xs">
               <div className="rounded-md border border-slate-200 bg-slate-50 p-2 text-center">
                 <div className="text-slate-500">Adicionados</div>
-                <div className="text-emerald-700 font-semibold">{linkProcessingOverlay.added}</div>
+                <div className="text-emerald-700 font-semibold">{processingOverlay.added}</div>
               </div>
               <div className="rounded-md border border-slate-200 bg-slate-50 p-2 text-center">
                 <div className="text-slate-500">Falharam</div>
-                <div className="text-rose-700 font-semibold">{linkProcessingOverlay.failed}</div>
+                <div className="text-rose-700 font-semibold">{processingOverlay.failed}</div>
               </div>
               <div className="rounded-md border border-slate-200 bg-slate-50 p-2 text-center">
                 <div className="text-slate-500">Restantes</div>
                 <div className="text-slate-900 font-semibold">
-                  {Math.max(0, linkProcessingOverlay.total - linkProcessingOverlay.processed)}
+                  {Math.max(0, processingOverlay.total - processingOverlay.processed)}
                 </div>
               </div>
             </div>
 
-            {linkProcessingOverlay.currentProduct ? (
+            {processingOverlay.currentProduct ? (
               <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
                 <div className="text-xs text-slate-500 mb-2">Último produto processado</div>
                 <div className="flex items-start gap-3">
-                  {linkProcessingOverlay.currentProduct.imageUrl ? (
+                  {processingOverlay.currentProduct.imageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={linkProcessingOverlay.currentProduct.imageUrl}
-                      alt={linkProcessingOverlay.currentProduct.title || "Produto"}
+                      src={processingOverlay.currentProduct.imageUrl}
+                      alt={processingOverlay.currentProduct.title || "Produto"}
                       className="w-12 h-12 rounded-md object-cover border border-slate-200"
                     />
                   ) : (
@@ -1905,15 +2321,15 @@ export default function PromoterListsPage() {
                   )}
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-medium text-slate-900 truncate">
-                      {linkProcessingOverlay.currentProduct.title || "Produto sem título"}
+                      {processingOverlay.currentProduct.title || "Produto sem título"}
                     </div>
-                    {linkProcessingOverlay.currentProduct.price ? (
+                    {processingOverlay.currentProduct.price ? (
                       <div className="text-xs text-emerald-700 mt-0.5 truncate">
-                        {linkProcessingOverlay.currentProduct.price}
+                        {processingOverlay.currentProduct.price}
                       </div>
                     ) : null}
                     <div className="text-xs text-slate-500 mt-1 truncate">
-                      {linkProcessingOverlay.currentProduct.link}
+                      {processingOverlay.currentProduct.link}
                     </div>
                   </div>
                 </div>
@@ -1924,8 +2340,29 @@ export default function PromoterListsPage() {
 
             <div className="text-xs text-slate-600 flex items-center gap-2">
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              {addingStatus || "Processando..."}
+              {processingOverlay.status || addingStatus || "Processando..."}
             </div>
+
+            {processingOverlay.allowCancel ? (
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-red-200 text-red-700 hover:bg-red-50"
+                  onClick={handleCancelCsvImport}
+                  disabled={processingOverlay.isCancelling}
+                >
+                  {processingOverlay.isCancelling ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Cancelando...
+                    </>
+                  ) : (
+                    "Cancelar"
+                  )}
+                </Button>
+              </div>
+            ) : null}
           </div>
         </div>
       )}
@@ -2052,6 +2489,58 @@ export default function PromoterListsPage() {
                 </TabsContent>
 
                 <TabsContent value="shopee" className="space-y-3 mt-4">
+                  <div className="space-y-3 rounded-md border border-sky-200 bg-sky-50 p-3">
+                    <input
+                      ref={csvFileInputRef}
+                      type="file"
+                      accept=".csv,text/csv"
+                      className="hidden"
+                      onChange={handleCsvFileChange}
+                    />
+                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 text-sm font-medium text-slate-900">
+                          <Upload className="h-4 w-4 text-sky-700" />
+                          Importar CSV da Shopee
+                        </div>
+                        <p className="text-xs text-slate-600">
+                          Envie o CSV exportado da Shopee para adicionar produtos diretamente
+                          na lista. O arquivo deve conter a coluna <strong>Offer Link</strong> ou{" "}
+                          <strong>Product Link</strong>.
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          Colunas opcionais aproveitadas como fallback:{" "}
+                          <span className="font-medium">Product Name</span>,{" "}
+                          <span className="font-medium">Image URL</span> e{" "}
+                          <span className="font-medium">Price</span>.
+                        </p>
+                        {selectedCsvFileName ? (
+                          <div className="text-xs font-medium text-sky-800">
+                            Último arquivo selecionado: {selectedCsvFileName}
+                          </div>
+                        ) : null}
+                      </div>
+                      <Button
+                        type="button"
+                        onClick={() => csvFileInputRef.current?.click()}
+                        disabled={isAdding || isLoadingShopee}
+                        className="bg-sky-700 text-white hover:bg-sky-800"
+                      >
+                        {isAdding && processingOverlay.mode === "csv" ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Processando CSV...
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="mr-2 h-4 w-4" />
+                            Importar produtos do CSV
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+
                   <div className="space-y-2 rounded-md border border-orange-200 bg-orange-50 p-3">
                     <div className="text-sm font-medium">Quantidade de produtos</div>
                     <div className="flex flex-wrap items-center gap-2">
