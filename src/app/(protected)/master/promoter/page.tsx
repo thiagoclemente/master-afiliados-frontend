@@ -43,6 +43,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import ExtensionInstallBanner from "@/components/promoter/ExtensionInstallBanner";
+import PromoterCouponField from "@/components/promoter/PromoterCouponField";
 import {
   buildPreviewPayloadFromExtension,
   getExtensionPayloadCardData,
@@ -50,6 +51,10 @@ import {
   tryParseExtensionPayload,
   type ExtensionProductPayload,
 } from "@/lib/promoter-extension-payload";
+import {
+  resolvePromoterCoupon,
+  withPromoterCouponPayload,
+} from "@/lib/promoter-coupon";
 
 type TabKey = "create" | "links" | "campaigns";
 
@@ -59,6 +64,7 @@ export default function PromoterPage() {
 
   const [activeTab, setActiveTab] = useState<TabKey>("create");
   const [linkInput, setLinkInput] = useState("");
+  const [couponInput, setCouponInput] = useState("");
   const [preview, setPreview] = useState<PromoterPreview | null>(null);
   const [importedPayload, setImportedPayload] =
     useState<ExtensionProductPayload | null>(null);
@@ -162,8 +168,10 @@ export default function PromoterPage() {
   const handleImportedPayload = useCallback((raw: string) => {
     const parsed = tryParseExtensionPayload(raw);
     if (!parsed) return false;
+    const parsedPayload = buildPreviewPayloadFromExtension(parsed);
 
     setImportedPayload(parsed);
+    setCouponInput(resolvePromoterCoupon(parsedPayload));
     setLinkInput("");
     setPreview(null);
     setError(null);
@@ -193,16 +201,24 @@ export default function PromoterPage() {
 
     setIsLoadingPreview(true);
     try {
+      const requestPayload = withPromoterCouponPayload(
+        importedPayload
+          ? buildPreviewPayloadFromExtension(importedPayload)
+          : undefined,
+        couponInput,
+        { source: "item", hasSpecificCoupon: true }
+      );
       const data = await promoterPreview(
         requestLink,
         force ? "" : undefined,
-        importedPayload
-          ? buildPreviewPayloadFromExtension(importedPayload)
-          : undefined
+        Object.keys(requestPayload).length > 0 ? requestPayload : undefined
       );
       setPreview({
         message: data.message || "",
-        payload: data.payload || {},
+        payload:
+          Object.keys(data.payload || {}).length > 0
+            ? data.payload || {}
+            : requestPayload,
       });
       setShowSendModal(true);
     } catch (err) {
@@ -424,9 +440,9 @@ export default function PromoterPage() {
                           variant="ghost"
                           size="icon"
                           onClick={() => {
-                            setImportedPayload(null);
-                            setPreview(null);
-                          }}
+                        setImportedPayload(null);
+                        setPreview(null);
+                      }}
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
@@ -451,6 +467,13 @@ export default function PromoterPage() {
                     }}
                     placeholder="https://shopee.com.br/... https://amazon.com.br/..."
                     rows={4}
+                  />
+                  <PromoterCouponField
+                    value={couponInput}
+                    onChange={setCouponInput}
+                    label="Cupom da divulgação"
+                    description="Se preencher, o cupom entra junto na geração da mensagem."
+                    placeholder="Ex.: DESCONTO10"
                   />
                   <div className="flex gap-2">
                     <Button
@@ -572,6 +595,7 @@ export default function PromoterPage() {
                                     ? (restoredPayload
                                         .extensionPayload as ExtensionProductPayload)
                                     : null;
+                                setCouponInput(resolvePromoterCoupon(restoredPayload));
                                 setImportedPayload(extensionPayload);
                                 setLinkInput(extensionPayload ? "" : item.link);
                                 setPreview({
@@ -657,6 +681,7 @@ export default function PromoterPage() {
                                 ? (restoredPayload
                                     .extensionPayload as ExtensionProductPayload)
                                 : null;
+                            setCouponInput(resolvePromoterCoupon(restoredPayload));
                             setImportedPayload(extensionPayload);
                             setLinkInput(extensionPayload ? "" : item.link);
                             setPreview({
@@ -741,6 +766,7 @@ export default function PromoterPage() {
               payload: preview.payload,
             });
             setLinkInput("");
+            setCouponInput("");
             setImportedPayload(null);
             setPreview(null);
             setSendSuccess("Mensagem enviada e salva no histórico.");

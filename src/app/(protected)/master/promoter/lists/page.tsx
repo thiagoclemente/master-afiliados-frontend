@@ -46,11 +46,18 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import ExtensionInstallBanner from "@/components/promoter/ExtensionInstallBanner";
+import PromoterCouponField from "@/components/promoter/PromoterCouponField";
 import {
   buildListItemFromExtensionPayload,
   getExtensionPayloadCardData,
   tryParseExtensionPayload,
 } from "@/lib/promoter-extension-payload";
+import {
+  appendPromoterCouponToMessage,
+  normalizePromoterCoupon,
+  resolvePromoterCoupon,
+  withPromoterCouponPayload,
+} from "@/lib/promoter-coupon";
 import {
   getFirstPromoterCsvValue,
   hasPromoterCsvProductLinkColumns,
@@ -222,11 +229,13 @@ export default function PromoterListsPage() {
   const [startAt, setStartAt] = useState("");
   const [endAt, setEndAt] = useState("");
   const [overflowStartAt, setOverflowStartAt] = useState("");
+  const [listCoupon, setListCoupon] = useState("");
   const [items, setItems] = useState<ListItem[]>([]);
   const [selectedItemIndex, setSelectedItemIndex] = useState<number | null>(null);
 
   const [sourceTab, setSourceTab] = useState<SourceTab>("custom");
   const [singleLinkInput, setSingleLinkInput] = useState("");
+  const [singleLinkCoupon, setSingleLinkCoupon] = useState("");
   const [customLinksInput, setCustomLinksInput] = useState("");
   const [isAdding, setIsAdding] = useState(false);
   const [addingStatus, setAddingStatus] = useState<string | null>(null);
@@ -491,7 +500,10 @@ export default function PromoterListsPage() {
     overflowStartAt: null,
     items: [],
     scheduledGroups: [],
-    metadata: {},
+    metadata: {
+      listCoupon: "",
+      singleLinkCoupon: "",
+    },
   });
 
   const applyDraft = (draft: PromoterListDraft | null) => {
@@ -513,7 +525,13 @@ export default function PromoterListsPage() {
     const metadata =
       draft?.metadata && typeof draft.metadata === "object" ? draft.metadata : {};
     setSingleLinkInput(typeof metadata.singleLinkInput === "string" ? metadata.singleLinkInput : "");
+    setSingleLinkCoupon(
+      typeof metadata.singleLinkCoupon === "string"
+        ? metadata.singleLinkCoupon
+        : ""
+    );
     setCustomLinksInput(typeof metadata.customLinksInput === "string" ? metadata.customLinksInput : "");
+    setListCoupon(typeof metadata.listCoupon === "string" ? metadata.listCoupon : "");
     setShopeeQuery(typeof metadata.shopeeQuery === "string" ? metadata.shopeeQuery : "");
     setShopeeLimit(
       typeof metadata.shopeeLimit === "number" && Number.isFinite(metadata.shopeeLimit)
@@ -623,7 +641,9 @@ export default function PromoterListsPage() {
 
     const metadata = {
       singleLinkInput,
+      singleLinkCoupon,
       customLinksInput,
+      listCoupon,
       shopeeQuery,
       shopeeLimit,
       shopeeSortType,
@@ -690,7 +710,9 @@ export default function PromoterListsPage() {
     items,
     scheduledGroups,
     singleLinkInput,
+    singleLinkCoupon,
     customLinksInput,
+    listCoupon,
     shopeeQuery,
     shopeeLimit,
     shopeeSortType,
@@ -936,6 +958,35 @@ export default function PromoterListsPage() {
     }
   };
 
+  const getItemCoupon = (item: ListItem) => resolvePromoterCoupon(item.payload);
+
+  const getEffectiveCoupon = (item: ListItem) =>
+    getItemCoupon(item) || normalizePromoterCoupon(listCoupon);
+
+  const buildScheduledItemPayload = (item: ListItem) => {
+    const itemCoupon = getItemCoupon(item);
+    const appliedCoupon = itemCoupon || normalizePromoterCoupon(listCoupon);
+
+    if (itemCoupon) {
+      return withPromoterCouponPayload(item.payload, itemCoupon, {
+        source: "item",
+        hasSpecificCoupon: true,
+      });
+    }
+
+    if (appliedCoupon) {
+      return withPromoterCouponPayload(item.payload, appliedCoupon, {
+        source: "list",
+        hasSpecificCoupon: false,
+      });
+    }
+
+    return withPromoterCouponPayload(item.payload, "", {
+      source: "item",
+      hasSpecificCoupon: true,
+    });
+  };
+
   const openQuotaDialog = (params: {
     mode: "confirm" | "insufficient";
     title: string;
@@ -1010,7 +1061,12 @@ export default function PromoterListsPage() {
     return true;
   };
 
-  const addLinksToList = async (links: string[]) => {
+  const addLinksToList = async (
+    links: string[],
+    options?: {
+      coupon?: string;
+    }
+  ) => {
     const availableSlots = Math.max(0, MAX_LIST_ITEMS - items.length);
     if (availableSlots <= 0) {
       setError(`Limite máximo de ${MAX_LIST_ITEMS} itens por lista atingido.`);
@@ -1052,6 +1108,7 @@ export default function PromoterListsPage() {
     try {
       const addedItems: ListItem[] = [];
       const failedLinks: string[] = [];
+      const specificCoupon = normalizePromoterCoupon(options?.coupon);
       let processedCount = 0;
       let addedCount = 0;
       let failedCount = 0;
@@ -1084,12 +1141,16 @@ export default function PromoterListsPage() {
                 item: {
                   link,
                   message: productTitle || preview.message || "",
-                  payload: {
-                    ...previewPayload,
-                    needsAiProcessing: true,
-                    sourceType: "custom_link",
-                    sourceLink: link,
-                  },
+                  payload: withPromoterCouponPayload(
+                    {
+                      ...previewPayload,
+                      needsAiProcessing: true,
+                      sourceType: "custom_link",
+                      sourceLink: link,
+                    },
+                    specificCoupon,
+                    { source: "item", hasSpecificCoupon: true }
+                  ),
                 },
                 product: {
                   title: productTitle || undefined,
@@ -1295,6 +1356,7 @@ export default function PromoterListsPage() {
 
   const handleAddSingleLink = async () => {
     if (addExtensionPayloadToList(singleLinkInput, () => setSingleLinkInput(""))) {
+      setSingleLinkCoupon("");
       return;
     }
     const links = parseLinksInput(singleLinkInput);
@@ -1302,8 +1364,9 @@ export default function PromoterListsPage() {
       setError("Informe um link para adicionar.");
       return;
     }
-    await addLinksToList(links);
+    await addLinksToList(links, { coupon: singleLinkCoupon });
     setSingleLinkInput("");
+    setSingleLinkCoupon("");
   };
 
   const buildCsvImportItem = (
@@ -1456,6 +1519,7 @@ export default function PromoterListsPage() {
       let addedCount = 0;
       let failedCount = 0;
       let ignoredByLimitCount = 0;
+      let processedCount = 0;
 
       setAddingStatus(`Processando ${rows.length} produto(s) do CSV...`);
       setProcessingOverlay((prev) => ({
@@ -1464,86 +1528,139 @@ export default function PromoterListsPage() {
         status: `Processando ${rows.length} produto(s)...`,
       }));
 
-      for (let index = 0; index < rows.length; index += 1) {
+      for (let start = 0; start < rows.length; start += LINK_PREVIEW_CONCURRENCY) {
         if (abortController.signal.aborted) {
           break;
         }
 
         if (addedCount >= availableSlots) {
-          ignoredByLimitCount = rows.length - index;
+          ignoredByLimitCount += rows.length - start;
           break;
         }
 
-        const row = rows[index];
-        const currentItem = index + 1;
-        const currentLink = resolvePromoterCsvLink(row.record)?.trim();
+        const chunk = rows.slice(start, start + LINK_PREVIEW_CONCURRENCY);
+        const plannedChunkLinks = new Set<string>();
 
-        setAddingStatus(`Adicionando produto ${currentItem} de ${rows.length}...`);
+        setAddingStatus(
+          `Processando produtos ${start + 1} a ${Math.min(start + chunk.length, rows.length)} de ${rows.length}...`
+        );
         setProcessingOverlay((prev) => ({
           ...prev,
-          processed: currentItem,
-          status: `Adicionando produto ${currentItem} de ${rows.length}...`,
+          status: `Processando produtos ${start + 1} a ${Math.min(
+            start + chunk.length,
+            rows.length
+          )} de ${rows.length}...`,
         }));
 
-        if (!currentLink) {
-          failedCount += 1;
-          failedLines.push(row.lineNumber);
-          setProcessingOverlay((prev) => ({
-            ...prev,
-            failed: failedCount,
-            status: `Linha ${row.lineNumber}: link não encontrado`,
-          }));
-          continue;
-        }
+        const results = await Promise.all(
+          chunk.map(async (row, offset) => {
+            const currentItem = start + offset + 1;
+            const currentLink = resolvePromoterCsvLink(row.record)?.trim();
 
-        if (existingLinks.has(currentLink) || seenCsvLinks.has(currentLink)) {
-          failedCount += 1;
-          failedLines.push(row.lineNumber);
-          setProcessingOverlay((prev) => ({
-            ...prev,
-            failed: failedCount,
-            status: `Linha ${row.lineNumber}: produto duplicado`,
-          }));
-          continue;
-        }
+            if (!currentLink) {
+              return {
+                type: "invalid" as const,
+                row,
+                currentItem,
+                status: `Linha ${row.lineNumber}: link não encontrado`,
+              };
+            }
 
-        seenCsvLinks.add(currentLink);
+            if (
+              existingLinks.has(currentLink) ||
+              seenCsvLinks.has(currentLink) ||
+              plannedChunkLinks.has(currentLink)
+            ) {
+              return {
+                type: "duplicate" as const,
+                row,
+                currentItem,
+                status: `Linha ${row.lineNumber}: produto duplicado`,
+              };
+            }
 
-        try {
-          const preview = await fetchWhatsAppProductInfo(currentLink, {
-            signal: abortController.signal,
-          });
+            plannedChunkLinks.add(currentLink);
+            seenCsvLinks.add(currentLink);
 
-          if (abortController.signal.aborted) {
-            break;
+            try {
+              const preview = await fetchWhatsAppProductInfo(currentLink, {
+                signal: abortController.signal,
+              });
+
+              if (abortController.signal.aborted) {
+                return {
+                  type: "aborted" as const,
+                  row,
+                  currentItem,
+                };
+              }
+
+              return {
+                type: "success" as const,
+                row,
+                currentItem,
+                link: currentLink,
+                builtItem: buildCsvImportItem(currentLink, row.record, preview),
+              };
+            } catch (err) {
+              if (isAbortError(err)) {
+                return {
+                  type: "aborted" as const,
+                  row,
+                  currentItem,
+                };
+              }
+
+              return {
+                type: "failed" as const,
+                row,
+                currentItem,
+                status: `Linha ${row.lineNumber}: não foi possível carregar o produto`,
+              };
+            }
+          })
+        );
+
+        let lastStatus = `Processando ${Math.min(start + chunk.length, rows.length)} de ${rows.length}...`;
+        let lastCurrentProduct: ProcessingOverlayCurrentProduct | null = null;
+
+        results.forEach((result) => {
+          if (result.type === "aborted") {
+            return;
           }
 
-          const builtItem = buildCsvImportItem(currentLink, row.record, preview);
-          addedItems.push(builtItem.item);
-          existingLinks.add(currentLink);
-          addedCount += 1;
+          processedCount += 1;
 
-          setProcessingOverlay((prev) => ({
-            ...prev,
-            added: addedCount,
-            currentProduct: builtItem.product,
-            status: `Produto adicionado! (${addedCount} adicionado(s), ${currentItem}/${rows.length})`,
-          }));
-        } catch (err) {
-          if (isAbortError(err)) {
-            break;
+          if (result.type === "success") {
+            if (addedCount < availableSlots) {
+              addedItems.push(result.builtItem.item);
+              existingLinks.add(result.link);
+              addedCount += 1;
+              lastCurrentProduct = result.builtItem.product;
+              lastStatus = `Produto adicionado! (${addedCount} adicionado(s), ${processedCount}/${rows.length})`;
+            } else {
+              ignoredByLimitCount += 1;
+              lastStatus = `Limite máximo atingido. ${ignoredByLimitCount} produto(s) ignorado(s).`;
+            }
+            return;
           }
 
           failedCount += 1;
-          failedLines.push(row.lineNumber);
-          setProcessingOverlay((prev) => ({
-            ...prev,
-            failed: failedCount,
-            status: `Linha ${row.lineNumber}: não foi possível carregar o produto`,
-          }));
-        }
+          failedLines.push(result.row.lineNumber);
+          lastStatus = result.status;
+        });
 
-        if (!abortController.signal.aborted && index < rows.length - 1) {
+        setAddingStatus(lastStatus);
+        setProcessingOverlay((prev) => ({
+          ...prev,
+          processed: processedCount,
+          added: addedCount,
+          failed: failedCount,
+          currentProduct: lastCurrentProduct ?? prev.currentProduct,
+          status: lastStatus,
+        }));
+
+        if (!abortController.signal.aborted && start + chunk.length < rows.length) {
           await wait(CSV_IMPORT_DELAY_MS);
         }
       }
@@ -2158,8 +2275,11 @@ export default function PromoterListsPage() {
           overflowStartAt: group.overflowStartAt || undefined,
           items: items.map((item) => ({
             link: item.link,
-            message: item.message,
-            payload: item.payload,
+            message: appendPromoterCouponToMessage(
+              item.message,
+              getEffectiveCoupon(item)
+            ),
+            payload: buildScheduledItemPayload(item),
           })),
         });
       }
@@ -2171,8 +2291,10 @@ export default function PromoterListsPage() {
       setStartAt("");
       setEndAt("");
       setOverflowStartAt("");
+      setListCoupon("");
       setCustomLinksInput("");
       setSingleLinkInput("");
+      setSingleLinkCoupon("");
       setShopeeSelectedIds([]);
       if (activeDraftDocumentId) {
         await deletePromoterListDraft(activeDraftDocumentId);
@@ -2420,19 +2542,25 @@ export default function PromoterListsPage() {
                     <Link2 className="w-4 h-4" />
                     Adicionar por link ou payload da extensão
                   </label>
-                  <div className="grid grid-cols-1 md:grid-cols-[1fr,auto] gap-2">
+                  <div className="space-y-2">
                     <Input
                       value={singleLinkInput}
                       onChange={(e) => {
                         const value = e.target.value;
                         setSingleLinkInput(value);
                         if (value.trim().startsWith("{")) {
-                          addExtensionPayloadToList(value, () => setSingleLinkInput(""));
+                          const handled = addExtensionPayloadToList(value, () =>
+                            setSingleLinkInput("")
+                          );
+                          if (handled) {
+                            setSingleLinkCoupon("");
+                          }
                         }
                       }}
                       onPaste={(e) => {
                         const pasted = e.clipboardData.getData("text");
                         if (addExtensionPayloadToList(pasted, () => setSingleLinkInput(""))) {
+                          setSingleLinkCoupon("");
                           e.preventDefault();
                         }
                       }}
@@ -2444,20 +2572,27 @@ export default function PromoterListsPage() {
                         }
                       }}
                     />
-                  <Button
-                    onClick={() => void handleAddSingleLink()}
-                    disabled={!singleLinkInput.trim() || isAdding}
-                    className="bg-blue-700 hover:bg-blue-800 text-white"
-                  >
-                    {isAdding ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Processando...
-                      </>
-                    ) : (
-                      "Adicionar link"
-                    )}
-                  </Button>
+                    <PromoterCouponField
+                      value={singleLinkCoupon}
+                      onChange={setSingleLinkCoupon}
+                      label="Cupom deste link"
+                      description="Se preencher aqui, o cupom vale só para este produto."
+                      placeholder="Ex.: DESCONTO10"
+                    />
+                    <Button
+                      onClick={() => void handleAddSingleLink()}
+                      disabled={!singleLinkInput.trim() || isAdding}
+                      className="w-full bg-blue-700 hover:bg-blue-800 text-white"
+                    >
+                      {isAdding ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Processando...
+                        </>
+                      ) : (
+                        "Adicionar link"
+                      )}
+                    </Button>
                   </div>
                   <div className="text-xs text-muted-foreground">Ou cole vários links abaixo (um por linha):</div>
                   <Textarea
@@ -2800,6 +2935,8 @@ export default function PromoterListsPage() {
                           : null;
                       const isSelected = selectedItemIndex === idx;
                       const needsAiProcessing = item.payload?.needsAiProcessing === true;
+                      const itemCoupon = getItemCoupon(item);
+                      const effectiveCoupon = getEffectiveCoupon(item);
                       const title =
                         extensionCard?.title ||
                         (typeof item.payload?.productTitle === "string"
@@ -2872,6 +3009,16 @@ export default function PromoterListsPage() {
                                   {extensionCard.priceMax}
                                 </div>
                               ) : null}
+                              {effectiveCoupon ? (
+                                <div className="mt-2">
+                                  <Badge
+                                    variant="outline"
+                                    className="border-emerald-300 bg-emerald-50 text-emerald-700 text-[10px]"
+                                  >
+                                    Cupom: {effectiveCoupon}
+                                  </Badge>
+                                </div>
+                              ) : null}
                               <div className="text-[11px] text-muted-foreground mt-1 break-all line-clamp-1">
                                 {item.link}
                               </div>
@@ -2893,6 +3040,40 @@ export default function PromoterListsPage() {
                           {isSelected && (
                             <div className="mt-3 pt-3 border-t border-border">
                               <div className="text-sm text-muted-foreground space-y-2">
+                                <div className="space-y-2">
+                                  <div className="font-medium text-foreground">Cupom do item</div>
+                                  <Input
+                                    value={itemCoupon}
+                                    onChange={(e) => {
+                                      const nextCoupon = e.target.value;
+                                      setItems((prev) =>
+                                        prev.map((entry, entryIdx) =>
+                                          entryIdx === idx
+                                            ? {
+                                                ...entry,
+                                                payload: withPromoterCouponPayload(
+                                                  entry.payload,
+                                                  nextCoupon,
+                                                  {
+                                                    source: "item",
+                                                    hasSpecificCoupon: true,
+                                                  }
+                                                ),
+                                              }
+                                            : entry
+                                        )
+                                      );
+                                    }}
+                                    placeholder="Se vazio, usa o cupom da lista"
+                                  />
+                                  <div className="text-xs text-muted-foreground">
+                                    {effectiveCoupon
+                                      ? itemCoupon
+                                        ? `Cupom específico aplicado: ${effectiveCoupon}`
+                                        : `Usando o cupom da lista: ${effectiveCoupon}`
+                                      : "Nenhum cupom aplicado a este item."}
+                                  </div>
+                                </div>
                                 <div className="font-medium text-foreground">Mensagem do item</div>
                                 {needsAiProcessing ? (
                                   <>
@@ -2900,7 +3081,10 @@ export default function PromoterListsPage() {
                                       A mensagem deste produto ainda será processada automaticamente na fila após criar/agendar a lista.
                                     </div>
                                     <Button
-                                      onClick={() => setSelectedItemIndex(null)}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedItemIndex(null);
+                                      }}
                                       size="sm"
                                       variant="outline"
                                     >
@@ -2926,7 +3110,10 @@ export default function PromoterListsPage() {
                                     />
                                     <div className="flex items-center gap-2">
                                       <Button
-                                        onClick={() => setSelectedItemIndex(null)}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setSelectedItemIndex(null);
+                                        }}
                                         size="sm"
                                         variant="outline"
                                       >
@@ -2944,6 +3131,14 @@ export default function PromoterListsPage() {
                   </div>
                 </ScrollArea>
               )}
+              <PromoterCouponField
+                value={listCoupon}
+                onChange={setListCoupon}
+                label="Cupom da lista"
+                description="Aplicado aos itens sem cupom específico. Se um item já tiver cupom próprio, ele mantém o cupom individual."
+                placeholder="Ex.: CUPOMDALISTA"
+                disabled={items.length === 0}
+              />
             </CardContent>
           </Card>
 

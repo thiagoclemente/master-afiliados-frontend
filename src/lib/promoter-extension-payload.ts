@@ -1,3 +1,5 @@
+import { normalizePromoterCoupon, withPromoterCouponPayload } from "@/lib/promoter-coupon";
+
 export type ExtensionProductPayload = {
   source: string;
   version?: number;
@@ -5,6 +7,9 @@ export type ExtensionProductPayload = {
   origin?: string;
   marketplace?: string;
   capturedAt?: string;
+  couponCode?: string;
+  coupon?: string;
+  cupom?: string;
   product: {
     itemId?: string;
     productName?: string;
@@ -17,6 +22,9 @@ export type ExtensionProductPayload = {
     priceDiscountRate?: string | null;
     shopName?: string;
     sales?: string | null;
+    couponCode?: string;
+    coupon?: string;
+    cupom?: string;
     affiliateMeta?: {
       shortUrl?: string;
     };
@@ -55,28 +63,40 @@ export function buildPreviewPayloadFromExtension(
     product.affiliateMeta?.shortUrl?.trim() ||
     product.productLink?.trim() ||
     "";
+  const coupon = normalizePromoterCoupon(
+    product.couponCode ??
+      product.coupon ??
+      product.cupom ??
+      extensionPayload.couponCode ??
+      extensionPayload.coupon ??
+      extensionPayload.cupom
+  );
 
-  return {
-    source: extensionPayload.origin || "browser_extension",
-    marketplace: extensionPayload.marketplace || "mercado-livre",
-    itemId: product.itemId || "",
-    productId: product.itemId || "",
-    productTitle: product.productName || "",
-    productName: product.productName || "",
-    productLink: product.productLink || offerLink,
-    offerLink,
-    productImageUrl: product.imageUrl || "",
-    imageUrl: product.imageUrl || "",
-    productPrice: product.price || product.priceMin || "",
-    price: product.price || product.priceMin || "",
-    priceMin: product.priceMin || product.price || "",
-    priceMax: product.priceMax || null,
-    priceDiscountRate: product.priceDiscountRate || null,
-    shopName: product.shopName || "",
-    sales: product.sales || null,
-    needsAiProcessing: true,
-    extensionPayload,
-  };
+  return withPromoterCouponPayload(
+    {
+      source: extensionPayload.origin || "browser_extension",
+      marketplace: extensionPayload.marketplace || "mercado-livre",
+      itemId: product.itemId || "",
+      productId: product.itemId || "",
+      productTitle: product.productName || "",
+      productName: product.productName || "",
+      productLink: product.productLink || offerLink,
+      offerLink,
+      productImageUrl: product.imageUrl || "",
+      imageUrl: product.imageUrl || "",
+      productPrice: product.price || product.priceMin || "",
+      price: product.price || product.priceMin || "",
+      priceMin: product.priceMin || product.price || "",
+      priceMax: product.priceMax || null,
+      priceDiscountRate: product.priceDiscountRate || null,
+      shopName: product.shopName || "",
+      sales: product.sales || null,
+      needsAiProcessing: true,
+      extensionPayload,
+    },
+    coupon,
+    { source: "item", hasSpecificCoupon: true }
+  );
 }
 
 export function getPromoterLinkFromPayload(
