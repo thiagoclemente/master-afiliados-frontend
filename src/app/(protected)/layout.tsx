@@ -47,6 +47,7 @@ export default function ProtectedLayout({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [masterOpen, setMasterOpen] = useState(true);
+  const [videosOpen, setVideosOpen] = useState(true);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -62,12 +63,6 @@ export default function ProtectedLayout({
         match: (path) => path === "/home",
       },
       {
-        name: "Pacotes de Vídeos",
-        href: "/combos",
-        icon: Video,
-        match: (path) => path === "/combos" || path.startsWith("/videos"),
-      },
-      {
         name: "Artes",
         href: "/arts",
         icon: ImageIcon,
@@ -80,6 +75,39 @@ export default function ProtectedLayout({
         match: (path) => path === "/stickers",
       },
     ],
+    []
+  );
+
+  const videosGroup: NavGroup = useMemo(
+    () => ({
+      name: "Vídeos",
+      icon: Video,
+      match: (path) =>
+        path === "/combos" ||
+        path.startsWith("/videos") ||
+        path.startsWith("/premium"),
+      children: [
+        {
+          name: "Pacotes de Vídeos",
+          href: "/combos",
+          match: (path) => path === "/combos" || path.startsWith("/videos"),
+        },
+        {
+          name: "Bombando na Shopee",
+          href: "/videos/bombando-na-shopee",
+          match: (path) =>
+            path.startsWith("/videos/bombando-na-shopee") ||
+            path.startsWith("/premium/videos/bombando-na-shopee"),
+        },
+        {
+          name: "Vídeos de IA",
+          href: "/videos/videos-de-ia",
+          match: (path) =>
+            path.startsWith("/videos/videos-de-ia") ||
+            path.startsWith("/premium/videos/videos-de-ia"),
+        },
+      ],
+    }),
     []
   );
 
@@ -155,7 +183,76 @@ export default function ProtectedLayout({
       </div>
 
       <div className="flex-1 overflow-y-auto px-2 py-3 space-y-2">
-        {navigationItems.map((item) => {
+        {navigationItems.slice(0, 1).map((item) => {
+          const active = item.match(pathname);
+          const Icon = item.icon;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={() => isMobile && setMobileMenuOpen(false)}
+              className={cn(
+                "flex items-center rounded-md px-3 py-2 text-sm transition-colors",
+                active
+                  ? "bg-accent text-accent-foreground"
+                  : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
+              )}
+              title={sidebarCollapsed && !isMobile ? item.name : undefined}
+            >
+              <Icon className="w-4 h-4 shrink-0" />
+              {(!sidebarCollapsed || isMobile) && (
+                <span className="ml-2 truncate">{item.name}</span>
+              )}
+            </Link>
+          );
+        })}
+
+        <div className="pt-1">
+          <button
+            type="button"
+            onClick={() => setVideosOpen((prev) => !prev)}
+            className={cn(
+              "w-full flex items-center rounded-md px-3 py-2 text-sm transition-colors",
+              videosGroup.match(pathname)
+                ? "bg-accent text-accent-foreground"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
+            )}
+            title={sidebarCollapsed && !isMobile ? videosGroup.name : undefined}
+          >
+            <videosGroup.icon className="w-4 h-4 shrink-0" />
+            {(!sidebarCollapsed || isMobile) && (
+              <>
+                <span className="ml-2 truncate">{videosGroup.name}</span>
+                <span className="ml-auto text-xs">{videosOpen ? "-" : "+"}</span>
+              </>
+            )}
+          </button>
+
+          {videosOpen && (!sidebarCollapsed || isMobile) && (
+            <div className="mt-1 ml-5 border-l pl-2 space-y-1">
+              {videosGroup.children.map((subItem) => {
+                const active = subItem.match(pathname);
+                return (
+                  <Link
+                    key={subItem.href}
+                    href={subItem.href}
+                    onClick={() => isMobile && setMobileMenuOpen(false)}
+                    className={cn(
+                      "block rounded-md px-2 py-1.5 text-sm transition-colors",
+                      active
+                        ? "bg-accent text-accent-foreground"
+                        : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
+                    )}
+                  >
+                    {subItem.name}
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {navigationItems.slice(1).map((item) => {
           const active = item.match(pathname);
           const Icon = item.icon;
           return (

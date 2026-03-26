@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -57,6 +57,28 @@ import {
 } from "@/lib/promoter-coupon";
 
 type TabKey = "create" | "links" | "campaigns";
+
+const LIGHT_THEME_VARS: CSSProperties = {
+  "--background": "0 0% 100%",
+  "--foreground": "222.2 84% 4.9%",
+  "--card": "0 0% 100%",
+  "--card-foreground": "222.2 84% 4.9%",
+  "--popover": "0 0% 100%",
+  "--popover-foreground": "222.2 84% 4.9%",
+  "--primary": "221.2 83.2% 53.3%",
+  "--primary-foreground": "210 40% 98%",
+  "--secondary": "210 40% 96.1%",
+  "--secondary-foreground": "222.2 47.4% 11.2%",
+  "--muted": "210 40% 96.1%",
+  "--muted-foreground": "215.4 16.3% 28%",
+  "--accent": "210 40% 96.1%",
+  "--accent-foreground": "222.2 47.4% 11.2%",
+  "--destructive": "0 84.2% 60.2%",
+  "--destructive-foreground": "210 40% 98%",
+  "--border": "214.3 31.8% 86.4%",
+  "--input": "214.3 31.8% 86.4%",
+  "--ring": "221.2 83.2% 53.3%",
+} as CSSProperties;
 
 export default function PromoterPage() {
   const router = useRouter();
@@ -289,8 +311,11 @@ export default function PromoterPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <Card>
+    <div
+      className="space-y-6 rounded-xl bg-slate-50 p-4 text-slate-900 md:p-6"
+      style={LIGHT_THEME_VARS}
+    >
+      <Card className="border-slate-200 bg-white shadow-sm">
         <CardHeader>
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -326,10 +351,12 @@ export default function PromoterPage() {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        <Card className="lg:col-span-3 h-fit">
+        <Card className="lg:col-span-3 h-fit border-slate-200 bg-white shadow-sm">
           <CardHeader>
-            <CardTitle className="text-base">Menu</CardTitle>
-            <CardDescription>Navegação do Divulgador Master</CardDescription>
+            <CardTitle className="text-base text-slate-900">Menu</CardTitle>
+            <CardDescription className="text-slate-600">
+              Navegação do Divulgador Master
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
             {tabItems.map((tab) => {
@@ -338,8 +365,12 @@ export default function PromoterPage() {
               return (
                 <Button
                   key={tab.key}
-                  variant={active ? "default" : "ghost"}
-                  className="w-full justify-start"
+                  variant="ghost"
+                  className={
+                    active
+                      ? "w-full justify-start border border-indigo-600 bg-gradient-to-r from-indigo-600 to-blue-600 text-white shadow-md hover:from-indigo-700 hover:to-blue-700 hover:text-white"
+                      : "w-full justify-start border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 hover:text-slate-900"
+                  }
                   onClick={() => setActiveTab(tab.key)}
                 >
                   <Icon className="w-4 h-4 mr-2" />
@@ -353,7 +384,7 @@ export default function PromoterPage() {
         <div className="lg:col-span-9 space-y-4">
           {activeTab === "create" && (
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-              <Card className="xl:col-span-2">
+              <Card className="xl:col-span-2 border-slate-200 bg-white shadow-sm">
                 <CardHeader>
                   <div className="flex items-center justify-between gap-3">
                     <div>
@@ -375,7 +406,7 @@ export default function PromoterPage() {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {importedCard && (
-                    <div className="border rounded-lg p-4 bg-muted/20">
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
                       <div className="flex gap-3 items-start">
                         {importedCard.imageUrl ? (
                           <div className="relative w-20 h-20 shrink-0">
@@ -388,19 +419,19 @@ export default function PromoterPage() {
                             />
                           </div>
                         ) : (
-                          <div className="w-20 h-20 rounded-md bg-muted flex items-center justify-center text-muted-foreground shrink-0">
+                          <div className="w-20 h-20 rounded-md bg-slate-100 flex items-center justify-center text-slate-500 shrink-0">
                             <MessageCircle className="w-6 h-6" />
                           </div>
                         )}
                           <div className="flex-1 min-w-0">
                           <div className="flex flex-wrap items-center gap-2 mb-2">
-                            <div className="inline-flex rounded-full bg-amber-500/15 text-amber-300 text-xs font-semibold px-3 py-1">
+                            <div className="inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">
                               Importado da extensão
                             </div>
                             {importedCard.marketplace ? (
                               <Badge
                                 variant="outline"
-                                className="border-sky-500/40 bg-sky-950/20 text-sky-300"
+                                className="border-sky-200 bg-sky-50 text-sky-700"
                               >
                                 {importedCard.marketplace === "mercado-livre"
                                   ? "Mercado Livre"
@@ -419,7 +450,7 @@ export default function PromoterPage() {
                           {(importedCard.price || importedCard.priceMax) && (
                             <div className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-1">
                               {importedCard.price ? (
-                                <div className="text-lg font-bold text-amber-300">
+                                <div className="text-lg font-bold text-amber-700">
                                   {importedCard.price}
                                 </div>
                               ) : null}
@@ -503,7 +534,7 @@ export default function PromoterPage() {
                   )}
 
                   {preview && (
-                    <div className="border rounded-lg p-4 space-y-3 bg-muted/20">
+                    <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
                       <div className="flex gap-3 items-start">
                         {defaultImage ? (
                           <div className="relative w-16 h-16">
@@ -516,7 +547,7 @@ export default function PromoterPage() {
                             />
                           </div>
                         ) : (
-                          <div className="w-16 h-16 rounded-md bg-muted flex items-center justify-center text-muted-foreground">
+                          <div className="w-16 h-16 rounded-md bg-slate-100 flex items-center justify-center text-slate-500">
                             <MessageCircle className="w-6 h-6" />
                           </div>
                         )}
@@ -543,7 +574,7 @@ export default function PromoterPage() {
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className="border-slate-200 bg-white shadow-sm">
                 <CardHeader>
                   <CardTitle className="text-base">Histórico de links</CardTitle>
                 </CardHeader>
@@ -561,7 +592,10 @@ export default function PromoterPage() {
                     <ScrollArea className="h-[520px] pr-2">
                       <div className="space-y-2">
                         {history.map((item) => (
-                          <div key={item.documentId} className="border rounded-md p-3 bg-muted/20">
+                          <div
+                            key={item.documentId}
+                            className="rounded-md border border-slate-200 bg-slate-50 p-3"
+                          >
                             <div className="flex items-start justify-between gap-3">
                               <div className="flex-1 min-w-0">
                                 <div className="text-xs text-muted-foreground">Link</div>
@@ -632,7 +666,7 @@ export default function PromoterPage() {
           )}
 
           {activeTab === "links" && (
-            <Card>
+            <Card className="border-slate-200 bg-white shadow-sm">
               <CardHeader>
                 <CardTitle>Histórico de links</CardTitle>
               </CardHeader>
@@ -649,7 +683,10 @@ export default function PromoterPage() {
                 ) : (
                   <div className="space-y-3">
                     {history.map((item) => (
-                      <div key={item.documentId} className="border rounded-lg p-4 bg-muted/20">
+                      <div
+                        key={item.documentId}
+                        className="rounded-lg border border-slate-200 bg-slate-50 p-4"
+                      >
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <div className="text-xs text-muted-foreground">Link</div>
@@ -716,7 +753,7 @@ export default function PromoterPage() {
 
           {activeTab === "campaigns" && (
             <div className="space-y-4">
-              <Card>
+              <Card className="border-slate-200 bg-white shadow-sm">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-base">
                     <CheckCircle2 className="w-4 h-4" />
@@ -726,14 +763,14 @@ export default function PromoterPage() {
                 <CardContent>
                   <Button
                     asChild
-                    className="bg-white text-black hover:bg-gray-200 border border-white"
+                    className="border border-slate-300 bg-white text-slate-900 hover:bg-slate-100"
                   >
                     <Link href="/master/promoter/lists">Criar ou gerenciar listas</Link>
                   </Button>
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className="border-slate-200 bg-white shadow-sm">
                 <CardHeader>
                   <CardTitle className="text-base">Histórico completo</CardTitle>
                   <CardDescription>
