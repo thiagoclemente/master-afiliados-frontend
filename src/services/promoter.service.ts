@@ -1,9 +1,27 @@
 import { authFetch } from "@/lib/auth";
 import type {
   PaginationMeta,
+  PromoterAutomationStatusResponse,
+  PromoterAutomationTargetInput,
   PromoterHistoryItem,
+  PromoterListDraft,
   PromoterPreview,
+  TelegramBatch,
+  TelegramGroup,
   WhatsAppBatch,
+} from "@/interfaces/promoter";
+
+export type {
+  PromoterAutomationStatusResponse,
+  PromoterAutomationTarget,
+  PromoterAutomationTargetInput,
+  PromoterAutoSourceSummary,
+  PromoterListDraft,
+  PromoterListDraftGroup,
+  PromoterListDraftItem,
+  PromoterScheduledTelegramGroup,
+  TelegramBatch,
+  TelegramGroup,
 } from "@/interfaces/promoter";
 
 const API_BASE = process.env.NEXT_PUBLIC_STRAPI_URL;
@@ -195,44 +213,11 @@ export async function deletePromoterHistory(id: string): Promise<void> {
   });
 }
 
-
-export type PromoterListDraftItem = {
-  link: string;
-  title?: string;
-  imageUrl?: string;
-  message?: string;
-  payload?: Record<string, unknown>;
-};
-
-export type PromoterListDraftGroup = {
-  groupId: string;
-  groupName: string;
-  startAt: string;
-  endAt?: string;
-  overflowStartAt?: string;
-};
-
-export type PromoterListDraft = {
-  id?: number;
-  documentId?: string;
-  title?: string;
-  listStatus?: string;
-  sourceTab?: "custom" | "shopee";
-  sessionName?: string | null;
-  groupId?: string | null;
-  intervalMinutes?: number;
-  startAt?: string | null;
-  endAt?: string | null;
-  overflowStartAt?: string | null;
-  items?: PromoterListDraftItem[];
-  scheduledGroups?: PromoterListDraftGroup[];
-  metadata?: Record<string, unknown>;
-  createdAt?: string | null;
-  updatedAt?: string | null;
-};
-
-export async function fetchPromoterListDrafts(): Promise<PromoterListDraft[]> {
-  const data = await request<PromoterListDraft[] | { data?: PromoterListDraft[] }>("/api/promoter-lists/drafts");
+export async function fetchPromoterListDrafts(options?: {
+  summary?: boolean;
+}): Promise<PromoterListDraft[]> {
+  const suffix = options?.summary ? "?summary=true" : "";
+  const data = await request<PromoterListDraft[] | { data?: PromoterListDraft[] }>(`/api/promoter-lists/drafts${suffix}`);
   return Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
 }
 
@@ -258,6 +243,95 @@ export async function deletePromoterListDraft(documentId: string): Promise<void>
   await request(`/api/promoter-lists/drafts/${documentId}`, {
     method: "DELETE",
   });
+}
+
+export async function fetchPromoterListAutomationStatus(
+  documentId: string
+): Promise<PromoterAutomationStatusResponse | null> {
+  return request<PromoterAutomationStatusResponse | null>(
+    `/api/promoter-lists/drafts/${documentId}/automation/status`
+  );
+}
+
+export async function updatePromoterListAutomationConfig(
+  documentId: string,
+  payload: Partial<PromoterListDraft>
+): Promise<PromoterListDraft | null> {
+  return request<PromoterListDraft | null>(
+    `/api/promoter-lists/drafts/${documentId}/automation/config`,
+    {
+      method: "PUT",
+      body: JSON.stringify({ data: payload }),
+    }
+  );
+}
+
+export async function updatePromoterListAutomationTargets(
+  documentId: string,
+  targets: PromoterAutomationTargetInput[]
+): Promise<PromoterAutomationStatusResponse | null> {
+  return request<PromoterAutomationStatusResponse | null>(
+    `/api/promoter-lists/drafts/${documentId}/automation/targets`,
+    {
+      method: "PUT",
+      body: JSON.stringify({ data: { targets } }),
+    }
+  );
+}
+
+export async function activatePromoterListAutomation(
+  documentId: string
+): Promise<PromoterAutomationStatusResponse | null> {
+  return request<PromoterAutomationStatusResponse | null>(
+    `/api/promoter-lists/drafts/${documentId}/automation/activate`,
+    {
+      method: "POST",
+    }
+  );
+}
+
+export async function pausePromoterListAutomation(
+  documentId: string
+): Promise<PromoterAutomationStatusResponse | null> {
+  return request<PromoterAutomationStatusResponse | null>(
+    `/api/promoter-lists/drafts/${documentId}/automation/pause`,
+    {
+      method: "POST",
+    }
+  );
+}
+
+export async function resumePromoterListAutomation(
+  documentId: string
+): Promise<PromoterAutomationStatusResponse | null> {
+  return request<PromoterAutomationStatusResponse | null>(
+    `/api/promoter-lists/drafts/${documentId}/automation/resume`,
+    {
+      method: "POST",
+    }
+  );
+}
+
+export async function restartPromoterListAutomationQueue(
+  documentId: string
+): Promise<PromoterAutomationStatusResponse | null> {
+  return request<PromoterAutomationStatusResponse | null>(
+    `/api/promoter-lists/drafts/${documentId}/automation/restart`,
+    {
+      method: "POST",
+    }
+  );
+}
+
+export async function resetPromoterListAutomationSource(
+  documentId: string
+): Promise<PromoterAutomationStatusResponse | null> {
+  return request<PromoterAutomationStatusResponse | null>(
+    `/api/promoter-lists/drafts/${documentId}/automation/source/reset`,
+    {
+      method: "POST",
+    }
+  );
 }
 
 export async function fetchWhatsappBatches(params?: {
@@ -349,6 +423,93 @@ export async function checkWhatsappQuota(
   requestedCampaigns: number
 ): Promise<WhatsAppQuotaCheck> {
   return request<WhatsAppQuotaCheck>("/api/whatsapp/campaigns/quota-check", {
+    method: "POST",
+    body: JSON.stringify({ requestedCampaigns }),
+  });
+}
+
+export async function fetchTelegramGroups(): Promise<TelegramGroup[]> {
+  const data = await request<TelegramGroup[] | { data?: TelegramGroup[] }>(
+    "/api/telegram/groups"
+  );
+  return Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
+}
+
+export async function fetchTelegramBatches(params?: {
+  page?: number;
+  pageSize?: number;
+}): Promise<{ items: TelegramBatch[]; meta?: PaginationMeta }> {
+  const page = params?.page ?? 1;
+  const pageSize = params?.pageSize ?? 10;
+  const data = await request<
+    | TelegramBatch[]
+    | {
+        data?: TelegramBatch[];
+        meta?: { pagination?: PaginationMeta };
+      }
+  >(`/api/telegram/campaigns/batches?page=${page}&pageSize=${pageSize}`);
+
+  const items = Array.isArray(data)
+    ? data
+    : Array.isArray(data?.data)
+      ? data.data
+      : [];
+  const meta = !Array.isArray(data) ? data?.meta?.pagination : undefined;
+  return { items, meta };
+}
+
+export async function fetchTelegramBatchDetail(
+  batchId: string
+): Promise<TelegramBatch | null> {
+  const data = await request<TelegramBatch | { data?: TelegramBatch }>(
+    `/api/telegram/campaigns/batches/${batchId}`
+  );
+
+  if (!data) return null;
+  if (!Array.isArray(data) && "data" in data) {
+    return (data as { data?: TelegramBatch }).data ?? null;
+  }
+  return data as TelegramBatch;
+}
+
+export async function deleteTelegramBatch(
+  batchId: string,
+  shouldDelete = true
+): Promise<void> {
+  await request(
+    `/api/telegram/campaigns/batches/${batchId}?delete=${shouldDelete ? "true" : "false"}`,
+    { method: "DELETE" }
+  );
+}
+
+export async function scheduleTelegramList(payload: {
+  title?: string;
+  groupId: string;
+  groupName: string;
+  intervalMinutes?: number;
+  startAt?: string;
+  endAt?: string;
+  overflowStartAt?: string;
+  overflowDayStarts?: string[];
+  items: { link: string; message?: string; payload?: Record<string, unknown> }[];
+}): Promise<void> {
+  await request("/api/telegram/campaigns/list", {
+    method: "POST",
+    body: JSON.stringify({
+      ...payload,
+      items: payload.items.map((item) => ({
+        link: item.link,
+        ...(item.message ? { message: item.message } : {}),
+        ...(item.payload ? { payload: item.payload } : {}),
+      })),
+    }),
+  });
+}
+
+export async function checkTelegramQuota(
+  requestedCampaigns: number
+): Promise<WhatsAppQuotaCheck> {
+  return request<WhatsAppQuotaCheck>("/api/telegram/campaigns/quota-check", {
     method: "POST",
     body: JSON.stringify({ requestedCampaigns }),
   });

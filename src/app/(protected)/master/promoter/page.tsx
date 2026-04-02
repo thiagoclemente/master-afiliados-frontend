@@ -21,8 +21,15 @@ import {
   fetchPromoterHistory,
   savePromoterHistory,
   deletePromoterHistory,
+  fetchPromoterListDrafts,
+  deletePromoterListDraft,
 } from "@/services/promoter.service";
-import type { PromoterHistoryItem, PromoterPreview } from "@/interfaces/promoter";
+import type {
+  PromoterAutomationTarget,
+  PromoterHistoryItem,
+  PromoterListDraft,
+  PromoterPreview,
+} from "@/interfaces/promoter";
 import { useWhatsApp } from "@/hooks/use-whatsapp";
 import PromoterSendModal from "@/components/whatsapp/PromoterSendModal";
 import {
@@ -80,6 +87,68 @@ const LIGHT_THEME_VARS: CSSProperties = {
   "--ring": "221.2 83.2% 53.3%",
 } as CSSProperties;
 
+const AUTOMATION_TARGET_PAUSED_STATES = [
+  "paused_manual",
+  "paused_credit_approval",
+  "paused_insufficient_credits",
+  "paused_channel_unavailable",
+] as const;
+
+const formatDraftSavedAt = (value?: string | null) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+const getDraftTargets = (draft: PromoterListDraft): PromoterAutomationTarget[] =>
+  Array.isArray(draft.automationTargets) ? draft.automationTargets : [];
+
+const isDraftTargetCompleted = (target: PromoterAutomationTarget) =>
+  target.progress?.completed === true;
+
+const resolveDraftStatus = (draft: PromoterListDraft) => {
+  const isAutomatic =
+    draft.listMode === "automatic_window" || draft.automationHasStarted === true;
+  const targets = getDraftTargets(draft);
+  const hasTargets = targets.length > 0;
+  const hasActiveTargets = targets.some((target) => target.automationState === "active");
+  const hasPausedTargets = targets.some((target) =>
+    AUTOMATION_TARGET_PAUSED_STATES.includes(
+      target.automationState as (typeof AUTOMATION_TARGET_PAUSED_STATES)[number]
+    )
+  );
+  const hasErrorTargets = targets.some((target) => target.automationState === "error");
+  const hasCompletedTargets = targets.some(isDraftTargetCompleted);
+  const allCompleted = hasTargets && targets.every(isDraftTargetCompleted);
+
+  if (!isAutomatic) {
+    return { label: "Rascunho", className: "bg-slate-500 text-white" };
+  }
+
+  if (draft.automationEnabled && hasActiveTargets) {
+    return { label: "Ativa", className: "bg-emerald-600 text-white" };
+  }
+
+  if (allCompleted) {
+    return { label: "Enviada", className: "bg-sky-600 text-white" };
+  }
+
+  if (
+    draft.automationHasStarted &&
+    (hasPausedTargets || hasErrorTargets || hasCompletedTargets || hasTargets || draft.automationEnabled)
+  ) {
+    return { label: "Pausada", className: "bg-amber-500 text-white" };
+  }
+
+  return { label: "Rascunho", className: "bg-slate-500 text-white" };
+};
+
 export default function PromoterPage() {
   const router = useRouter();
   const whatsapp = useWhatsApp();
@@ -95,6 +164,8 @@ export default function PromoterPage() {
   const [history, setHistory] = useState<PromoterHistoryItem[]>([]);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
   const [historyHasMore, setHistoryHasMore] = useState(true);
+  const [savedLists, setSavedLists] = useState<PromoterListDraft[]>([]);
+  const [isLoadingSavedLists, setIsLoadingSavedLists] = useState(false);
   const [showSendModal, setShowSendModal] = useState(false);
   const [allowAccess, setAllowAccess] = useState<boolean | null>(null);
   const [sendSuccess, setSendSuccess] = useState<string | null>(null);
@@ -164,9 +235,49 @@ export default function PromoterPage() {
     []
   );
 
+  const loadSavedLists = useCallback(async () => {
+    setIsLoadingSavedLists(true);
+    try {
+      const drafts = await fetchPromoterListDrafts({ summary: true });
+      const sorted = [...drafts].sort((a, b) => {
+        const aDate = a.updatedAt || a.createdAt || "";
+        const bDate = b.updatedAt || b.createdAt || "";
+        return bDate.localeCompare(aDate);
+      });
+      setSavedLists(sorted);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Erro ao carregar listas salvas."
+      );
+    } finally {
+      setIsLoadingSavedLists(false);
+    }
+  }, []);
+
+  const handleDeleteSavedList = async (draft: PromoterListDraft) => {
+    if (!draft.documentId) return;
+
+    const confirmed = window.confirm("Deseja excluir esta lista?");
+    if (!confirmed) return;
+
+    try {
+      await deletePromoterListDraft(draft.documentId);
+      setSavedLists((prev) =>
+        prev.filter((entry) => entry.documentId !== draft.documentId)
+      );
+      setError(null);
+      setSendSuccess("Lista excluída com sucesso.");
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Erro ao excluir a lista."
+      );
+    }
+  };
+
   useEffect(() => {
     void loadHistory(true);
-  }, [loadHistory]);
+    void loadSavedLists();
+  }, [loadHistory, loadSavedLists]);
 
   useEffect(() => {
     if (activeTab === "links") {
@@ -174,7 +285,10 @@ export default function PromoterPage() {
       setHistoryHasMore(true);
       void loadHistory(true);
     }
-  }, [activeTab, loadHistory]);
+    if (activeTab === "campaigns") {
+      void loadSavedLists();
+    }
+  }, [activeTab, loadHistory, loadSavedLists]);
 
   const validateLink = (link: string) => {
     const trimmed = link.trim().toLowerCase();
@@ -512,6 +626,7 @@ export default function PromoterPage() {
                       disabled={
                         (!linkInput.trim() && !importedPayload) || isLoadingPreview
                       }
+                      className="bg-emerald-600 text-white shadow-sm hover:bg-emerald-500"
                     >
                       {isLoadingPreview ? "Processando..." : "Gerar divulgação"}
                     </Button>
@@ -755,32 +870,108 @@ export default function PromoterPage() {
             <div className="space-y-4">
               <Card className="border-slate-200 bg-white shadow-sm">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <CheckCircle2 className="w-4 h-4" />
-                    Acompanhe seus disparos e listas agendadas
-                  </CardTitle>
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <CheckCircle2 className="w-4 h-4" />
+                        Listas salvas
+                      </CardTitle>
+                      <CardDescription>
+                        Rascunhos agendados e listas recorrentes ativas ou pausadas.
+                      </CardDescription>
+                    </div>
+                    <Button
+                      asChild
+                      className="bg-emerald-600 text-white shadow-sm hover:bg-emerald-500"
+                    >
+                      <Link href="/master/promoter/lists/new">Criar nova lista</Link>
+                    </Button>
+                  </div>
                 </CardHeader>
-                <CardContent>
-                  <Button
-                    asChild
-                    className="border border-slate-300 bg-white text-slate-900 hover:bg-slate-100"
-                  >
-                    <Link href="/master/promoter/lists">Criar ou gerenciar listas</Link>
-                  </Button>
-                </CardContent>
-              </Card>
+                <CardContent className="space-y-3">
+                  {isLoadingSavedLists ? (
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Carregando listas...
+                    </div>
+                  ) : savedLists.length === 0 ? (
+                    <div className="rounded-md border border-dashed border-slate-200 p-4 text-sm text-slate-500">
+                      Nenhuma lista salva ainda.
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {savedLists.map((draft) => {
+                        const draftItems = draft.itemsCount ?? (Array.isArray(draft.items) ? draft.items.length : 0);
+                        const draftTitle = draft.title?.trim() || "Lista sem título";
+                        const isAutomatic =
+                          draft.listMode === "automatic_window" ||
+                          draft.automationHasStarted === true;
+                        const draftStatus = resolveDraftStatus(draft);
+                        const canDelete = draftStatus.label !== "Ativa";
 
-              <Card className="border-slate-200 bg-white shadow-sm">
-                <CardHeader>
-                  <CardTitle className="text-base">Histórico completo</CardTitle>
-                  <CardDescription>
-                    Consulte o histórico completo de disparos na integração do WhatsApp.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button asChild variant="outline">
-                    <Link href="/profile/whatsapp">Ver histórico de disparos</Link>
-                  </Button>
+                        return (
+                          <div
+                            key={draft.documentId || draft.id}
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => {
+                              if (!draft.documentId) return;
+                              router.push(`/master/promoter/lists/${draft.documentId}`);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                if (!draft.documentId) return;
+                                router.push(`/master/promoter/lists/${draft.documentId}`);
+                              }
+                            }}
+                            className="w-full cursor-pointer rounded-md border border-slate-200 bg-slate-50 p-3 text-left transition-colors hover:border-primary hover:bg-white"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="font-medium truncate text-slate-900">
+                                  {draftTitle}
+                                </div>
+                                <div className="mt-1 flex flex-wrap items-center gap-2">
+                                  {isAutomatic ? (
+                                    <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">
+                                      Automática
+                                    </Badge>
+                                  ) : null}
+                                  <Badge className={draftStatus.className}>
+                                    {draftStatus.label}
+                                  </Badge>
+                                </div>
+                                <div className="mt-1 text-xs text-slate-500">
+                                  {draftItems} item(ns) •{" "}
+                                  {formatDraftSavedAt(draft.updatedAt || draft.createdAt)}
+                                </div>
+                              </div>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                disabled={!canDelete}
+                                title={canDelete ? "Excluir lista" : "Pause a lista para excluir"}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (!canDelete) return;
+                                  void handleDeleteSavedList(draft);
+                                }}
+                                className={
+                                  canDelete
+                                    ? "text-red-600 hover:bg-red-50 hover:text-red-700"
+                                    : "text-slate-300"
+                                }
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>
