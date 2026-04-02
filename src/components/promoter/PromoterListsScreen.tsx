@@ -1080,14 +1080,16 @@ export default function PromoterListsScreen({
   }) => {
     const metadataQuery =
       typeof metadata?.shopeeQuery === "string" ? metadata.shopeeQuery : "";
+    const autoSourceQuery =
+      typeof autoSourceConfig?.query === "string" ? autoSourceConfig.query : "";
     const autoSourceKeyword =
       typeof autoSourceConfig?.keyword === "string" ? autoSourceConfig.keyword : "";
 
     if (itemSourceMode === "shopee_catalog") {
-      return autoSourceKeyword || metadataQuery || fallback;
+      return autoSourceQuery || autoSourceKeyword || metadataQuery || fallback;
     }
 
-    return metadataQuery || autoSourceKeyword || fallback;
+    return metadataQuery || autoSourceQuery || autoSourceKeyword || fallback;
   };
 
   const buildDraftAutosaveSignature = (draft: PromoterListDraft | null) => {
@@ -1107,6 +1109,12 @@ export default function PromoterListsScreen({
       autoSourceConfig:
         normalizedItemSourceMode === "shopee_catalog"
           ? {
+              query:
+                typeof draft.autoSourceConfig?.query === "string"
+                  ? draft.autoSourceConfig.query
+                  : typeof draft.autoSourceConfig?.keyword === "string"
+                    ? draft.autoSourceConfig.keyword
+                    : null,
               keyword:
                 typeof draft.autoSourceConfig?.keyword === "string"
                   ? draft.autoSourceConfig.keyword
@@ -1624,7 +1632,7 @@ export default function PromoterListsScreen({
       autoSourceConfig:
         itemSourceMode === "shopee_catalog"
           ? {
-              keyword: shopeeQuery || null,
+              query: shopeeQuery || null,
               sortType: shopeeSortType,
               isAMSOffer: shopeeIsAMSOffer,
               batchSize: 10,
@@ -3702,7 +3710,7 @@ export default function PromoterListsScreen({
         autoSourceConfig:
           itemSourceMode === "shopee_catalog"
             ? {
-                keyword: shopeeQuery || null,
+                query: shopeeQuery || null,
                 sortType: shopeeSortType,
                 isAMSOffer: shopeeIsAMSOffer,
                 batchSize: 10,
@@ -6077,13 +6085,13 @@ export default function PromoterListsScreen({
                 <TabsList className="grid grid-cols-2 w-full h-auto gap-2 bg-transparent p-0">
                   <TabsTrigger
                     value="whatsapp"
-                    className="h-11 rounded-md border border-emerald-300 bg-emerald-50 text-emerald-700 font-semibold transition-colors hover:bg-emerald-100 data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:border-emerald-600"
+                    className="h-11 rounded-md border border-emerald-300 bg-emerald-50 text-emerald-700 font-semibold shadow-sm transition-colors hover:bg-emerald-100 hover:border-emerald-400 data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:border-emerald-600 data-[state=active]:shadow-md"
                   >
                     WhatsApp
                   </TabsTrigger>
                   <TabsTrigger
                     value="telegram"
-                    className="h-11 rounded-md border border-sky-300 bg-sky-50 text-sky-700 font-semibold transition-colors hover:bg-sky-100 data-[state=active]:bg-sky-600 data-[state=active]:text-white data-[state=active]:border-sky-600"
+                    className="h-11 rounded-md border border-sky-300 bg-sky-50 text-sky-700 font-semibold shadow-sm transition-colors hover:bg-sky-100 hover:border-sky-400 data-[state=active]:bg-sky-600 data-[state=active]:text-white data-[state=active]:border-sky-600 data-[state=active]:shadow-md"
                   >
                     Telegram
                   </TabsTrigger>

@@ -25,6 +25,7 @@ export type PromoterAutomationState =
   | "error";
 
 export interface PromoterAutoSourceConfig {
+  query?: string | null;
   keyword?: string | null;
   sortType?: number | null;
   isAMSOffer?: boolean | null;
