@@ -41,6 +41,39 @@ export interface Video {
   search_text: string;
 }
 
+export interface VideoDownloadErrorDetails {
+  code?: string;
+  supportAction?: string;
+  packDocumentId?: string | null;
+  packName?: string | null;
+  downloadAccessExpiresAt?: string | null;
+}
+
+export class VideoDownloadAccessError extends Error {
+  code?: string;
+  details: VideoDownloadErrorDetails;
+
+  constructor(
+    message: string,
+    code?: string,
+    details: VideoDownloadErrorDetails = {},
+  ) {
+    super(message);
+    this.name = "VideoDownloadAccessError";
+    this.code = code;
+    this.details = details;
+  }
+}
+
+export function isPackRenewalRequiredError(
+  error: unknown,
+): error is VideoDownloadAccessError {
+  return (
+    error instanceof VideoDownloadAccessError &&
+    error.code === "PACK_DOWNLOAD_RENEWAL_REQUIRED"
+  );
+}
+
 interface VideoResponse {
   data: Video[];
   meta: {
@@ -200,20 +233,31 @@ export async function fetchProtectedVideoDownloadUrl(
     }
 
     let errorMessage = "Não foi possível baixar o vídeo no momento.";
+    let errorCode: string | undefined;
+    let errorDetails: VideoDownloadErrorDetails | undefined;
     try {
       const errorData = (await response.json()) as {
         message?: string;
-        error?: { message?: string };
+        error?: {
+          message?: string;
+          details?: VideoDownloadErrorDetails;
+        };
       };
       errorMessage =
         errorData?.error?.message ||
         errorData?.message ||
         errorMessage;
+      errorCode = errorData?.error?.details?.code;
+      errorDetails = errorData?.error?.details;
     } catch {
       // mantém fallback
     }
 
-    throw new Error(errorMessage);
+    throw new VideoDownloadAccessError(
+      errorMessage,
+      errorCode,
+      errorDetails,
+    );
   }
 
   const data = (await response.json()) as { url?: string };

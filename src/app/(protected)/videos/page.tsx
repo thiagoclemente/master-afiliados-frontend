@@ -7,6 +7,7 @@ import {
   fetchVideos,
   fetchVideoCategories,
   fetchProtectedVideoDownloadUrl,
+  isPackRenewalRequiredError,
   type Video,
 } from "@/services/video.service";
 import { fetchPacks } from "@/services/pack.service";
@@ -71,6 +72,9 @@ function VideosPageContent() {
   const [downloadingVideoId, setDownloadingVideoId] = useState<number | null>(null);
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [downloadNotice, setDownloadNotice] = useState<string | null>(null);
+  const [downloadRenewalPackId, setDownloadRenewalPackId] = useState<string | null>(
+    null,
+  );
   const [packInfo, setPackInfo] = useState<Pack | null>(null);
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
   const [totalVideos, setTotalVideos] = useState<number>(0);
@@ -280,6 +284,7 @@ function VideosPageContent() {
   const handleDownload = async (video: Video) => {
     try {
       setDownloadNotice(null);
+      setDownloadRenewalPackId(null);
       setDownloadingVideoId(video.id);
       setDownloadProgress(0);
 
@@ -345,6 +350,9 @@ function VideosPageContent() {
         downloadError instanceof Error
           ? downloadError.message
           : "Não foi possível baixar o vídeo no momento.";
+      const renewalPackId = isPackRenewalRequiredError(downloadError)
+        ? downloadError.details.packDocumentId || packId
+        : null;
       const isLimitRule =
         /limite diário de downloads/i.test(message) ||
         /limite de downloads/i.test(message);
@@ -355,8 +363,20 @@ function VideosPageContent() {
       }
       setDownloadingVideoId(null);
       setDownloadProgress(0);
+      setDownloadRenewalPackId(renewalPackId);
       setDownloadNotice(message);
     }
+  };
+
+  const dismissDownloadNotice = () => {
+    setDownloadNotice(null);
+    setDownloadRenewalPackId(null);
+  };
+
+  const handleOpenRenewal = () => {
+    const targetPackId = downloadRenewalPackId || packId;
+    dismissDownloadNotice();
+    router.push(targetPackId ? `/billing?pack=${targetPackId}` : "/billing");
   };
 
   const handleCopyLink = async (link: string, index: number) => {
@@ -546,7 +566,14 @@ function VideosPageContent() {
           {downloadNotice && (
             <Alert variant="destructive" className="mb-4 border-destructive/60 bg-destructive/10">
               <AlertTitle>Download bloqueado</AlertTitle>
-              <AlertDescription>{downloadNotice}</AlertDescription>
+              <AlertDescription className="space-y-3">
+                <p>{downloadNotice}</p>
+                {downloadRenewalPackId && (
+                  <Button variant="outline" onClick={handleOpenRenewal}>
+                    Renovar pacote
+                  </Button>
+                )}
+              </AlertDescription>
             </Alert>
           )}
 
@@ -733,14 +760,19 @@ function VideosPageContent() {
         </div>
       )}
 
-      <Dialog open={Boolean(downloadNotice)} onOpenChange={(open) => !open && setDownloadNotice(null)}>
+      <Dialog open={Boolean(downloadNotice)} onOpenChange={(open) => !open && dismissDownloadNotice()}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Download bloqueado</DialogTitle>
             <DialogDescription>{downloadNotice}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button onClick={() => setDownloadNotice(null)}>Entendi</Button>
+            {downloadRenewalPackId && (
+              <Button variant="outline" onClick={handleOpenRenewal}>
+                Renovar pacote
+              </Button>
+            )}
+            <Button onClick={dismissDownloadNotice}>Entendi</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -25,6 +25,7 @@ import {
   Key,
   MessageCircle,
   Loader2,
+  CreditCard,
 } from "lucide-react";
 
 export default function ProfilePage() {
@@ -77,6 +78,10 @@ export default function ProfilePage() {
 
   const handleWhatsAppConfig = () => {
     router.push("/profile/whatsapp");
+  };
+
+  const handleBilling = () => {
+    router.push("/billing");
   };
 
   if (isLoading) {
@@ -271,7 +276,11 @@ export default function ProfilePage() {
         <CardHeader>
           <CardTitle>Ações da Conta</CardTitle>
         </CardHeader>
-        <CardContent className="flex justify-center">
+        <CardContent className="flex flex-col gap-3 sm:flex-row sm:justify-center">
+          <Button onClick={handleBilling} className="inline-flex items-center gap-2">
+            <CreditCard className="h-4 w-4" />
+            Renovações
+          </Button>
           <Button onClick={handleChangePassword} variant="outline" className="inline-flex items-center gap-2">
             <Key className="h-4 w-4" />
             Alterar Senha

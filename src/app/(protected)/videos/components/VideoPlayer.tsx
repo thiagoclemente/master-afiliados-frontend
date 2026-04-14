@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { X, ChevronLeft, ChevronRight, Play, Pause, Volume2, VolumeX, Download, Link, Copy, Check, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   fetchProtectedVideoDownloadUrl,
+  isPackRenewalRequiredError,
   resolveVideoStreamingUrl,
   type Video,
 } from "@/services/video.service";
@@ -54,10 +56,14 @@ export default function VideoPlayer({
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [downloadNotice, setDownloadNotice] = useState<string | null>(null);
+  const [downloadRenewalPackId, setDownloadRenewalPackId] = useState<string | null>(
+    null,
+  );
   const videoRef = useRef<HTMLVideoElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const hlsRef = useRef<any>(null);
   const currentVideo = videos[currentIndex];
+  const router = useRouter();
 
   // Function to get streaming URL (m3u8 file)
   const getStreamingUrl = useCallback(() => {
@@ -201,6 +207,7 @@ export default function VideoPlayer({
   const handleDownload = async () => {
     try {
       setDownloadNotice(null);
+      setDownloadRenewalPackId(null);
       setIsDownloading(true);
       setDownloadProgress(0);
 
@@ -267,6 +274,9 @@ export default function VideoPlayer({
         error instanceof Error
           ? error.message
           : "Não foi possível baixar o vídeo no momento.";
+      const renewalPackId = isPackRenewalRequiredError(error)
+        ? error.details.packDocumentId || currentVideo.pack?.documentId || null
+        : null;
       const isLimitRule =
         /limite diário de downloads/i.test(message) ||
         /limite de downloads/i.test(message);
@@ -276,8 +286,20 @@ export default function VideoPlayer({
       }
       setIsDownloading(false);
       setDownloadProgress(0);
+      setDownloadRenewalPackId(renewalPackId);
       setDownloadNotice(message);
     }
+  };
+
+  const dismissDownloadNotice = () => {
+    setDownloadNotice(null);
+    setDownloadRenewalPackId(null);
+  };
+
+  const handleOpenRenewal = () => {
+    const targetPackId = downloadRenewalPackId || currentVideo.pack?.documentId;
+    dismissDownloadNotice();
+    router.push(targetPackId ? `/billing?pack=${targetPackId}` : "/billing");
   };
 
   const handleCopyLink = async (link: string, index: number) => {
@@ -510,14 +532,19 @@ export default function VideoPlayer({
         </div>
       )}
 
-      <Dialog open={Boolean(downloadNotice)} onOpenChange={(open) => !open && setDownloadNotice(null)}>
+      <Dialog open={Boolean(downloadNotice)} onOpenChange={(open) => !open && dismissDownloadNotice()}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Download bloqueado</DialogTitle>
             <DialogDescription>{downloadNotice}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button onClick={() => setDownloadNotice(null)}>Entendi</Button>
+            {downloadRenewalPackId && (
+              <Button variant="outline" onClick={handleOpenRenewal}>
+                Renovar pacote
+              </Button>
+            )}
+            <Button onClick={dismissDownloadNotice}>Entendi</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

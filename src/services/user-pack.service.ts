@@ -15,6 +15,11 @@ export interface UserPack {
   };
   createdAt: string;
   updatedAt: string;
+  downloadAccessExpired?: boolean;
+  hasActiveDownloadAccess?: boolean;
+  downloadAccessExpiresAt?: string | null;
+  lastRenewedAt?: string | null;
+  supportMessage?: string | null;
 }
 
 export interface UserPackResponse {

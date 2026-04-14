@@ -21,6 +21,7 @@ import {
   House,
   PanelLeft,
   LogOut,
+  CreditCard,
 } from "lucide-react";
 
 type NavItem = {
@@ -323,6 +324,23 @@ export default function ProtectedLayout({
       </div>
 
       <div className="border-t p-2 space-y-1">
+        <Link
+          href="/billing"
+          onClick={() => isMobile && setMobileMenuOpen(false)}
+          className={cn(
+            "flex items-center rounded-md px-3 py-2 text-sm transition-colors",
+            pathname.startsWith("/billing")
+              ? "bg-accent text-accent-foreground"
+              : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
+          )}
+          title={sidebarCollapsed && !isMobile ? "Renovações" : undefined}
+        >
+          <CreditCard className="w-4 h-4 shrink-0" />
+          {(!sidebarCollapsed || isMobile) && (
+            <span className="ml-2">Renovações</span>
+          )}
+        </Link>
+
         <Link
           href="/profile"
           onClick={() => isMobile && setMobileMenuOpen(false)}
