@@ -173,9 +173,9 @@ function BillingPageContent() {
           <ShieldCheck className="h-4 w-4 text-sky-300" />
           <AlertTitle>Master Premium ativo</AlertTitle>
           <AlertDescription>
-            Sua assinatura Master Premium libera os downloads mesmo se o pacote
-            estiver expirado. A renovação do pacote só volta a ser necessária se
-            sua assinatura encerrar.
+            Sua assinatura Master Premium mantém os downloads liberados mesmo
+            quando o prazo de atualizações do pacote termina. A renovação só
+            volta a ser necessária se a assinatura encerrar.
           </AlertDescription>
         </Alert>
       )}
@@ -215,9 +215,18 @@ function BillingPageContent() {
                 userPack.documentId === highlightedPackDocumentId);
             const isExpired = Boolean(userPack.downloadAccessExpired);
             const isProcessing = processingUserPackId === userPack.documentId;
-            const buttonLabel = isExpired
-              ? `Renovar por mais ${renewalOffer?.durationLabel || "1 ano"}`
-              : "Antecipar renovação";
+            const renewalCoveredByPremium = isExpired && hasPremiumAccess;
+            const showRenewalSection = isExpired && !hasPremiumAccess;
+            const statusLabel = renewalCoveredByPremium
+              ? "Coberto pela Master Premium"
+              : showRenewalSection
+                ? "Atualizações vencidas"
+                : "Pacote adquirido";
+            const statusClassName = renewalCoveredByPremium
+              ? "border-sky-500/60 text-sky-200"
+              : showRenewalSection
+                ? "border-amber-500/60 text-amber-200"
+                : "border-emerald-500/60 text-emerald-300";
 
             return (
               <Card
@@ -239,18 +248,20 @@ function BillingPageContent() {
 
                   <Badge
                     variant="outline"
-                    className={
-                      isExpired
-                        ? "border-amber-500/60 text-amber-200"
-                        : "border-emerald-500/60 text-emerald-300"
-                    }
+                    className={statusClassName}
                   >
-                    {isExpired ? "Acesso expirado" : "Acesso ativo"}
+                    {statusLabel}
                   </Badge>
                 </CardHeader>
 
                 <CardContent className="py-5">
-                  <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_292px]">
+                  <div
+                    className={
+                      showRenewalSection
+                        ? "grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_292px]"
+                        : "grid items-start gap-4"
+                    }
+                  >
                     <div className="space-y-4">
                       <div className="grid gap-3 md:grid-cols-3">
                         <div className="rounded-2xl border border-white/15 bg-white/[0.10] p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
@@ -262,29 +273,44 @@ function BillingPageContent() {
                           </div>
                         </div>
 
-                        <div className="rounded-2xl border border-white/15 bg-white/[0.10] p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-                          <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-zinc-400">
-                            <CalendarClock className="h-3.5 w-3.5" />
-                            Válido até
-                          </div>
-                          <div className="mt-2 text-sm font-medium text-zinc-100">
-                            {formatDateTime(userPack.downloadAccessExpiresAt)}
-                          </div>
-                        </div>
+                        {showRenewalSection ? (
+                          <>
+                            <div className="rounded-2xl border border-white/15 bg-white/[0.10] p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+                              <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-zinc-400">
+                                <CalendarClock className="h-3.5 w-3.5" />
+                                Atualizações até
+                              </div>
+                              <div className="mt-2 text-sm font-medium text-zinc-100">
+                                {formatDateTime(userPack.downloadAccessExpiresAt)}
+                              </div>
+                            </div>
 
-                        <div className="rounded-2xl border border-white/15 bg-white/[0.10] p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-                          <div className="text-xs uppercase tracking-wide text-zinc-400">
-                            Última renovação
+                            <div className="rounded-2xl border border-white/15 bg-white/[0.10] p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+                              <div className="text-xs uppercase tracking-wide text-zinc-400">
+                                Última renovação
+                              </div>
+                              <div className="mt-2 text-sm font-medium text-zinc-100">
+                                {userPack.lastRenewedAt
+                                  ? formatDateTime(userPack.lastRenewedAt)
+                                  : "Ainda não renovado"}
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="rounded-2xl border border-white/15 bg-white/[0.10] p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] md:col-span-2">
+                            <div className="text-xs uppercase tracking-wide text-zinc-400">
+                              Status
+                            </div>
+                            <div className="mt-2 text-sm font-medium text-zinc-100">
+                              {renewalCoveredByPremium
+                                ? "O prazo de atualizações terminou, mas os downloads seguem liberados pela sua assinatura Master Premium."
+                                : "Este pacote continua disponível e recebendo atualizações normalmente."}
+                            </div>
                           </div>
-                          <div className="mt-2 text-sm font-medium text-zinc-100">
-                            {userPack.lastRenewedAt
-                              ? formatDateTime(userPack.lastRenewedAt)
-                              : "Ainda não renovado"}
-                          </div>
-                        </div>
+                        )}
                       </div>
 
-                      {userPack.supportMessage && (
+                      {showRenewalSection && userPack.supportMessage && (
                         <Alert className="border-amber-500/40 bg-amber-500/10 text-amber-50">
                           <AlertCircle className="h-4 w-4 text-amber-300" />
                           <AlertTitle>Atualizações bloqueadas</AlertTitle>
@@ -293,37 +319,31 @@ function BillingPageContent() {
                       )}
                     </div>
 
-                    <div className="self-start rounded-[24px] border border-zinc-200/80 bg-zinc-50 p-5 text-zinc-950 shadow-[0_24px_60px_rgba(0,0,0,0.2)]">
-                      <div className="text-xs font-semibold uppercase tracking-[0.24em] text-zinc-500">
-                        Renovação
-                      </div>
-                      <div className="mt-2 text-sm text-zinc-600">
-                        Mais {durationLabel.toLowerCase()} para este pacote
-                      </div>
-                      <div className="mt-4 text-[2.15rem] font-semibold tracking-tight text-zinc-950">
-                        {highlightedPriceLabel}
-                      </div>
-
-                      <div className="mt-4 rounded-2xl border border-zinc-200 bg-white px-4 py-3">
-                        <div className="text-sm font-medium text-zinc-900">
-                          {isExpired ? "Acesso expirado" : "Acesso ativo"}
+                    {showRenewalSection && (
+                      <div className="self-start rounded-[24px] border border-zinc-200/80 bg-zinc-50 p-5 text-zinc-950 shadow-[0_24px_60px_rgba(0,0,0,0.2)]">
+                        <div className="text-xs font-semibold uppercase tracking-[0.24em] text-zinc-500">
+                          Renovação
                         </div>
-                        <div className="mt-1 text-sm text-zinc-600">
-                          {userPack.lastRenewedAt
-                            ? `Última renovação em ${formatDateTime(userPack.lastRenewedAt)}`
-                            : "Ainda não renovado"}
+                        <div className="mt-2 text-sm text-zinc-600">
+                          Mais {durationLabel.toLowerCase()} de atualizações para este
+                          pacote
                         </div>
-                      </div>
+                        <div className="mt-4 text-[2.15rem] font-semibold tracking-tight text-zinc-950">
+                          {highlightedPriceLabel}
+                        </div>
 
-                      <div className="mt-4">
-                        {hasPremiumAccess ? (
-                          <Button
-                            disabled
-                            className="h-12 w-full rounded-xl bg-zinc-200 text-zinc-600"
-                          >
-                            Coberto pela Master Premium
-                          </Button>
-                        ) : (
+                        <div className="mt-4 rounded-2xl border border-zinc-200 bg-white px-4 py-3">
+                          <div className="text-sm font-medium text-zinc-900">
+                            Atualizações vencidas
+                          </div>
+                          <div className="mt-1 text-sm text-zinc-600">
+                            {userPack.lastRenewedAt
+                              ? `Última renovação em ${formatDateTime(userPack.lastRenewedAt)}`
+                              : "Ainda não renovado"}
+                          </div>
+                        </div>
+
+                        <div className="mt-4">
                           <Button
                             onClick={() => void handleCheckout(userPack.documentId)}
                             disabled={!renewalOffer?.enabled || isProcessing}
@@ -336,14 +356,14 @@ function BillingPageContent() {
                               </>
                             ) : (
                               <>
-                                {buttonLabel}
+                                {`Renovar por mais ${renewalOffer?.durationLabel || "1 ano"}`}
                                 <ArrowRight className="h-4 w-4" />
                               </>
                             )}
                           </Button>
-                        )}
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
