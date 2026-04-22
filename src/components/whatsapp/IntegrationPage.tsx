@@ -26,6 +26,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import WhatsAppConnectionBanner from "@/components/whatsapp/WhatsAppConnectionBanner";
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; className: string }> = {
@@ -234,6 +235,8 @@ export default function IntegrationPage() {
           <AlertDescription className="text-destructive/90">{whatsapp.error}</AlertDescription>
         </Alert>
       )}
+
+      <WhatsAppConnectionBanner whatsapp={whatsapp} />
 
       {whatsapp.hasAccess === false ? (
         <Alert className="border-rose-500/50 bg-rose-500/10">

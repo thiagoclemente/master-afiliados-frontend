@@ -51,6 +51,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import ExtensionInstallBanner from "@/components/promoter/ExtensionInstallBanner";
 import PromoterCouponField from "@/components/promoter/PromoterCouponField";
+import WhatsAppConnectionBanner from "@/components/whatsapp/WhatsAppConnectionBanner";
 import {
   buildPreviewPayloadFromExtension,
   getExtensionPayloadCardData,
@@ -463,6 +464,8 @@ export default function PromoterPage() {
           <AlertDescription>{sendSuccess}</AlertDescription>
         </Alert>
       )}
+
+      <WhatsAppConnectionBanner whatsapp={whatsapp} />
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         <Card className="lg:col-span-3 h-fit border-slate-200 bg-white shadow-sm">

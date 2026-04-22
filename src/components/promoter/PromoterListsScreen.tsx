@@ -79,6 +79,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import ExtensionInstallBanner from "@/components/promoter/ExtensionInstallBanner";
 import PromoterCouponField from "@/components/promoter/PromoterCouponField";
+import WhatsAppConnectionBanner from "@/components/whatsapp/WhatsAppConnectionBanner";
 import {
   buildListItemFromExtensionPayload,
   getExtensionPayloadCardData,
@@ -4623,6 +4624,7 @@ export default function PromoterListsScreen({
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
         {pageView === "editor" ? (
         <div className="xl:col-span-7 space-y-4">
+          <WhatsAppConnectionBanner whatsapp={whatsapp} />
           <Card className="bg-white border-slate-200 shadow-sm">
             <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2 text-slate-900">
@@ -5743,7 +5745,13 @@ export default function PromoterListsScreen({
                       <Button
                         type="button"
                         className="bg-sky-600 hover:bg-sky-500 text-white"
-                        onClick={() => void handleRestartAutomationQueue()}
+                        onClick={() => {
+                          if (whatsapp.hasConnectionIssue && currentAutomationTargets.some((t) => t.channel === "whatsapp")) {
+                            window.alert(`${whatsapp.connectionIssueMessage}\n\nReconecte sua conta antes de iniciar a automação.`);
+                            return;
+                          }
+                          void handleRestartAutomationQueue();
+                        }}
                         disabled={
                           isResettingAutomation ||
                           !activeDraftDocumentId ||
@@ -5759,7 +5767,13 @@ export default function PromoterListsScreen({
                       <Button
                         type="button"
                         className="bg-emerald-600 hover:bg-emerald-500 text-white"
-                        onClick={() => void handleResumeAutomation()}
+                        onClick={() => {
+                          if (whatsapp.hasConnectionIssue && currentAutomationTargets.some((t) => t.channel === "whatsapp")) {
+                            window.alert(`${whatsapp.connectionIssueMessage}\n\nReconecte sua conta antes de retomar a automação.`);
+                            return;
+                          }
+                          void handleResumeAutomation();
+                        }}
                         disabled={isAutomationActionLoading || isSavingAutomation}
                       >
                         {isAutomationActionLoading || isSavingAutomation ? (
@@ -5771,7 +5785,13 @@ export default function PromoterListsScreen({
                       <Button
                         type="button"
                         className="bg-emerald-600 hover:bg-emerald-500 text-white"
-                        onClick={() => void handleActivateAutomation()}
+                        onClick={() => {
+                          if (whatsapp.hasConnectionIssue && currentAutomationTargets.some((t) => t.channel === "whatsapp")) {
+                            window.alert(`${whatsapp.connectionIssueMessage}\n\nReconecte sua conta antes de ativar a automação.`);
+                            return;
+                          }
+                          void handleActivateAutomation();
+                        }}
                         disabled={
                           isAutomationActionLoading ||
                           isSavingAutomation ||

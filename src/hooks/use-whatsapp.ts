@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   WhatsAppAccount,
   WhatsAppCampaign,
@@ -13,6 +13,7 @@ import {
   fetchWhatsappConnections,
   fetchWhatsappGroups,
   previewWhatsappCampaign,
+  restartWhatsappSession,
   scheduleWhatsappCampaign,
   setDefaultWhatsappGroup,
   syncWhatsappSession,
@@ -79,6 +80,7 @@ export function useWhatsApp() {
   const [isLoading, setIsLoading] = useState(false);
   const [isGroupsLoading, setIsGroupsLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [isRestarting, setIsRestarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const statusIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -526,6 +528,64 @@ export function useWhatsApp() {
     }
   }, [accounts, requireAccess, selectedAccount]);
 
+  const restartConnection = useCallback(
+    async (sessionName: string) => {
+      await requireAccess();
+      setIsRestarting(true);
+      setError(null);
+
+      try {
+        const restarted = await restartWhatsappSession(sessionName);
+
+        if (restarted) {
+          setAccounts((prev) => {
+            const filtered = prev.filter(
+              (item) => item.sessionName !== restarted.sessionName
+            );
+            return [...filtered, restarted];
+          });
+          setSelectedAccount(restarted);
+          setGroups([]);
+          startStatusPolling(restarted.sessionName);
+        }
+
+        return restarted;
+      } catch (err) {
+        const message =
+          err instanceof Error
+            ? err.message
+            : "Não foi possível reiniciar a sessão. Tente novamente.";
+        setError(message);
+        throw err;
+      } finally {
+        setIsRestarting(false);
+      }
+    },
+    [requireAccess, startStatusPolling]
+  );
+
+  const hasConnectionIssue = useMemo(() => {
+    if (!selectedAccount || accounts.length === 0) return false;
+    const status = selectedAccount.statusConnection;
+    return status === "error" || status === "disconnected";
+  }, [selectedAccount, accounts]);
+
+  const connectionIssueMessage = useMemo(() => {
+    if (!selectedAccount || accounts.length === 0) {
+      return "Nenhuma conta do WhatsApp conectada.";
+    }
+    const name =
+      selectedAccount.title?.trim() || selectedAccount.sessionName;
+    switch (selectedAccount.statusConnection) {
+      case "error":
+        return `A sessão "${name}" apresentou um erro de conexão. Reinicie a conexão para gerar um novo QR Code.`;
+      case "disconnected":
+        return `A sessão "${name}" foi desconectada. Reinicie a conexão para reconectar.`;
+      default:
+        return `A sessão "${name}" não está conectada ao WhatsApp.`;
+    }
+  }, [selectedAccount, accounts]);
+
   useEffect(() => {
     return () => {
       if (statusIntervalRef.current) {
@@ -542,7 +602,10 @@ export function useWhatsApp() {
     isLoading,
     isGroupsLoading,
     isSending,
+    isRestarting,
     error,
+    hasConnectionIssue,
+    connectionIssueMessage,
     loadConnections,
     connectAccount,
     selectAccount,
@@ -552,5 +615,6 @@ export function useWhatsApp() {
     generatePreview,
     sendCampaign,
     disconnect,
+    restartConnection,
   };
 }

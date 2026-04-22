@@ -93,6 +93,15 @@ export async function disconnectWhatsappSession(
   );
 }
 
+export async function restartWhatsappSession(
+  sessionName: string
+): Promise<WhatsAppAccount | null> {
+  return request<WhatsAppAccount | null>("/api/whatsapp/connections/restart", {
+    method: "POST",
+    body: JSON.stringify({ sessionName }),
+  });
+}
+
 export async function setDefaultWhatsappGroup(params: {
   groupId: string;
   groupName: string;
