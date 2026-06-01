@@ -8,6 +8,7 @@ export interface WhatsAppGroup {
 export interface WhatsAppAccount {
   documentId: string;
   sessionName: string;
+  provider?: "waha" | "evolution-api" | null;
   title?: string | null;
   statusConnection: string;
   qrCode?: string | null;
