@@ -11,6 +11,9 @@ const nextConfig: NextConfig = {
         hostname: "s3.masterafiliados.com.br",
       },
       {
+        hostname: "media.masterafiliados.com.br",
+      },
+      {
         hostname: "localhost",
       },
       {
