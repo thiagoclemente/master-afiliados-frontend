@@ -71,12 +71,12 @@ export async function fetchUserSubscriptions(): Promise<UserSubscriptionResponse
     } catch {
       return { data: [] };
     }
-    
+
     // Se a API retorna null (sem assinaturas), retornar array vazio
     if (data === null) {
       return { data: [] };
     }
-    
+
     // Se a API retorna um objeto com data: null e error, verificar se é erro de auth
     if (data && typeof data === 'object' && data.data === null && data.error) {
       if (data.error.status === 401) {
@@ -85,7 +85,7 @@ export async function fetchUserSubscriptions(): Promise<UserSubscriptionResponse
       // Para outros erros, retornar array vazio
       return { data: [] };
     }
-    
+
     return data as UserSubscriptionResponse;
   } catch (error) {
     throw error;
@@ -110,8 +110,13 @@ export function hasSubscription(subscriptions: UserSubscription[], code: string)
 }
 
 // Função para verificar se o usuário tem assinatura premium
+export function isSubscriptionPremiumPro(subscriptions: UserSubscription[]): boolean {
+  return hasSubscription(subscriptions, 'MASTER_PREMIUM_PRO');
+}
+
+// Função para verificar se o usuário tem assinatura premium
 export function isSubscriptionPremium(subscriptions: UserSubscription[]): boolean {
-  return hasSubscription(subscriptions, 'MASTER_PREMIUM');
+  return hasSubscription(subscriptions, 'MASTER_PREMIUM') || isSubscriptionPremiumPro(subscriptions);
 }
 
 // Função para verificar se o usuário tem assinatura de comissões master
