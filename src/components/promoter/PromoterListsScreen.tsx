@@ -14,10 +14,12 @@ import {
   Send,
   ListPlus,
   Calendar,
+  Shuffle,
   X,
   Search,
   ShoppingBag,
   Link2,
+  CircleHelp,
   Trash2,
   Ban,
   Upload,
@@ -58,7 +60,10 @@ import type {
   PromoterAutomationStatusResponse,
   PromoterAutomationTarget,
   PromoterItemSourceMode,
+  PromoterIntervalVariation,
   PromoterListMode,
+  PromoterSendPacingMode,
+  PromoterWhatsappMediaMode,
   TelegramBatch,
   TelegramBatchCampaign,
   TelegramGroup,
@@ -115,6 +120,9 @@ type ScheduledGroup = {
   endAt?: string;
   overflowStartAt?: string;
   intervalMinutes?: number;
+  sendPacingMode?: PromoterSendPacingMode;
+  itemsPerInterval?: number;
+  intervalVariation?: PromoterIntervalVariation;
   overflowDayStarts?: string[];
   overflowDayEnds?: string[];
 };
@@ -126,6 +134,9 @@ type ScheduledTelegramGroup = {
   endAt?: string;
   overflowStartAt?: string;
   intervalMinutes?: number;
+  sendPacingMode?: PromoterSendPacingMode;
+  itemsPerInterval?: number;
+  intervalVariation?: PromoterIntervalVariation;
   overflowDayStarts?: string[];
   overflowDayEnds?: string[];
 };
@@ -165,6 +176,14 @@ const LINK_PREVIEW_CONCURRENCY = 4;
 const MAX_LIST_ITEMS = 100;
 const MAX_AUTOMATIC_MANUAL_ITEMS = 500;
 const INLINE_ITEMS_PREVIEW_LIMIT = 12;
+const OFFER_FOOTER_MAX_LENGTH = 500;
+const WHATSAPP_MEDIA_MODE_IMAGE: PromoterWhatsappMediaMode = "image";
+const WHATSAPP_MEDIA_MODE_LINK_PREVIEW: PromoterWhatsappMediaMode = "link_preview";
+const SEND_PACING_MODE_FIXED: PromoterSendPacingMode = "fixed";
+const SEND_PACING_MODE_VARIABLE: PromoterSendPacingMode = "variable";
+const INTERVAL_VARIATION_LOW: PromoterIntervalVariation = "low";
+const INTERVAL_VARIATION_MEDIUM: PromoterIntervalVariation = "medium";
+const INTERVAL_VARIATION_HIGH: PromoterIntervalVariation = "high";
 const ITEMS_DIALOG_PAGE_SIZE = 50;
 const CSV_IMPORT_DELAY_MS = 120;
 const CSV_PRODUCT_TITLE_ALIASES = [
@@ -208,6 +227,84 @@ const EMPTY_PROCESSING_OVERLAY: ProcessingOverlayState = {
   status: null,
   allowCancel: false,
   isCancelling: false,
+};
+const normalizeOfferFooterMessage = (value: unknown) =>
+  typeof value === "string"
+    ? value.trim().slice(0, OFFER_FOOTER_MAX_LENGTH)
+    : "";
+const normalizeWhatsappMediaMode = (value: unknown): PromoterWhatsappMediaMode =>
+  value === WHATSAPP_MEDIA_MODE_LINK_PREVIEW
+    ? WHATSAPP_MEDIA_MODE_LINK_PREVIEW
+    : WHATSAPP_MEDIA_MODE_IMAGE;
+const normalizeSendPacingMode = (value: unknown): PromoterSendPacingMode =>
+  value === SEND_PACING_MODE_VARIABLE
+    ? SEND_PACING_MODE_VARIABLE
+    : SEND_PACING_MODE_FIXED;
+const normalizeItemsPerInterval = (value: unknown) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return 1;
+  return Math.min(Math.max(Math.floor(parsed), 1), 5);
+};
+const normalizeIntervalVariation = (
+  value: unknown
+): PromoterIntervalVariation =>
+  value === INTERVAL_VARIATION_LOW || value === INTERVAL_VARIATION_HIGH
+    ? value
+    : INTERVAL_VARIATION_MEDIUM;
+const buildPacingDelayMs = ({
+  intervalMinutes,
+  sendPacingMode,
+  itemsPerInterval,
+  intervalVariation,
+  stepIndex = 0,
+}: {
+  intervalMinutes?: number | null;
+  sendPacingMode?: unknown;
+  itemsPerInterval?: unknown;
+  intervalVariation?: unknown;
+  stepIndex?: number;
+}) => {
+  const interval = Math.max(1, Math.floor(Number(intervalMinutes) || 1));
+  const intervalMs = interval * 60 * 1000;
+  const mode = normalizeSendPacingMode(sendPacingMode);
+  const perInterval = normalizeItemsPerInterval(itemsPerInterval);
+  if (mode !== SEND_PACING_MODE_VARIABLE || perInterval <= 1) {
+    return intervalMs;
+  }
+  const baseDelay = intervalMs / perInterval;
+  const variation = normalizeIntervalVariation(intervalVariation);
+  const ratio =
+    variation === INTERVAL_VARIATION_LOW
+      ? 0.12
+      : variation === INTERVAL_VARIATION_HIGH
+        ? 0.36
+        : 0.24;
+  const seed =
+    Math.sin((Math.max(0, stepIndex) + 1) * 9301 + interval * 49297) * 233280;
+  const jitterSeed = seed - Math.floor(seed);
+  const jitter = (jitterSeed * 2 - 1) * baseDelay * ratio;
+  return Math.max(15000, Math.round(baseDelay + jitter));
+};
+const shuffleListItems = <T,>(source: T[]) => {
+  if (source.length < 2) {
+    return source;
+  }
+
+  const shuffled = [...source];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(Math.random() * (index + 1));
+    [shuffled[index], shuffled[randomIndex]] = [
+      shuffled[randomIndex],
+      shuffled[index],
+    ];
+  }
+
+  const keptSameOrder = shuffled.every((item, index) => item === source[index]);
+  if (keptSameOrder) {
+    shuffled.push(shuffled.shift() as T);
+  }
+
+  return shuffled;
 };
 const LIGHT_THEME_VARS: CSSProperties = {
   "--background": "0 0% 100%",
@@ -498,10 +595,19 @@ export default function PromoterListsScreen({
 
   const [title, setTitle] = useState("");
   const [intervalMinutes, setIntervalMinutes] = useState(5);
+  const [sendPacingMode, setSendPacingMode] =
+    useState<PromoterSendPacingMode>(SEND_PACING_MODE_FIXED);
+  const [itemsPerInterval, setItemsPerInterval] = useState(1);
+  const [intervalVariation, setIntervalVariation] =
+    useState<PromoterIntervalVariation>(INTERVAL_VARIATION_MEDIUM);
+  const [pacingVariationHelpOpen, setPacingVariationHelpOpen] = useState(false);
   const [startAt, setStartAt] = useState("");
   const [endAt, setEndAt] = useState("");
   const [overflowStartAt, setOverflowStartAt] = useState("");
   const [listCoupon, setListCoupon] = useState("");
+  const [offerFooterMessage, setOfferFooterMessage] = useState("");
+  const [whatsappMediaMode, setWhatsappMediaMode] =
+    useState<PromoterWhatsappMediaMode>(WHATSAPP_MEDIA_MODE_IMAGE);
   const [items, setItems] = useState<ListItem[]>([]);
   const [selectedItemIndex, setSelectedItemIndex] = useState<number | null>(null);
   const [itemsDialogOpen, setItemsDialogOpen] = useState(false);
@@ -916,6 +1022,16 @@ export default function PromoterListsScreen({
     let current = new Date(start);
     const total = Math.max(1, batch.itemsCount);
     const interval = Math.max(1, batch.intervalMinutes);
+    const payload = batch.payload ?? {};
+    const pacingMode = normalizeSendPacingMode(
+      batch.sendPacingMode ?? payload.sendPacingMode
+    );
+    const pacingItems = normalizeItemsPerInterval(
+      batch.itemsPerInterval ?? payload.itemsPerInterval
+    );
+    const pacingVariation = normalizeIntervalVariation(
+      batch.intervalVariation ?? payload.intervalVariation
+    );
 
     const currentStartSource = () => {
       if (!overflowWindowStarted) return start;
@@ -953,7 +1069,16 @@ export default function PromoterListsScreen({
     };
 
     for (let i = 1; i < total; i++) {
-      const candidate = new Date(current.getTime() + interval * 60 * 1000);
+      const candidate = new Date(
+        current.getTime() +
+          buildPacingDelayMs({
+            intervalMinutes: interval,
+            sendPacingMode: pacingMode,
+            itemsPerInterval: pacingItems,
+            intervalVariation: pacingVariation,
+            stepIndex: i,
+          })
+      );
       if (!end) {
         current = candidate;
         continue;
@@ -1053,6 +1178,9 @@ export default function PromoterListsScreen({
       sessionName: null,
       groupId: null,
     intervalMinutes: 5,
+    sendPacingMode: SEND_PACING_MODE_FIXED,
+    itemsPerInterval: 1,
+    intervalVariation: INTERVAL_VARIATION_MEDIUM,
     windowStartTime: null,
     windowEndTime: null,
     allowExtraCredits: false,
@@ -1066,6 +1194,8 @@ export default function PromoterListsScreen({
       listCoupon: "",
       singleLinkCoupon: "",
     },
+    offerFooterMessage: "",
+    whatsappMediaMode: WHATSAPP_MEDIA_MODE_IMAGE,
   });
 
   const resolveShopeeQueryValue = ({
@@ -1143,6 +1273,9 @@ export default function PromoterListsScreen({
         typeof draft.intervalMinutes === "number" && Number.isFinite(draft.intervalMinutes)
           ? draft.intervalMinutes
           : 5,
+      sendPacingMode: normalizeSendPacingMode(draft.sendPacingMode),
+      itemsPerInterval: normalizeItemsPerInterval(draft.itemsPerInterval),
+      intervalVariation: normalizeIntervalVariation(draft.intervalVariation),
       windowStartTime: draft.windowStartTime || null,
       windowEndTime: draft.windowEndTime || null,
       allowExtraCredits: draft.allowExtraCredits === true,
@@ -1184,6 +1317,8 @@ export default function PromoterListsScreen({
             : null,
         shopeePreset: typeof metadata.shopeePreset === "string" ? metadata.shopeePreset : "",
       },
+      offerFooterMessage: normalizeOfferFooterMessage(draft.offerFooterMessage),
+      whatsappMediaMode: normalizeWhatsappMediaMode(draft.whatsappMediaMode),
     });
   };
 
@@ -1201,6 +1336,9 @@ export default function PromoterListsScreen({
         ? draft.intervalMinutes
         : 5
     );
+    setSendPacingMode(normalizeSendPacingMode(draft?.sendPacingMode));
+    setItemsPerInterval(normalizeItemsPerInterval(draft?.itemsPerInterval));
+    setIntervalVariation(normalizeIntervalVariation(draft?.intervalVariation));
     setStartAt(draft?.startAt || "");
     setEndAt(draft?.endAt || "");
     setOverflowStartAt(draft?.overflowStartAt || "");
@@ -1249,6 +1387,12 @@ export default function PromoterListsScreen({
     );
     setCustomLinksInput(typeof metadata.customLinksInput === "string" ? metadata.customLinksInput : "");
     setListCoupon(typeof metadata.listCoupon === "string" ? metadata.listCoupon : "");
+    setOfferFooterMessage(
+      normalizeOfferFooterMessage(
+        draft?.offerFooterMessage ?? metadata.offerFooterMessage
+      )
+    );
+    setWhatsappMediaMode(normalizeWhatsappMediaMode(draft?.whatsappMediaMode));
     setShopeeQuery(
       resolveShopeeQueryValue({
         itemSourceMode: draft?.itemSourceMode,
@@ -1328,6 +1472,15 @@ export default function PromoterListsScreen({
             typeof status.intervalMinutes === "number"
               ? status.intervalMinutes
               : currentSnapshot.intervalMinutes,
+          sendPacingMode: normalizeSendPacingMode(
+            status.sendPacingMode ?? currentSnapshot.sendPacingMode
+          ),
+          itemsPerInterval: normalizeItemsPerInterval(
+            status.itemsPerInterval ?? currentSnapshot.itemsPerInterval
+          ),
+          intervalVariation: normalizeIntervalVariation(
+            status.intervalVariation ?? currentSnapshot.intervalVariation
+          ),
           windowStartTime: status.windowStartTime || currentSnapshot.windowStartTime || null,
           windowEndTime: status.windowEndTime || currentSnapshot.windowEndTime || null,
           allowExtraCredits: status.allowExtraCredits === true,
@@ -1358,6 +1511,9 @@ export default function PromoterListsScreen({
     }
     setAutomationWindowStartTime(status.windowStartTime || "08:00:00");
     setAutomationWindowEndTime(status.windowEndTime || "20:00:00");
+    setSendPacingMode(normalizeSendPacingMode(status.sendPacingMode));
+    setItemsPerInterval(normalizeItemsPerInterval(status.itemsPerInterval));
+    setIntervalVariation(normalizeIntervalVariation(status.intervalVariation));
     setAllowExtraCredits(status.allowExtraCredits === true);
 
     setActiveDraftSnapshot((prev) =>
@@ -1373,6 +1529,15 @@ export default function PromoterListsScreen({
               typeof status.intervalMinutes === "number"
                 ? status.intervalMinutes
                 : prev.intervalMinutes,
+            sendPacingMode: normalizeSendPacingMode(
+              status.sendPacingMode ?? prev.sendPacingMode
+            ),
+            itemsPerInterval: normalizeItemsPerInterval(
+              status.itemsPerInterval ?? prev.itemsPerInterval
+            ),
+            intervalVariation: normalizeIntervalVariation(
+              status.intervalVariation ?? prev.intervalVariation
+            ),
             windowStartTime: status.windowStartTime || prev.windowStartTime || null,
             windowEndTime: status.windowEndTime || prev.windowEndTime || null,
             allowExtraCredits: status.allowExtraCredits === true,
@@ -1622,10 +1787,14 @@ export default function PromoterListsScreen({
       shopeeIsAMSOffer,
       shopeePreset,
     };
+    const normalizedOfferFooterMessage =
+      normalizeOfferFooterMessage(offerFooterMessage);
 
     const draft: PromoterListDraft = {
       ...baseDraft,
       title: title.trim(),
+      offerFooterMessage: normalizedOfferFooterMessage,
+      whatsappMediaMode,
       listStatus: "draft",
       sourceTab,
       listMode,
@@ -1645,6 +1814,9 @@ export default function PromoterListsScreen({
       sessionName: selectedAccount?.sessionName || baseDraft.sessionName || null,
       groupId: selectedGroupId || baseDraft.groupId || null,
       intervalMinutes,
+      sendPacingMode,
+      itemsPerInterval,
+      intervalVariation,
       windowStartTime: automationWindowStartTime || null,
       windowEndTime: automationWindowEndTime || null,
       allowExtraCredits,
@@ -1711,6 +1883,9 @@ export default function PromoterListsScreen({
     selectedAccount?.sessionName,
     selectedGroupId,
     intervalMinutes,
+    sendPacingMode,
+    itemsPerInterval,
+    intervalVariation,
     automationWindowStartTime,
     automationWindowEndTime,
     allowExtraCredits,
@@ -1724,6 +1899,8 @@ export default function PromoterListsScreen({
     singleLinkCoupon,
     customLinksInput,
     listCoupon,
+    offerFooterMessage,
+    whatsappMediaMode,
     shopeeQuery,
     shopeeLimit,
     shopeeSortType,
@@ -1837,6 +2014,146 @@ export default function PromoterListsScreen({
   const formatIntervalLabel = (minutes: number) =>
     minutes >= 60 ? `${Math.floor(minutes / 60)}h` : `${minutes}m`;
 
+  const formatVariationLabel = (value: PromoterIntervalVariation) => {
+    if (value === INTERVAL_VARIATION_LOW) return "Leve";
+    if (value === INTERVAL_VARIATION_HIGH) return "Alta";
+    return "Média";
+  };
+
+  const formatPacingLabel = ({
+    sendPacingMode: mode,
+    itemsPerInterval: perInterval,
+    intervalVariation: variation,
+  }: {
+    sendPacingMode?: unknown;
+    itemsPerInterval?: unknown;
+    intervalVariation?: unknown;
+  }) => {
+    const normalizedMode = normalizeSendPacingMode(mode);
+    const normalizedItems = normalizeItemsPerInterval(perInterval);
+    if (normalizedMode !== SEND_PACING_MODE_VARIABLE || normalizedItems <= 1) {
+      return "Ritmo fixo";
+    }
+    return `Ritmo variável: até ${normalizedItems}/intervalo (${formatVariationLabel(
+      normalizeIntervalVariation(variation)
+    ).toLowerCase()})`;
+  };
+
+  const renderPacingControls = (disabled = false) => {
+    const isVariable = sendPacingMode === SEND_PACING_MODE_VARIABLE;
+    const setMode = (mode: PromoterSendPacingMode) => {
+      setSendPacingMode(mode);
+      if (mode === SEND_PACING_MODE_FIXED) {
+        setItemsPerInterval(1);
+      } else if (normalizeItemsPerInterval(itemsPerInterval) <= 1) {
+        setItemsPerInterval(2);
+      }
+    };
+
+    return (
+      <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3">
+        <div className="text-xs font-medium text-slate-700">Ritmo de envio</div>
+        <div className="flex flex-wrap items-center gap-2">
+          {[
+            { value: SEND_PACING_MODE_FIXED, label: "Intervalo fixo" },
+            { value: SEND_PACING_MODE_VARIABLE, label: "Ritmo variável" },
+          ].map((option) => {
+            const selected = sendPacingMode === option.value;
+            return (
+              <Button
+                key={option.value}
+                type="button"
+                size="sm"
+                variant={selected ? "default" : "outline"}
+                disabled={disabled}
+                onClick={() => setMode(option.value)}
+                className={
+                  selected
+                    ? "!border-slate-900 !bg-slate-900 !text-white hover:!bg-slate-800 hover:!text-white"
+                    : "text-foreground"
+                }
+              >
+                {option.label}
+              </Button>
+            );
+          })}
+        </div>
+        {isVariable ? (
+          <>
+            <div className="space-y-1">
+              <div className="text-xs text-muted-foreground">
+                Ofertas dentro de cada intervalo
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {[2, 3, 4, 5].map((count) => (
+                  <Button
+                    key={count}
+                    type="button"
+                    size="sm"
+                    variant={itemsPerInterval === count ? "default" : "outline"}
+                    disabled={disabled}
+                    onClick={() => setItemsPerInterval(count)}
+                    className={
+                      itemsPerInterval === count
+                        ? "!border-slate-900 !bg-slate-900 !text-white hover:!bg-slate-800 hover:!text-white"
+                        : "text-foreground"
+                    }
+                  >
+                    {count}
+                  </Button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <span>Variação dos horários</span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                  onClick={() => setPacingVariationHelpOpen(true)}
+                  aria-label="Explicar variação dos horários"
+                  title="Explicar variação dos horários"
+                >
+                  <CircleHelp className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  INTERVAL_VARIATION_LOW,
+                  INTERVAL_VARIATION_MEDIUM,
+                  INTERVAL_VARIATION_HIGH,
+                ].map((variation) => (
+                  <Button
+                    key={variation}
+                    type="button"
+                    size="sm"
+                    variant={intervalVariation === variation ? "default" : "outline"}
+                    disabled={disabled}
+                    onClick={() => setIntervalVariation(variation)}
+                    className={
+                      intervalVariation === variation
+                        ? "!border-slate-900 !bg-slate-900 !text-white hover:!bg-slate-800 hover:!text-white"
+                        : "text-foreground"
+                    }
+                  >
+                    {formatVariationLabel(variation)}
+                  </Button>
+                ))}
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Envia até {itemsPerInterval} oferta(s) espalhada(s) dentro do
+              intervalo. Leve oscila pouco, média equilibra e alta deixa os
+              horários mais irregulares.
+            </p>
+          </>
+        ) : null}
+      </div>
+    );
+  };
+
   const calculateScheduledGroupEstimatedEnd = (group: ScheduledGroup) => {
     if (!group.startAt || items.length <= 0) return null;
     const start = new Date(group.startAt);
@@ -1844,6 +2161,13 @@ export default function PromoterListsScreen({
 
     const total = Math.max(1, items.length);
     const interval = Math.max(1, group.intervalMinutes || intervalMinutes || 1);
+    const pacingMode = normalizeSendPacingMode(group.sendPacingMode ?? sendPacingMode);
+    const pacingItems = normalizeItemsPerInterval(
+      group.itemsPerInterval ?? itemsPerInterval
+    );
+    const pacingVariation = normalizeIntervalVariation(
+      group.intervalVariation ?? intervalVariation
+    );
     const end = group.endAt ? new Date(group.endAt) : null;
     const overflow = group.overflowStartAt ? new Date(group.overflowStartAt) : null;
     const defaultOverflowStart = buildDefaultOverflowStartForDay(start);
@@ -1870,7 +2194,16 @@ export default function PromoterListsScreen({
     };
 
     for (let i = 1; i < total; i++) {
-      const candidate = new Date(current.getTime() + interval * 60 * 1000);
+      const candidate = new Date(
+        current.getTime() +
+          buildPacingDelayMs({
+            intervalMinutes: interval,
+            sendPacingMode: pacingMode,
+            itemsPerInterval: pacingItems,
+            intervalVariation: pacingVariation,
+            stepIndex: i,
+          })
+      );
       if (!end) {
         current = candidate;
         continue;
@@ -1957,25 +2290,40 @@ export default function PromoterListsScreen({
   const buildScheduledItemPayload = (item: ListItem) => {
     const itemCoupon = getItemCoupon(item);
     const appliedCoupon = itemCoupon || normalizePromoterCoupon(listCoupon);
+    const normalizedOfferFooterMessage =
+      normalizeOfferFooterMessage(offerFooterMessage);
+    const withOfferFooterPayload = (payload?: Record<string, unknown>) => ({
+      ...(payload ?? {}),
+      whatsappMediaMode,
+      ...(normalizedOfferFooterMessage
+        ? { offerFooterMessage: normalizedOfferFooterMessage }
+        : {}),
+    });
 
     if (itemCoupon) {
-      return withPromoterCouponPayload(item.payload, itemCoupon, {
-        source: "item",
-        hasSpecificCoupon: true,
-      });
+      return withOfferFooterPayload(
+        withPromoterCouponPayload(item.payload, itemCoupon, {
+          source: "item",
+          hasSpecificCoupon: true,
+        })
+      );
     }
 
     if (appliedCoupon) {
-      return withPromoterCouponPayload(item.payload, appliedCoupon, {
-        source: "list",
-        hasSpecificCoupon: false,
-      });
+      return withOfferFooterPayload(
+        withPromoterCouponPayload(item.payload, appliedCoupon, {
+          source: "list",
+          hasSpecificCoupon: false,
+        })
+      );
     }
 
-    return withPromoterCouponPayload(item.payload, "", {
-      source: "item",
-      hasSpecificCoupon: true,
-    });
+    return withOfferFooterPayload(
+      withPromoterCouponPayload(item.payload, "", {
+        source: "item",
+        hasSpecificCoupon: true,
+      })
+    );
   };
 
   const openQuotaDialog = (params: {
@@ -3052,6 +3400,21 @@ export default function PromoterListsScreen({
     clearSchedulingAfterItemsChange();
   };
 
+  const shuffleItems = () => {
+    if (
+      itemSourceMode !== "manual_queue" ||
+      items.length < 2 ||
+      automationHasStarted ||
+      isAutomaticConfigLocked
+    ) {
+      return;
+    }
+
+    setItems((prev) => shuffleListItems(prev));
+    setSelectedItemIndex(null);
+    setItemsDialogPage(1);
+  };
+
   const renderDraftItemCard = (item: ListItem, idx: number) => {
     const extensionCard = getExtensionPayloadCardData(item.payload);
     const thumb = extensionCard?.imageUrl
@@ -3105,6 +3468,12 @@ export default function PromoterListsScreen({
           )}
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-1.5 mb-1">
+              <Badge
+                variant="outline"
+                className="border-slate-300 bg-white text-slate-700 text-[10px]"
+              >
+                #{idx + 1}
+              </Badge>
               {extensionCard ? (
                 <div className="inline-flex rounded-full bg-amber-100 text-amber-700 text-[10px] font-semibold px-2 py-1">
                   Importado da extensão
@@ -3295,6 +3664,12 @@ export default function PromoterListsScreen({
           )}
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-1.5 mb-1">
+              <Badge
+                variant="outline"
+                className="border-slate-300 bg-white text-slate-700 text-[10px]"
+              >
+                #{idx + 1}
+              </Badge>
               <Badge className="bg-[#EE4D2D] text-white hover:bg-[#EE4D2D] text-[10px]">
                 Shopee
               </Badge>
@@ -3416,6 +3791,9 @@ export default function PromoterListsScreen({
     endAt?: string;
     overflowStartAt?: string;
     intervalMinutes?: number;
+    sendPacingMode?: PromoterSendPacingMode;
+    itemsPerInterval?: number;
+    intervalVariation?: PromoterIntervalVariation;
     sessionName?: string | null;
   }) => {
     const nextGroupId = options?.groupId ?? selectedGroupId;
@@ -3423,6 +3801,15 @@ export default function PromoterListsScreen({
     const nextEndAt = options?.endAt ?? endAt;
     const nextOverflowStartAt = options?.overflowStartAt ?? overflowStartAt;
     const nextIntervalMinutes = options?.intervalMinutes ?? intervalMinutes;
+    const nextSendPacingMode = normalizeSendPacingMode(
+      options?.sendPacingMode ?? sendPacingMode
+    );
+    const nextItemsPerInterval = normalizeItemsPerInterval(
+      options?.itemsPerInterval ?? itemsPerInterval
+    );
+    const nextIntervalVariation = normalizeIntervalVariation(
+      options?.intervalVariation ?? intervalVariation
+    );
     const nextSessionName = options?.sessionName ?? selectedAccount?.sessionName ?? null;
 
     if (!nextGroupId) {
@@ -3507,6 +3894,9 @@ export default function PromoterListsScreen({
       endAt: nextEndAt || undefined,
       overflowStartAt: nextOverflowStartAt || undefined,
       intervalMinutes: nextIntervalMinutes,
+      sendPacingMode: nextSendPacingMode,
+      itemsPerInterval: nextItemsPerInterval,
+      intervalVariation: nextIntervalVariation,
     };
 
     setScheduledGroups((prev) => [...prev, nextGroup]);
@@ -3525,12 +3915,24 @@ export default function PromoterListsScreen({
     endAt?: string;
     overflowStartAt?: string;
     intervalMinutes?: number;
+    sendPacingMode?: PromoterSendPacingMode;
+    itemsPerInterval?: number;
+    intervalVariation?: PromoterIntervalVariation;
   }) => {
     const nextGroupId = options?.groupId ?? selectedTelegramGroupId;
     const nextStartAt = options?.startAt ?? startAt;
     const nextEndAt = options?.endAt ?? endAt;
     const nextOverflowStartAt = options?.overflowStartAt ?? overflowStartAt;
     const nextIntervalMinutes = options?.intervalMinutes ?? intervalMinutes;
+    const nextSendPacingMode = normalizeSendPacingMode(
+      options?.sendPacingMode ?? sendPacingMode
+    );
+    const nextItemsPerInterval = normalizeItemsPerInterval(
+      options?.itemsPerInterval ?? itemsPerInterval
+    );
+    const nextIntervalVariation = normalizeIntervalVariation(
+      options?.intervalVariation ?? intervalVariation
+    );
 
     if (!nextGroupId) {
       showProblemNotice("Selecione um grupo do Telegram para adicionar.");
@@ -3607,6 +4009,9 @@ export default function PromoterListsScreen({
       endAt: nextEndAt || undefined,
       overflowStartAt: nextOverflowStartAt || undefined,
       intervalMinutes: nextIntervalMinutes,
+      sendPacingMode: nextSendPacingMode,
+      itemsPerInterval: nextItemsPerInterval,
+      intervalVariation: nextIntervalVariation,
     };
 
     setScheduledTelegramGroups((prev) => [...prev, nextGroup]);
@@ -3705,9 +4110,14 @@ export default function PromoterListsScreen({
         listMode,
         itemSourceMode,
         intervalMinutes,
+        sendPacingMode,
+        itemsPerInterval,
+        intervalVariation,
         windowStartTime: automationWindowStartTime,
         windowEndTime: automationWindowEndTime,
         allowExtraCredits,
+        offerFooterMessage: normalizeOfferFooterMessage(offerFooterMessage),
+        whatsappMediaMode,
         autoSourceConfig:
           itemSourceMode === "shopee_catalog"
             ? {
@@ -3886,6 +4296,8 @@ export default function PromoterListsScreen({
     id: draft.id,
     documentId: draft.documentId,
     title: draft.title,
+    offerFooterMessage: normalizeOfferFooterMessage(draft.offerFooterMessage),
+    whatsappMediaMode: normalizeWhatsappMediaMode(draft.whatsappMediaMode),
     listStatus: draft.listStatus,
     sourceTab: draft.sourceTab,
     listMode: draft.listMode,
@@ -3896,6 +4308,9 @@ export default function PromoterListsScreen({
     sessionName: draft.sessionName ?? null,
     groupId: draft.groupId ?? null,
     intervalMinutes: draft.intervalMinutes,
+    sendPacingMode: normalizeSendPacingMode(draft.sendPacingMode),
+    itemsPerInterval: normalizeItemsPerInterval(draft.itemsPerInterval),
+    intervalVariation: normalizeIntervalVariation(draft.intervalVariation),
     windowStartTime: draft.windowStartTime ?? null,
     windowEndTime: draft.windowEndTime ?? null,
     allowExtraCredits: draft.allowExtraCredits,
@@ -4103,8 +4518,33 @@ export default function PromoterListsScreen({
       return 0;
     }
     const interval = Math.max(1, intervalMinutes || 1);
-    return Math.floor((endMinutes - startMinutes) / interval) + 1;
-  }, [automationWindowEndTime, automationWindowStartTime, intervalMinutes, isAutomaticList]);
+    const startMs = startMinutes * 60 * 1000;
+    const endMs = endMinutes * 60 * 1000;
+    let currentMs = startMs;
+    let count = 1;
+
+    for (let stepIndex = 1; stepIndex < 10000; stepIndex++) {
+      currentMs += buildPacingDelayMs({
+        intervalMinutes: interval,
+        sendPacingMode,
+        itemsPerInterval,
+        intervalVariation,
+        stepIndex,
+      });
+      if (currentMs > endMs) break;
+      count += 1;
+    }
+
+    return count;
+  }, [
+    automationWindowEndTime,
+    automationWindowStartTime,
+    intervalMinutes,
+    intervalVariation,
+    isAutomaticList,
+    itemsPerInterval,
+    sendPacingMode,
+  ]);
 
   const effectiveAutomationTargetsCount =
     automationDraftTargets.length > 0
@@ -4255,6 +4695,8 @@ export default function PromoterListsScreen({
       setTelegramBatches(latestTelegramBatches);
 
       for (const group of scheduledGroups) {
+        const normalizedOfferFooterMessage =
+          normalizeOfferFooterMessage(offerFooterMessage);
         if (!group.sessionName) {
           throw new Error(
             `Selecione a conta do WhatsApp para o grupo "${group.groupName}".`
@@ -4281,9 +4723,20 @@ export default function PromoterListsScreen({
           groupName: group.groupName,
           sessionName: group.sessionName,
           intervalMinutes: group.intervalMinutes || intervalMinutes || undefined,
+          sendPacingMode: normalizeSendPacingMode(
+            group.sendPacingMode ?? sendPacingMode
+          ),
+          itemsPerInterval: normalizeItemsPerInterval(
+            group.itemsPerInterval ?? itemsPerInterval
+          ),
+          intervalVariation: normalizeIntervalVariation(
+            group.intervalVariation ?? intervalVariation
+          ),
           startAt: group.startAt || undefined,
           endAt: group.endAt || undefined,
           overflowStartAt: group.overflowStartAt || undefined,
+          offerFooterMessage: normalizedOfferFooterMessage || undefined,
+          whatsappMediaMode,
           items: items.map((item) => ({
             link: item.link,
             message: appendPromoterCouponToMessage(
@@ -4296,6 +4749,8 @@ export default function PromoterListsScreen({
       }
 
       for (const group of scheduledTelegramGroups) {
+        const normalizedOfferFooterMessage =
+          normalizeOfferFooterMessage(offerFooterMessage);
         if (
           latestTelegramBatches.some((batch) => {
             if (batch.groupId !== group.groupId || !batch.startAt) return false;
@@ -4326,9 +4781,20 @@ export default function PromoterListsScreen({
           groupId: group.groupId,
           groupName: group.groupName,
           intervalMinutes: group.intervalMinutes || intervalMinutes || undefined,
+          sendPacingMode: normalizeSendPacingMode(
+            group.sendPacingMode ?? sendPacingMode
+          ),
+          itemsPerInterval: normalizeItemsPerInterval(
+            group.itemsPerInterval ?? itemsPerInterval
+          ),
+          intervalVariation: normalizeIntervalVariation(
+            group.intervalVariation ?? intervalVariation
+          ),
           startAt: group.startAt || undefined,
           endAt: group.endAt || undefined,
           overflowStartAt: group.overflowStartAt || undefined,
+          offerFooterMessage: normalizedOfferFooterMessage || undefined,
+          whatsappMediaMode,
           items: items.map((item) => ({
             link: item.link,
             message: appendPromoterCouponToMessage(
@@ -4349,6 +4815,8 @@ export default function PromoterListsScreen({
       setEndAt("");
       setOverflowStartAt("");
       setListCoupon("");
+      setOfferFooterMessage("");
+      setWhatsappMediaMode(WHATSAPP_MEDIA_MODE_IMAGE);
       setCustomLinksInput("");
       setSingleLinkInput("");
       setSingleLinkCoupon("");
@@ -5280,6 +5748,21 @@ export default function PromoterListsScreen({
                     <>
                       <span className="text-xs text-slate-500">Limite {currentItemsLimit}</span>
                       <Button
+                        onClick={shuffleItems}
+                        disabled={
+                          items.length < 2 ||
+                          itemSourceMode !== "manual_queue" ||
+                          automationHasStarted ||
+                          isAutomaticConfigLocked
+                        }
+                        variant="outline"
+                        size="sm"
+                        className="border-slate-300 text-slate-700 hover:bg-slate-50"
+                      >
+                        <Shuffle className="w-3.5 h-3.5 mr-1" />
+                        Embaralhar
+                      </Button>
+                      <Button
                         onClick={() => {
                           setItems([]);
                           setSelectedItemIndex(null);
@@ -5326,6 +5809,13 @@ export default function PromoterListsScreen({
                 </div>
               ) : (
                 <div className="space-y-3">
+                  {automationHasStarted ? (
+                    <Alert className="border-amber-300 bg-amber-50 text-amber-900">
+                      <AlertDescription>
+                        Não é possível embaralhar depois que a lista foi iniciada, mesmo pausada. A ordem dos envios já pode ter sido preparada.
+                      </AlertDescription>
+                    </Alert>
+                  ) : null}
                   <ScrollArea className="h-[360px]">
                     <div className="space-y-2 pr-1">
                       {previewItems.map((item, idx) => renderDraftItemCard(item, idx))}
@@ -5343,6 +5833,56 @@ export default function PromoterListsScreen({
                   ) : null}
                 </div>
               )}
+              <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3">
+                <div>
+                  <div className="text-sm font-medium text-slate-900">
+                    Formato da oferta
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    Escolha se a imagem vai anexada ou se WhatsApp e Telegram devem tentar gerar o preview nativo do link.
+                  </p>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Button
+                    type="button"
+                    variant={
+                      whatsappMediaMode === WHATSAPP_MEDIA_MODE_IMAGE
+                        ? "default"
+                        : "outline"
+                    }
+                    disabled={isAutomaticConfigLocked}
+                    onClick={() => setWhatsappMediaMode(WHATSAPP_MEDIA_MODE_IMAGE)}
+                    className={
+                      whatsappMediaMode === WHATSAPP_MEDIA_MODE_IMAGE
+                        ? "bg-emerald-600 text-white hover:bg-emerald-500"
+                        : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+                    }
+                  >
+                    <ShoppingBag className="mr-2 h-4 w-4" />
+                    Imagem anexada
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={
+                      whatsappMediaMode === WHATSAPP_MEDIA_MODE_LINK_PREVIEW
+                        ? "default"
+                        : "outline"
+                    }
+                    disabled={isAutomaticConfigLocked}
+                    onClick={() =>
+                      setWhatsappMediaMode(WHATSAPP_MEDIA_MODE_LINK_PREVIEW)
+                    }
+                    className={
+                      whatsappMediaMode === WHATSAPP_MEDIA_MODE_LINK_PREVIEW
+                        ? "bg-sky-600 text-white hover:bg-sky-500"
+                        : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+                    }
+                  >
+                    <Link2 className="mr-2 h-4 w-4" />
+                    Preview do link
+                  </Button>
+                </div>
+              </div>
               <PromoterCouponField
                 value={listCoupon}
                 onChange={setListCoupon}
@@ -5351,6 +5891,31 @@ export default function PromoterListsScreen({
                 placeholder="Ex.: CUPOMDALISTA"
                 disabled={items.length === 0 || isAutomaticConfigLocked}
               />
+              <div className="space-y-2">
+                <div>
+                  <div className="text-sm font-medium text-slate-900">
+                    Mensagem fixa no final
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    Esse texto será adicionado ao final de todas as ofertas desta lista.
+                  </p>
+                </div>
+                <Textarea
+                  value={offerFooterMessage}
+                  onChange={(event) =>
+                    setOfferFooterMessage(
+                      event.target.value.slice(0, OFFER_FOOTER_MAX_LENGTH)
+                    )
+                  }
+                  placeholder="Ex.: Entre no nosso grupo para receber mais ofertas todos os dias."
+                  maxLength={OFFER_FOOTER_MAX_LENGTH}
+                  disabled={isAutomaticConfigLocked}
+                  className="min-h-[88px] resize-none"
+                />
+                <div className="text-right text-[11px] text-slate-500">
+                  {offerFooterMessage.length}/{OFFER_FOOTER_MAX_LENGTH}
+                </div>
+              </div>
             </CardContent>
           </Card>
 
@@ -5389,6 +5954,8 @@ export default function PromoterListsScreen({
                       })}
                     </div>
                   </div>
+
+                  {renderPacingControls(isAutomaticConfigLocked)}
 
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                     <TimePickerField
@@ -5842,7 +6409,11 @@ export default function PromoterListsScreen({
                                     <div>Início: {formatDateTime(group.startAt)}</div>
                                     <div>Fim: {endDisplay}</div>
                                     <div className="text-slate-900 font-medium mt-1">
-                                      Intervalo: {formatIntervalLabel(group.intervalMinutes || intervalMinutes)} • Itens: {items.length}
+                                      Intervalo: {formatIntervalLabel(group.intervalMinutes || intervalMinutes)} • Itens: {items.length} • {formatPacingLabel({
+                                        sendPacingMode: group.sendPacingMode ?? sendPacingMode,
+                                        itemsPerInterval: group.itemsPerInterval ?? itemsPerInterval,
+                                        intervalVariation: group.intervalVariation ?? intervalVariation,
+                                      })}
                                     </div>
                                   </div>
                                   <Button
@@ -5871,31 +6442,43 @@ export default function PromoterListsScreen({
                         </div>
                       ) : (
                         <div className="space-y-2">
-                          {scheduledTelegramGroups.map((group, index) => (
-                            <div
-                              key={`${group.groupId}-${group.startAt}-${index}`}
-                              className="rounded-md border border-slate-300 p-3 bg-slate-50"
-                            >
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="text-sm text-slate-800">
-                                  <div className="font-semibold text-slate-900">{group.groupName}</div>
-                                  <div>Início: {formatDateTime(group.startAt)}</div>
-                                  <div>Fim: {group.endAt ? formatDateTime(group.endAt) : "--"}</div>
-                                  <div className="text-slate-900 font-medium mt-1">
-                                    Intervalo: {formatIntervalLabel(group.intervalMinutes || intervalMinutes)} • Itens: {items.length}
+                          {scheduledTelegramGroups.map((group, index) => {
+                            const estimated = calculateScheduledGroupEstimatedEnd(group);
+                            const endDisplay = group.endAt
+                              ? formatDateTime(group.endAt)
+                              : estimated
+                                ? formatDateTime(estimated.toISOString())
+                                : "--";
+                            return (
+                              <div
+                                key={`${group.groupId}-${group.startAt}-${index}`}
+                                className="rounded-md border border-slate-300 p-3 bg-slate-50"
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="text-sm text-slate-800">
+                                    <div className="font-semibold text-slate-900">{group.groupName}</div>
+                                    <div>Início: {formatDateTime(group.startAt)}</div>
+                                    <div>Fim: {endDisplay}</div>
+                                    <div className="text-slate-900 font-medium mt-1">
+                                      Intervalo: {formatIntervalLabel(group.intervalMinutes || intervalMinutes)} • Itens: {items.length} • {formatPacingLabel({
+                                        sendPacingMode: group.sendPacingMode ?? sendPacingMode,
+                                        itemsPerInterval: group.itemsPerInterval ?? itemsPerInterval,
+                                        intervalVariation: group.intervalVariation ?? intervalVariation,
+                                      })}
+                                    </div>
                                   </div>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                    onClick={() => removeScheduledTelegramGroup(index)}
+                                  >
+                                    <Trash2 className="w-4 h-4 text-red-600" />
+                                  </Button>
                                 </div>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                                  onClick={() => removeScheduledTelegramGroup(index)}
-                                >
-                                  <Trash2 className="w-4 h-4 text-red-600" />
-                                </Button>
                               </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       )}
                     </div>
@@ -6440,6 +7023,8 @@ export default function PromoterListsScreen({
                 })}
               </div>
             </div>
+
+            {renderPacingControls(false)}
           </div>
 
           <DialogFooter>
@@ -6635,6 +7220,33 @@ export default function PromoterListsScreen({
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setItemsDialogOpen(false)}>
               Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={pacingVariationHelpOpen}
+        onOpenChange={setPacingVariationHelpOpen}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Como funciona a variação?</DialogTitle>
+            <DialogDescription className="whitespace-pre-line">
+              {`A variação muda o quanto os horários ficam diferentes.
+
+Exemplo: se você escolher 10 minutos e 3 ofertas por intervalo, o sistema espalha essas 3 ofertas dentro desses 10 minutos.
+
+Leve: fica mais regular, como 3min, 6min e 10min.
+Média: varia um pouco mais, como 2min, 6min e 9min.
+Alta: fica mais irregular, como 1min, 5min e 10min.
+
+Alta parece menos automático, mas ainda respeita a janela de envio.`}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => setPacingVariationHelpOpen(false)}>
+              Entendi
             </Button>
           </DialogFooter>
         </DialogContent>

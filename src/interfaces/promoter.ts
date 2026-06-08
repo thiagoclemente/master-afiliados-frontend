@@ -15,6 +15,9 @@ export interface PromoterPreview {
 
 export type PromoterListMode = "manual" | "automatic_window";
 export type PromoterItemSourceMode = "manual_queue" | "shopee_catalog";
+export type PromoterWhatsappMediaMode = "image" | "link_preview";
+export type PromoterSendPacingMode = "fixed" | "variable";
+export type PromoterIntervalVariation = "low" | "medium" | "high";
 export type PromoterAutomationState =
   | "inactive"
   | "active"
@@ -135,6 +138,9 @@ export interface PromoterListDraftGroup {
   endAt?: string;
   overflowStartAt?: string;
   intervalMinutes?: number;
+  sendPacingMode?: PromoterSendPacingMode;
+  itemsPerInterval?: number;
+  intervalVariation?: PromoterIntervalVariation;
   overflowDayStarts?: string[];
   overflowDayEnds?: string[];
 }
@@ -146,6 +152,9 @@ export interface PromoterScheduledTelegramGroup {
   endAt?: string;
   overflowStartAt?: string;
   intervalMinutes?: number;
+  sendPacingMode?: PromoterSendPacingMode;
+  itemsPerInterval?: number;
+  intervalVariation?: PromoterIntervalVariation;
   overflowDayStarts?: string[];
   overflowDayEnds?: string[];
 }
@@ -154,6 +163,8 @@ export interface PromoterListDraft {
   id?: number;
   documentId?: string;
   title?: string;
+  offerFooterMessage?: string | null;
+  whatsappMediaMode?: PromoterWhatsappMediaMode | null;
   listStatus?: string;
   sourceTab?: "custom" | "shopee";
   listMode?: PromoterListMode;
@@ -164,6 +175,9 @@ export interface PromoterListDraft {
   sessionName?: string | null;
   groupId?: string | null;
   intervalMinutes?: number;
+  sendPacingMode?: PromoterSendPacingMode;
+  itemsPerInterval?: number;
+  intervalVariation?: PromoterIntervalVariation;
   windowStartTime?: string | null;
   windowEndTime?: string | null;
   allowExtraCredits?: boolean;
@@ -190,6 +204,9 @@ export interface PromoterAutomationStatusResponse {
   automationHasStarted: boolean;
   automationEnabled: boolean;
   intervalMinutes?: number | null;
+  sendPacingMode?: PromoterSendPacingMode | null;
+  itemsPerInterval?: number | null;
+  intervalVariation?: PromoterIntervalVariation | null;
   windowStartTime?: string | null;
   windowEndTime?: string | null;
   allowExtraCredits?: boolean;
@@ -237,6 +254,9 @@ export interface WhatsAppBatch {
   sessionName?: string | null;
   status: string;
   intervalMinutes?: number | null;
+  sendPacingMode?: PromoterSendPacingMode | null;
+  itemsPerInterval?: number | null;
+  intervalVariation?: PromoterIntervalVariation | null;
   itemsCount?: number | null;
   startAt?: string | null;
   endAt?: string | null;
@@ -268,6 +288,9 @@ export interface TelegramBatch {
   status?: string;
   statusBatch?: string;
   intervalMinutes?: number | null;
+  sendPacingMode?: PromoterSendPacingMode | null;
+  itemsPerInterval?: number | null;
+  intervalVariation?: PromoterIntervalVariation | null;
   itemsCount?: number | null;
   startAt?: string | null;
   endAt?: string | null;

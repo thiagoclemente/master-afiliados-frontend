@@ -4,8 +4,11 @@ import type {
   PromoterAutomationStatusResponse,
   PromoterAutomationTargetInput,
   PromoterHistoryItem,
+  PromoterIntervalVariation,
   PromoterListDraft,
   PromoterPreview,
+  PromoterSendPacingMode,
+  PromoterWhatsappMediaMode,
   TelegramBatch,
   TelegramGroup,
   WhatsAppBatch,
@@ -386,10 +389,15 @@ export async function scheduleWhatsappList(payload: {
   groupName: string;
   sessionName: string;
   intervalMinutes?: number;
+  sendPacingMode?: PromoterSendPacingMode;
+  itemsPerInterval?: number;
+  intervalVariation?: PromoterIntervalVariation;
   startAt?: string;
   endAt?: string;
   overflowStartAt?: string;
   overflowDayStarts?: string[];
+  offerFooterMessage?: string;
+  whatsappMediaMode?: PromoterWhatsappMediaMode;
   items: { link: string; message?: string; payload?: Record<string, unknown> }[];
 }): Promise<void> {
   await request("/api/whatsapp/campaigns/list", {
@@ -487,10 +495,15 @@ export async function scheduleTelegramList(payload: {
   groupId: string;
   groupName: string;
   intervalMinutes?: number;
+  sendPacingMode?: PromoterSendPacingMode;
+  itemsPerInterval?: number;
+  intervalVariation?: PromoterIntervalVariation;
   startAt?: string;
   endAt?: string;
   overflowStartAt?: string;
   overflowDayStarts?: string[];
+  offerFooterMessage?: string;
+  whatsappMediaMode?: PromoterWhatsappMediaMode;
   items: { link: string; message?: string; payload?: Record<string, unknown> }[];
 }): Promise<void> {
   await request("/api/telegram/campaigns/list", {
